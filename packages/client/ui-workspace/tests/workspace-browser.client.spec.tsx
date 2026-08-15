@@ -384,7 +384,18 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: '在“alpha”中新建会话' }))
     expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: true })
     expect(screen.getByText('alpha-s')).toBeTruthy()
-    expect(startSession).toHaveBeenCalledWith(wid('alpha'))
+    expect(startSession).toHaveBeenCalledWith(wid('alpha'), { forceNew: true })
+  })
+
+  it('focuses a Workspace on header click without minting', () => {
+    const startSession = vi.fn()
+    mount({
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+      startSession,
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    expect(startSession).toHaveBeenCalledWith(wid('alpha'), { preferExisting: true })
   })
 
   it('auto-expands the Ungrouped bucket for a loose current session; its header has no menu and its ＋ is inert', () => {

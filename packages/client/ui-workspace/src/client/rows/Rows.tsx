@@ -95,6 +95,11 @@ function rowHalf(e: { clientY: number; currentTarget: HTMLElement }): 'before' |
   return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
 }
 
+/** Row action buttons must not start an HTML5 drag — that cancels their click. */
+function isRowActionTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('button') !== null
+}
+
 /**
  * Project (workspace) header row: folder + title;
  * hover reveals the chevron and create button, and dwelling on a real
@@ -136,6 +141,10 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, t }: 
       onDragStart={drag === undefined
         ? undefined
         : (e) => {
+          if (isRowActionTarget(e.target)) {
+            e.preventDefault()
+            return
+          }
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', row.key)
           drag.start()
@@ -171,6 +180,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, t }: 
             anchor={(
               <button
                 type="button"
+                draggable={false}
                 className={css.iconButton}
                 aria-label={t('actions.workspace.aria', { name: label })}
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
@@ -182,6 +192,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, t }: 
         )}
         <button
           type="button"
+          draggable={false}
           className={css.iconButton}
           aria-label={t('actions.newSession.aria', { name: label })}
           onClick={(e) => { e.stopPropagation(); onCreate() }}
@@ -398,6 +409,10 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       onDragStart={drag === undefined
         ? undefined
         : (e) => {
+          if (isRowActionTarget(e.target)) {
+            e.preventDefault()
+            return
+          }
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', node.id)
           drag.start()
@@ -450,6 +465,7 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
             anchor={(
               <button
                 type="button"
+                draggable={false}
                 className={css.iconButton}
                 aria-label={t('actions.session.aria', { name: title })}
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}

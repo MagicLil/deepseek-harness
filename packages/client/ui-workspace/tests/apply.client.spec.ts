@@ -83,9 +83,13 @@ describe('ui-workspace apply', () => {
     const browser = (b.slots.entries('sidebar.workspaces')[0]!.inject as () => WorkspaceBrowserInjected)()
     // Both arms delegate to the runtime's shared New Session action.
     browser.startSession('ws' as never)
-    expect(b.startSession).toHaveBeenCalledWith('ws')
+    expect(b.startSession).toHaveBeenCalledWith('ws', undefined)
     browser.startSession()
-    expect(b.startSession).toHaveBeenLastCalledWith(undefined)
+    expect(b.startSession).toHaveBeenLastCalledWith(undefined, undefined)
+    browser.startSession('ws' as never, { preferExisting: true })
+    expect(b.startSession).toHaveBeenLastCalledWith('ws', { preferExisting: true })
+    browser.startSession('ws' as never, { forceNew: true })
+    expect(b.startSession).toHaveBeenLastCalledWith('ws', { forceNew: true })
     browser.open('session' as never)
     expect(b.open).toHaveBeenCalledWith('session')
     const signal = new AbortController().signal

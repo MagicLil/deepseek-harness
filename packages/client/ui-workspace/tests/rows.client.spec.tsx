@@ -128,6 +128,32 @@ describe('workspace browser rows', () => {
     expect(onToggle).toHaveBeenCalledOnce()
   })
 
+  it('create and menu buttons do not start a workspace-row drag', () => {
+    const start = vi.fn()
+    const onCreate = vi.fn()
+    const group: GroupNode = {
+      key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
+      sessionCount: 0, expanded: true, containsCurrent: false, sessions: [],
+    }
+    render(
+      <ProjectRowItem
+        group={group} onToggle={vi.fn()} onCreate={onCreate}
+        actions={{ rename: vi.fn(), delete: vi.fn() }}
+        drag={{ start, end: vi.fn() }}
+        t={t}
+      />,
+    )
+    const create = screen.getByRole('button', { name: '在“Project”中新建会话' })
+    const menu = screen.getByRole('button', { name: '工作区“Project”的操作' })
+    fireEvent.dragStart(create, { dataTransfer })
+    fireEvent.dragStart(menu, { dataTransfer })
+    expect(start).not.toHaveBeenCalled()
+    fireEvent.dragStart(screen.getByRole('treeitem'), { dataTransfer })
+    expect(start).toHaveBeenCalledOnce()
+    fireEvent.click(create)
+    expect(onCreate).toHaveBeenCalledOnce()
+  })
+
   it('renders and opens a selected running Session row', () => {
     const node: SessionNode = {
       id: sid('session'), title: 'Session', blank: false, running: true,
@@ -482,6 +508,8 @@ describe('workspace browser rows', () => {
     stubRect(row)
     expect(row.getAttribute('draggable')).toBe('true')
     fireEvent.dragStart(row, { dataTransfer })
+    expect(inactive.start).toHaveBeenCalledOnce()
+    fireEvent.dragStart(screen.getByRole('button', { name: '会话“Drag me”的操作' }), { dataTransfer })
     expect(inactive.start).toHaveBeenCalledOnce()
     // Inactive drag: hover and drop are rejected.
     fireEvent.dragOver(row, { dataTransfer })

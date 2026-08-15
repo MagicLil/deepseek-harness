@@ -70,7 +70,7 @@ export function apply(ctx: ClientContext): void {
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits
     // the current Session Workspace before the recent-Workspace fallback.
-    startSession: (workspaceId) => { ctx.workspaces.startSession(workspaceId) },
+    startSession: (workspaceId, opts) => { ctx.workspaces.startSession(workspaceId, opts) },
     open: (sessionId) => { ctx.sessions.open(sessionId) },
     searchSessions,
     searchResultLimit: ctx.sessions.searchResultLimit,

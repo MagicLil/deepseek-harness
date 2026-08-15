@@ -95,7 +95,7 @@ export type WorkspaceBrowserInjected = DirectoryPickingInjected & {
    * open it; without an explicit workspace, inherit the current Session
    * Workspace, then the recent Workspace, or clear into the New Session view.
    */
-  startSession: (workspaceId?: WorkspaceId) => void
+  startSession: (workspaceId?: WorkspaceId, opts?: { preferExisting?: boolean; forceNew?: boolean }) => void
   /** Open a real Session. */
   open: (sessionId: SessionId) => void
   /**

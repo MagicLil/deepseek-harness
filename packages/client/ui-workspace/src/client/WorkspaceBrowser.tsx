@@ -452,6 +452,9 @@ function SessionTree({
                 group={group}
                 t={t}
                 onToggle={() => {
+                  if (group.workspaceId !== undefined) {
+                    startSession(group.workspaceId, { preferExisting: true })
+                  }
                   if (group.expanded) {
                     setExpandedSessionGroups(keys => keys.filter(key => key !== group.key))
                   }
@@ -460,7 +463,7 @@ function SessionTree({
                 onCreate={() => {
                   if (group.workspaceId !== undefined) {
                     setGroupExpanded(group.key, true)
-                    startSession(group.workspaceId)
+                    startSession(group.workspaceId, { forceNew: true })
                   }
                 }}
                 drag={workspaceDragProps}
@@ -1077,9 +1080,8 @@ export function WorkspaceBrowser({
           renderDirectoryFlow={owner => renderSlot('sidebar.workspaces.directoryFlow', owner)}
           addOnly
           side="right"
-          onPick={(workspaceId) => {
+          onPick={() => {
             setWsPickerOpen(false)
-            startSession(workspaceId)
           }}
           onClose={() => { setWsPickerOpen(false) }}
         />
