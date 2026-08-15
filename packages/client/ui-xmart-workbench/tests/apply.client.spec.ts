@@ -227,7 +227,7 @@ describe('ui-xmart-workbench apply', () => {
     await binaryEl.props.openSystem('/p/a.bin')
     explorerEl.props.mentionFile('/ws/a.ts')
     expect(b.setDraft).toHaveBeenCalledWith('hello /ws/a.ts ')
-    const conversation = b.ctx.get('conversation') as {
+    const conversation = b.ctx.get('conversation') as unknown as {
       input: { for: () => { setDraft: typeof b.setDraft; state: { getSnapshot: () => { draft: string } } } }
     }
     conversation.input.for = () => ({
@@ -248,10 +248,11 @@ describe('ui-xmart-workbench apply', () => {
       tab: { id: 'e2', type: 'explorer', title: '资源管理器' }, visible: true, sessionId: 'missing',
     }) as { props: { mentionFile: (path: string) => void } }
     missingEl.props.mentionFile('/ws/a.ts')
-    const def = b.conversationEvents.register.mock.calls[0]?.[0] as {
-      start: (ctx: unknown, match: unknown) => unknown
+    const registered = b.conversationEvents.register.mock.calls[0] as unknown as [{
+      start: (ctx: unknown, match: unknown, reader?: unknown) => unknown
       update: (ctx: { state: unknown }, match: unknown) => unknown
-    }
+    }]
+    const def = registered[0]
     const started = def.start({}, {
       event: { type: 'turn/start', data: { turn: 1 } },
     })
@@ -263,7 +264,8 @@ describe('ui-xmart-workbench apply', () => {
       event: { type: 'tool/call', seq: 2, data: { name: 'write', arguments: '{"path":"/ws/old.ts"}' } },
     })
     const viewer = service.getFileViewers()[0]?.component
-    expect(typeof viewer === 'function' ? viewer({}) : viewer).toBeNull()
+    const renderViewer = viewer as ((props: Record<string, never>) => unknown) | undefined
+    expect(typeof renderViewer === 'function' ? renderViewer({}) : renderViewer).toBeNull()
     service.openFile('/p/a.ts', { sessionId: 's1' })
     service.openFile('/p/a.png', { sessionId: 's1' })
     service.openFile('/p/a.bin', { sessionId: 's1' }, new Uint8Array([0, 1, 2]))

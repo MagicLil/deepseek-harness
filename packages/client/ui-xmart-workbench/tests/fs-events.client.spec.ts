@@ -30,10 +30,10 @@ describe('createWorkbenchFsDefinition', () => {
     expect(def.match({ type: 'tool/call', data: { turn: 2 } } as never)?.role).toBe('update')
     expect(def.match({ type: 'tool/result', data: {}, surfaceOp: 'append' } as never)?.role).toBe('update')
     expect(def.match({ type: 'message', data: {} } as never)).toBeNull()
-    expect(() => def.start({} as never, { event: { type: 'tool/call', data: {} } } as never)).toThrow(
+    expect(() => def.start({} as never, { event: { type: 'tool/call', data: {} } } as never, {} as never)).toThrow(
       'workbench-fs start requires turn/start',
     )
-    const state = def.start({} as never, { event: { type: 'turn/start', data: { turn: 1 } } } as never)
+    const state = def.start({} as never, { event: { type: 'turn/start', data: { turn: 1 } } } as never, {} as never)
     expect(state.turn).toBe(1)
     const same = def.update({ state } as never, { event: { type: 'tool/result', data: {} } } as never)
     expect(same).toBe(state)

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { GitAccessError } from '@deepseek-ai/dsh-client-runtime/client'
+import { GitAccessError, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { ExplorerTab, createParent, menuAnchorRect } from '../src/client/ExplorerTab.tsx'
@@ -171,7 +171,7 @@ describe('ExplorerTab', () => {
     await act(async () => { await Promise.resolve() })
     expect(screen.getByTestId('xmart-workbench-explorer')).toBeTruthy()
     cleanup()
-    let settle: (value: unknown) => void = () => {}
+    let settle: (value: GitStatus) => void = () => {}
     const view = render(
       <ExplorerTab
         tab={{ id: 'ex', type: 'explorer', title: '资源管理器' }}
@@ -181,7 +181,7 @@ describe('ExplorerTab', () => {
         getCwd={() => '/ws'}
         watchSessions={() => () => {}}
         listEntries={async () => ({ path: '/ws', entries: [], truncated: false })}
-        gitStatus={() => new Promise((resolve) => { settle = resolve })}
+        gitStatus={() => new Promise<GitStatus>((resolve) => { settle = resolve })}
         writeFile={async () => {}}
         createDirectory={async () => '/ws/n'}
         openSystem={async () => {}}
