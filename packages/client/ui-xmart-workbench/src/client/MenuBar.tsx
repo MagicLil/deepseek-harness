@@ -11,15 +11,6 @@ import css from './MenuBar.module.css'
 
 type MenuId = 'file' | 'edit' | 'view' | 'terminal' | 'help'
 
-const EDIT_COMMANDS: Record<string, string> = {
-  undo: 'undo',
-  redo: 'redo',
-  cut: 'cut',
-  copy: 'copy',
-  paste: 'paste',
-  selectAll: 'selectAll',
-}
-
 /** Full-width product menu (see module doc). */
 export function MenuBar({
   run,
@@ -119,8 +110,7 @@ export function MenuBar({
         ]}
         onSelect={(id) => {
           close()
-          const command = EDIT_COMMANDS[id]
-          if (command !== undefined) document.execCommand(command)
+          document.execCommand(id)
         }}
         onClose={close}
       />
