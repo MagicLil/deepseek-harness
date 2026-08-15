@@ -184,6 +184,7 @@ export class LocalPtySession implements TerminalBackendSession {
   private closing = false
   private closePromise: Promise<void> | undefined
   private transportFailure: Error | undefined
+  private readonly outputListeners = new Set<(delta: string) => void>()
 
   constructor(
     private readonly terminal: SubprocessTerminalHandle,
@@ -255,6 +256,37 @@ export class LocalPtySession implements TerminalBackendSession {
     }, this.config.timeoutMs)
     void this.beginSend(operation, request)
     return operation
+  }
+
+  /**
+   * UI keystroke path: write without the exclusive send / idle wait.
+   * @param data - UTF-8 text including control characters.
+   */
+  async write(data: string): Promise<void> {
+    if (this.closing) throw new Error('PTY session is closing')
+    if (this.statusValue.kind === 'exited') throw new Error('PTY session has exited')
+    if (data.length === 0) return
+    await this.terminal.write(data)
+  }
+
+  /**
+   * UI FitAddon path: change winsize.
+   * @param cols - columns.
+   * @param rows - rows.
+   */
+  resize(cols: number, rows: number): void {
+    if (this.closing || this.statusValue.kind === 'exited') return
+    this.terminal.resize(cols, rows)
+  }
+
+  /**
+   * Feed xterm with raw decoded output (before model sanitization).
+   * @param listener - delta consumer.
+   * @returns disposer.
+   */
+  subscribeOutput(listener: (delta: string) => void): () => void {
+    this.outputListeners.add(listener)
+    return () => { this.outputListeners.delete(listener) }
   }
 
   private async beginSend(operation: LocalSendOperation, request: TerminalSendRequest): Promise<void> {
@@ -378,6 +410,9 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   private onData(data: string): void {
+    if (data.length > 0) {
+      for (const listener of this.outputListeners) listener(data)
+    }
     const sanitized = this.sanitizer.push(data)
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {

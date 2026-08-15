@@ -328,13 +328,17 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the connected session id.',
       },
       {
-        signature: 'startSession(workspaceId?: WorkspaceId): void',
-        description: 'The New Session flow: connect the explicit, current-Session, or recent Workspace and open the resulting session; failures surface on the session list state.',
-        parameters: [{ name: 'workspaceId', description: 'explicit target; omitted inherits the current Session\'s Workspace before falling back to the recency projection.' }],
+        signature: 'startSession(workspaceId?: WorkspaceId, opts?: { preferExisting?: boolean; forceNew?: boolean }): void',
+        description: 'The New Session flow: connect the explicit, current-Session, or recent Workspace and open the resulting session; failures surface on the session list state. When the connected session is already current, a fresh session is minted so the New Session button is never a no-op.',
+        parameters: [
+          { name: 'workspaceId', description: 'explicit target; omitted inherits the current Session\'s Workspace before falling back to the recency projection.' },
+          { name: 'opts.preferExisting', description: 'when true, return immediately if the current session already belongs to the target Workspace; otherwise open the connected session without minting a second blank.' },
+          { name: 'opts.forceNew', description: 'when true, always mint a session on the target Workspace and open it (the per-project New Session button).' },
+        ],
       },
       {
         signature: 'create(input: { path: string }): Promise<WorkspaceView>',
-        description: 'Register an existing path as a Workspace.',
+        description: 'Register an existing path as a Workspace, then start that Workspace with preferExisting so Git and the composer follow the folder.',
         parameters: [{ name: 'input', description: 'the Host create payload.' }],
         returns: 'the created or idempotently resolved Workspace.',
       },

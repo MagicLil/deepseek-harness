@@ -1,7 +1,8 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  GitStatus, GitSyncMode,
   IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { workspaceListState } from './fixtures.ts'
@@ -65,10 +66,14 @@ export class TestWorkspaces implements IWorkspaces {
   /**
    * New-session flow (recorded; stubbed behavior runs when installed).
    * @param workspaceId - optional explicit workspace target.
+   * @param opts - optional New Session flags (`preferExisting` focuses without minting).
    */
-  startSession(workspaceId?: WorkspaceId): void {
-    this.calls.push({ method: 'startSession', args: [workspaceId] })
-    this.stubs.get('startSession')?.(workspaceId)
+  startSession(workspaceId?: WorkspaceId, opts?: { preferExisting?: boolean; forceNew?: boolean }): void {
+    this.calls.push({
+      method: 'startSession',
+      args: opts === undefined ? [workspaceId] : [workspaceId, opts],
+    })
+    this.stubs.get('startSession')?.(workspaceId, opts)
   }
 
   /**
@@ -220,6 +225,20 @@ export class TestWorkspaces implements IWorkspaces {
   }
 
   /**
+   * Commit unified diff (recorded). Default empty worktree diff.
+   * @param path - workspace path.
+   * @param commit - commit hash.
+   * @param signal - forwarded abort.
+   * @returns the stub diff.
+   */
+  async gitCommitDiff(path: string, commit: string, signal?: AbortSignal): Promise<GitDiff> {
+    this.calls.push({ method: 'gitCommitDiff', args: [path, commit, signal] })
+    const stub = this.stubs.get('gitCommitDiff')
+    if (stub !== undefined) return await (stub(path, commit, signal) as Promise<GitDiff>)
+    return { root: path, side: 'worktree', text: '' }
+  }
+
+  /**
    * Stage paths (recorded; default no-op).
    * @param path - workspace path.
    * @param files - repository-relative paths.
@@ -278,6 +297,72 @@ export class TestWorkspaces implements IWorkspaces {
     const stub = this.stubs.get('gitLog')
     if (stub !== undefined) return await (stub(path, limit, signal) as Promise<GitLogEntry[]>)
     return []
+  }
+
+  /**
+   * Remote sync (recorded; default no-op).
+   * @param path - workspace path.
+   * @param mode - remote verb.
+   * @param signal - forwarded abort.
+   */
+  async gitSync(path: string, mode: GitSyncMode, signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitSync', args: [path, mode, signal] })
+    await (this.stubs.get('gitSync')?.(path, mode, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Local branches (recorded). Default empty list.
+   * @param path - workspace path.
+   * @param signal - forwarded abort.
+   * @returns stub branches.
+   */
+  async gitBranches(path: string, signal?: AbortSignal): Promise<GitBranch[]> {
+    this.calls.push({ method: 'gitBranches', args: [path, signal] })
+    const stub = this.stubs.get('gitBranches')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<GitBranch[]>)
+    return []
+  }
+
+  /**
+   * Switch or create a branch (recorded; default no-op).
+   * @param path - workspace path.
+   * @param name - branch name.
+   * @param create - when true, create the branch.
+   * @param signal - forwarded abort.
+   */
+  async gitCheckout(path: string, name: string, create?: boolean, signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitCheckout', args: [path, name, create, signal] })
+    await (this.stubs.get('gitCheckout')?.(path, name, create, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Detach HEAD at a commit (recorded; default no-op).
+   * @param path - workspace path.
+   * @param hash - commit hash.
+   * @param signal - forwarded abort.
+   */
+  async gitCheckoutCommit(path: string, hash: string, signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitCheckoutCommit', args: [path, hash, signal] })
+    await (this.stubs.get('gitCheckoutCommit')?.(path, hash, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Suggest a commit message (recorded). Default a fixed subject.
+   * @param path - workspace path.
+   * @param sessionId - session id.
+   * @param signal - forwarded abort.
+   */
+  async gitSuggestCommit(
+    path: string,
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<{ message: string }> {
+    this.calls.push({ method: 'gitSuggestCommit', args: [path, sessionId, signal] })
+    const stub = this.stubs.get('gitSuggestCommit')
+    if (stub !== undefined) {
+      return await (stub(path, sessionId, signal) as Promise<{ message: string }>)
+    }
+    return { message: 'chore: generated' }
   }
 
   /**

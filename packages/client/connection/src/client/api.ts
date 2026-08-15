@@ -8,8 +8,8 @@
 export type {
   ApiProxy, SessionsApi, SessionSearchItem, SessionSummary, PromptContentPart, HostApi, EventsApi, MuxFrame, HostFrame,
   ApprovalResponsePayload, QuestionResponsePayload, HistoryEntry, ToolEventView,
-  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitChange, GitCommitResult,
-  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitStatus,
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitStatus, GitSyncMode,
   ResponseValue, WorkspaceApi, WorkspaceId, WorkspaceView,
   SkillsApi, SkillEntry,
   ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning,

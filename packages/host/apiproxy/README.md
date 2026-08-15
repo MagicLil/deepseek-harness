@@ -66,11 +66,19 @@ The `settings.*`, `credentials.*`, and `llm.*` domains are the configuration-pag
 
 ## Model Experience
 
-None, as the package defines the client↔host wire contract and carriers; nothing here reaches a model request.
+### Auxiliary commit-message request
+
+#### What the model sees
+
+`host.gitSuggestCommit` sends a fixed system instruction asking for only a conventional-commit message, plus one user message that lists recent subjects and the staged `git diff --cached` text. The exact system, prompt, route, and `maxTokens` are appended as `session/git-commit-llm-request` before dispatch.
+
+#### Token effect
+
+The call is an independent auxiliary request. The framed prompt is capped at 24576 UTF-8 bytes and output at 256 tokens. `purpose: 'session-title'` disables DeepSeek thinking so the budget stays on the message. The result is not appended to agent history.
 
 #### KV Cache effect
 
-None; this package neither assembles nor sends a provider request.
+No main-request invalidation. The auxiliary call does not share the conversation prefix. The fixed system instruction is reusable; the staged diff changes every click.
 
 ## Known Limitations and Deferred Work
 

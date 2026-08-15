@@ -90,6 +90,18 @@ function scriptedApi(overrides: {
       gitCommit: r => ok(r, { root: '/t', hash: 'deadbeef' }),
       gitDiscard: r => ok(r, { root: '/t' }),
       gitLog: r => ok(r, []),
+      gitSync: r => ok(r, { root: '/t' }),
+      gitBranches: r => ok(r, { root: '/t', branches: [] }),
+      gitCheckout: r => ok(r, { root: '/t', name: r.payload.name }),
+      gitSuggestCommit: r => ok(r, { message: 'chore: generated' }),
+      terminalList: r => ok(r, { available: false, sessions: [] }),
+      terminalOpen: r => ok(r, { id: 'pty-1', motd: '', status: { kind: 'running' as const } }),
+      terminalSend: r => ok(r, {
+        viewport: '', waitReason: 'inferred_idle' as const, truncated: false, status: { kind: 'running' as const },
+      }),
+      terminalRead: r => ok(r, { text: '' }),
+      terminalSignal: r => ok(r, { delivered: true }),
+      terminalKill: r => ok(r, { closed: true }),
       ...overrides.host,
     },
     workspace: {

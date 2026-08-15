@@ -19,14 +19,29 @@ describe('parseGitPorcelain', () => {
       behind: 2,
       detached: false,
       changes: [
-        { path: 'src/a.ts', status: 'modified' },
-        { path: 'src/b.ts', status: 'added' },
-        { path: 'src/c.ts', status: 'deleted' },
-        { path: 'new.md', status: 'untracked' },
-        { path: 'renamed.ts', status: 'renamed' },
-        { path: 'conflict.ts', status: 'conflict' },
+        { path: 'src/a.ts', status: 'modified', area: 'worktree' },
+        { path: 'src/b.ts', status: 'added', area: 'index' },
+        { path: 'src/c.ts', status: 'deleted', area: 'index' },
+        { path: 'new.md', status: 'untracked', area: 'worktree' },
+        { path: 'renamed.ts', status: 'renamed', area: 'index' },
+        { path: 'conflict.ts', status: 'conflict', area: 'worktree' },
       ],
     })
+  })
+
+  it('emits both index and worktree rows for MM and skips empty paths', () => {
+    const status = parseGitPorcelain('/repo', [
+      '## main',
+      'MM both.ts',
+      ' C copied.ts',
+      'M  ',
+      'xx',
+    ].join('\n'))
+    expect(status.changes).toEqual([
+      { path: 'both.ts', status: 'modified', area: 'index' },
+      { path: 'both.ts', status: 'modified', area: 'worktree' },
+      { path: 'copied.ts', status: 'renamed', area: 'worktree' },
+    ])
   })
 
   it('marks a detached HEAD', () => {

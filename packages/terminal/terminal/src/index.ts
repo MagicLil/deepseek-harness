@@ -58,6 +58,8 @@ export type TerminalErrorCode =
   | 'FOREIGN_SESSION'
   | 'NO_BACKEND'
   | 'NO_SESSION'
+  | 'NO_WRITE'
+  | 'NO_RESIZE'
   | 'OWNER_NOT_LIVE'
   | 'SEND_ACTIVE'
   | 'SERVICE_DISPOSING'
@@ -173,6 +175,8 @@ export class TerminalSessionService extends Service {
         type: request.type,
         ...request.name !== undefined ? { name: request.name } : {},
         ...request.cwd !== undefined ? { cwd: request.cwd } : {},
+        ...request.cols !== undefined ? { cols: request.cols } : {},
+        ...request.rows !== undefined ? { rows: request.rows } : {},
         signal: backendSignal,
       })
       signal?.throwIfAborted()
@@ -251,6 +255,54 @@ export class TerminalSessionService extends Service {
       () => { record.active = undefined },
     )
     return operation
+  }
+
+  /**
+   * Write stdin without taking the exclusive send slot (UI keystrokes).
+   * @param owner - exact session owner.
+   * @param id - target PTY identity.
+   * @param data - UTF-8 text (may include control characters).
+   */
+  async write(owner: Agent, id: TerminalSessionId, data: string): Promise<void> {
+    const record = this.expectOwned(owner, id)
+    if (record.closing !== undefined) throw new Error(`PTY session ${id} is closing`)
+    if (record.session.write === undefined) {
+      throw new TerminalError(`PTY session ${id} does not support raw write`, 'NO_WRITE')
+    }
+    await record.session.write(data)
+  }
+
+  /**
+   * Resize one owned session's winsize.
+   * @param owner - exact session owner.
+   * @param id - target PTY identity.
+   * @param cols - columns.
+   * @param rows - rows.
+   */
+  resize(owner: Agent, id: TerminalSessionId, cols: number, rows: number): void {
+    const record = this.expectOwned(owner, id)
+    if (record.closing !== undefined) throw new Error(`PTY session ${id} is closing`)
+    if (record.session.resize === undefined) {
+      throw new TerminalError(`PTY session ${id} does not support resize`, 'NO_RESIZE')
+    }
+    record.session.resize(cols, rows)
+  }
+
+  /**
+   * Subscribe to raw output for one owned session (UI xterm feed).
+   * @param owner - exact session owner.
+   * @param id - target PTY identity.
+   * @param listener - called with each decoded delta.
+   * @returns disposer.
+   */
+  subscribeOutput(
+    owner: Agent,
+    id: TerminalSessionId,
+    listener: (delta: string) => void,
+  ): () => void {
+    const record = this.expectOwned(owner, id)
+    if (record.session.subscribeOutput === undefined) return () => {}
+    return record.session.subscribeOutput(listener)
   }
 
   /**

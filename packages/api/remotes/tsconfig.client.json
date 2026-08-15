@@ -8,6 +8,7 @@
   "files": [
     "src/client/index.ts",
     "src/remote-events.ts",
+    "src/terminal-events.ts",
     "src/types.ts"
   ],
   "references": [
@@ -38,6 +39,12 @@
     },
     {
       "path": "../../host/marketplace"
+    },
+    {
+      "path": "../../lsp/lsp-vue"
+    },
+    {
+      "path": "../../lsp/lsp-languages"
     },
     {
       "path": "../../interaction/commands"

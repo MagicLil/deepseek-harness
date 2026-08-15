@@ -66,11 +66,19 @@ Workspace 列表与 Session 列表是相互独立的重连基线。`workspace.cr
 
 ## 模型体验
 
-无。该包定义客户端与宿主间的 wire 约定和载体，其中没有任何内容会进入模型请求。
+### 辅助提交说明请求
+
+#### 模型看到的内容
+
+`host.gitSuggestCommit` 会发送一条固定系统指令，要求只返回一条 conventional-commit 说明，外加一条用户消息，列出最近的 subject 和暂存区的 `git diff --cached` 文本。精确的 system、prompt、路由和 `maxTokens` 会在发往模型前记为 `session/git-commit-llm-request`。
+
+#### Token 影响
+
+这是一次独立的辅助请求。封装后的提示词上限是 24576 字节 UTF-8，输出上限是 256 token。`purpose: 'session-title'` 会关掉 DeepSeek 的思考，把额度留给提交说明。结果不会写进 agent（智能体）历史。
 
 #### KV Cache 影响
 
-无；该包既不组装也不发送提供方请求。
+不会使主请求的 KV Cache 失效。辅助调用不共享对话前缀。固定系统指令可复用；暂存 diff 每次点击都会变。
 
 ## 已知限制与暂缓事项
 

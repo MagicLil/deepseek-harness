@@ -126,6 +126,7 @@ export const gitChangeSchema = z.object({
     z.literal('renamed'),
     z.literal('conflict'),
   ]),
+  area: z.union([z.literal('index'), z.literal('worktree')]),
 }) satisfies z.ZodType<Wire<GitChange>>
 
 /** host.gitStatus request payload: any path inside the work tree. */
@@ -158,6 +159,7 @@ export const hostGitDiffRequestSchema = z.object({
   path: z.string().min(1),
   side: z.union([z.literal('worktree'), z.literal('staged')]),
   file: gitRelPath.optional(),
+  commit: z.string().regex(/^[0-9a-f]{7,40}$/i).optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'host.gitDiff'>>>
 
 /** host.gitDiff response value. */
@@ -206,4 +208,194 @@ export const hostGitLogValueSchema = z.array(z.object({
   subject: z.string(),
   author: z.string(),
   timestamp: z.number(),
+  parents: z.array(z.string()).optional(),
+  refs: z.array(z.object({
+    kind: z.union([
+      z.literal('head'), z.literal('branch'), z.literal('remote'), z.literal('tag'),
+    ]),
+    name: z.string(),
+  })).optional(),
 })) satisfies z.ZodType<Wire<ResponseValue<'host.gitLog'>>>
+
+const gitBranchName = z.string().min(1).max(200).refine(
+  value => (
+    /^(?!-)[A-Za-z0-9._/-]+$/.test(value)
+    && !value.includes('..')
+    && !value.includes('@{')
+    && !value.endsWith('/')
+    && !value.endsWith('.lock')
+  ),
+  { message: 'git branch name is not safe' },
+)
+
+/** host.gitSync request payload. */
+export const hostGitSyncRequestSchema = z.object({
+  path: z.string().min(1),
+  mode: z.union([z.literal('fetch'), z.literal('pull'), z.literal('push')]),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitSync'>>>
+
+/** host.gitBranches request payload. */
+export const hostGitBranchesRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitBranches'>>>
+
+/** host.gitBranches response value. */
+export const hostGitBranchesValueSchema = z.object({
+  root: z.string(),
+  branches: z.array(z.object({
+    name: z.string(),
+    current: z.boolean(),
+    upstream: z.string().optional(),
+  })),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitBranches'>>>
+
+/** host.gitCheckout request payload. */
+export const hostGitCheckoutRequestSchema = z.object({
+  path: z.string().min(1),
+  name: z.string().min(1).max(200),
+  create: z.boolean().optional(),
+  detach: z.boolean().optional(),
+}).refine(
+  value => !(value.detach === true && value.create === true),
+  { message: 'cannot create and detach' },
+).refine(
+  value => value.detach === true
+    ? /^[0-9a-f]{7,40}$/i.test(value.name)
+    : gitBranchName.safeParse(value.name).success,
+  { message: 'git checkout target is not safe' },
+) satisfies z.ZodType<Wire<RequestPayload<'host.gitCheckout'>>>
+
+/** host.gitSuggestCommit request payload. */
+export const hostGitSuggestCommitRequestSchema = z.object({
+  path: z.string().min(1),
+  sessionId: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitSuggestCommit'>>>
+
+/** host.gitSuggestCommit response value. */
+export const hostGitSuggestCommitValueSchema = z.object({
+  message: z.string().min(1),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitSuggestCommit'>>>
+
+/** host.gitCheckout response value. */
+export const hostGitCheckoutValueSchema = z.object({
+  root: z.string(),
+  name: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitCheckout'>>>
+
+const terminalStatusSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('running') }),
+  z.object({
+    kind: z.literal('exited'),
+    exitCode: z.number().nullable(),
+    signal: z.string().nullable(),
+  }),
+])
+
+const terminalSessionId = z.string().min(1)
+
+/** host.terminalList request payload. */
+export const hostTerminalListRequestSchema = z.object({
+  sessionId: terminalSessionId,
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalList'>>>
+
+/** host.terminalList response value. */
+export const hostTerminalListValueSchema = z.object({
+  available: z.boolean(),
+  sessions: z.array(z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    status: terminalStatusSchema,
+  })),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalList'>>>
+
+/** host.terminalOpen request payload. */
+export const hostTerminalOpenRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  name: z.string().min(1).optional(),
+  cwd: z.string().min(1).optional(),
+  cols: z.number().int().min(1).max(512).optional(),
+  rows: z.number().int().min(1).max(512).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalOpen'>>>
+
+/** host.terminalOpen response value. */
+export const hostTerminalOpenValueSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  motd: z.string(),
+  status: terminalStatusSchema,
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalOpen'>>>
+
+/** host.terminalSend request payload. */
+export const hostTerminalSendRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+  text: z.string(),
+  submit: z.boolean(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalSend'>>>
+
+/** host.terminalSend response value. */
+export const hostTerminalSendValueSchema = z.object({
+  viewport: z.string(),
+  waitReason: z.enum(['stdin_read', 'inferred_idle', 'timeout', 'session_exit']),
+  truncated: z.boolean(),
+  status: terminalStatusSchema,
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalSend'>>>
+
+/** host.terminalWrite request payload. */
+export const hostTerminalWriteRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+  data: z.string(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalWrite'>>>
+
+/** host.terminalWrite response value. */
+export const hostTerminalWriteValueSchema = z.object({
+  written: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalWrite'>>>
+
+/** host.terminalResize request payload. */
+export const hostTerminalResizeRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+  cols: z.number().int().min(1).max(512),
+  rows: z.number().int().min(1).max(512),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalResize'>>>
+
+/** host.terminalResize response value. */
+export const hostTerminalResizeValueSchema = z.object({
+  resized: z.literal(true),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalResize'>>>
+
+/** host.terminalRead request payload. */
+export const hostTerminalReadRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalRead'>>>
+
+/** host.terminalRead response value. */
+export const hostTerminalReadValueSchema = z.object({
+  text: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalRead'>>>
+
+/** host.terminalSignal request payload. */
+export const hostTerminalSignalRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+  signal: z.enum(['SIGINT', 'SIGTERM', 'SIGKILL', 'SIGTSTP', 'SIGHUP']),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalSignal'>>>
+
+/** host.terminalSignal response value. */
+export const hostTerminalSignalValueSchema = z.object({
+  delivered: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalSignal'>>>
+
+/** host.terminalKill request payload. */
+export const hostTerminalKillRequestSchema = z.object({
+  sessionId: terminalSessionId,
+  id: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.terminalKill'>>>
+
+/** host.terminalKill response value. */
+export const hostTerminalKillValueSchema = z.object({
+  closed: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.terminalKill'>>>

@@ -7,7 +7,8 @@
  * widening what features may do to the workspaces domain.
  */
 import type {
-  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  GitStatus, GitSyncMode,
   SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
@@ -26,13 +27,20 @@ export interface IWorkspaces {
   /**
    * The New Session flow: connect the explicit, current-Session, or recent
    * Workspace and open the resulting session; failures surface on the session
-   * list state.
+   * list state. When the connected session is already current, a fresh
+   * session is minted so the New Session button is never a no-op.
    * @param workspaceId - explicit target; omitted inherits the current
    * Session's Workspace before falling back to the recency projection.
+   * @param opts.preferExisting - when true, return immediately if the current
+   *   session already belongs to the target Workspace; otherwise open the
+   *   connected session without minting a second blank.
+   * @param opts.forceNew - when true, always mint a session on the target
+   *   Workspace and open it (the per-project New Session button).
    */
-  startSession(workspaceId?: WorkspaceId): void
+  startSession(workspaceId?: WorkspaceId, opts?: { preferExisting?: boolean; forceNew?: boolean }): void
   /**
-   * Register an existing path as a Workspace.
+   * Register an existing path as a Workspace, then start that Workspace
+   * with preferExisting so Git and the composer follow the folder.
    * @param input - the Host create payload.
    * @returns the created or idempotently resolved Workspace.
    */
@@ -98,6 +106,14 @@ export interface IWorkspaces {
    */
   gitDiff(path: string, side: GitDiffSide, file?: string, signal?: AbortSignal): Promise<GitDiff>
   /**
+   * Unified diff for one commit (`git show --first-parent`). Not an agent tool.
+   * @param path - absolute workspace path or any file inside it.
+   * @param commit - commit hash (7–40 hex).
+   * @param signal - aborts the wire request.
+   * @returns the unified diff snapshot.
+   */
+  gitCommitDiff(path: string, commit: string, signal?: AbortSignal): Promise<GitDiff>
+  /**
    * Stage repository-relative paths (`git add`).
    * @param path - absolute workspace path or any file inside it.
    * @param files - repository-relative paths.
@@ -134,6 +150,44 @@ export interface IWorkspaces {
    * @returns log rows newest first.
    */
   gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]>
+  /**
+   * User-initiated fetch / ff-only pull / push. Not an agent tool.
+   * @param path - absolute workspace path or any file inside it.
+   * @param mode - remote verb.
+   * @param signal - aborts the wire request.
+   */
+  gitSync(path: string, mode: GitSyncMode, signal?: AbortSignal): Promise<void>
+  /**
+   * Local branches for the SCM picker.
+   * @param path - absolute workspace path or any file inside it.
+   * @param signal - aborts the wire request.
+   * @returns branch rows.
+   */
+  gitBranches(path: string, signal?: AbortSignal): Promise<GitBranch[]>
+  /**
+   * Switch or create a local branch (`git switch` / `git switch -c`).
+   * @param path - absolute workspace path or any file inside it.
+   * @param name - branch name.
+   * @param create - when true, create the branch.
+   * @param signal - aborts the wire request.
+   */
+  gitCheckout(path: string, name: string, create?: boolean, signal?: AbortSignal): Promise<void>
+  /**
+   * Detach HEAD at a commit (`git switch --detach`). Not an agent tool.
+   * @param path - absolute workspace path or any file inside it.
+   * @param hash - commit hash (7–40 hex).
+   * @param signal - aborts the wire request.
+   */
+  gitCheckoutCommit(path: string, hash: string, signal?: AbortSignal): Promise<void>
+  /**
+   * Ask the session model for a commit message from the staged diff.
+   * The host logs the exact prompt before dispatch. Not an agent tool.
+   * @param path - absolute workspace path or any file inside it.
+   * @param sessionId - session whose model route and log receive the request.
+   * @param signal - aborts the wire request.
+   * @returns the generated commit message.
+   */
+  gitSuggestCommit(path: string, sessionId: string, signal?: AbortSignal): Promise<{ message: string }>
   /**
    * Rename a Workspace.
    * @param workspaceId - target workspace.

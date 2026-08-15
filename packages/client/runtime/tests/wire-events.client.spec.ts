@@ -30,6 +30,9 @@ function forwardedEventContracts(ctx: Context): void {
   })
   ctx.remote.$on('credentials/updated', () => {})
   ctx.remote.$on('commands/change', () => {})
+  ctx.remote.$on('terminals/output', (payload) => {
+    void payload.sessionId; void payload.ptyId; void payload.delta; void payload.truncated
+  })
   ctx.remote.$on('llm/adapters-updated', () => {})
   ctx.remote.$on('agent-preset/selected', (sessionId, agentPreset) => {
     void sessionId; void agentPreset

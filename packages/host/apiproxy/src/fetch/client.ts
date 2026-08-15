@@ -15,8 +15,14 @@ import { rpcReceiptSchema, serverRequestSchema, serverResponseSchema } from '../
 import { hostFrameSchema, muxFrameSchema } from '../api/events.schema.ts'
 import {
   hostCreateDirectoryValueSchema, hostDescribeValueSchema,
+  hostGitBranchesValueSchema, hostGitCheckoutValueSchema,
   hostGitCommitValueSchema, hostGitDiffValueSchema, hostGitLogValueSchema,
   hostGitRootValueSchema, hostGitStatusValueSchema,
+  hostGitSuggestCommitValueSchema,
+  hostTerminalKillValueSchema, hostTerminalListValueSchema,
+  hostTerminalOpenValueSchema, hostTerminalReadValueSchema,
+  hostTerminalResizeValueSchema, hostTerminalSendValueSchema,
+  hostTerminalSignalValueSchema, hostTerminalWriteValueSchema,
   hostListDirectoryValueSchema, hostListEntriesValueSchema,
   hostOpenPathValueSchema, hostPickDirectoryValueSchema,
   hostReadFileValueSchema, hostWriteFileValueSchema,
@@ -125,6 +131,18 @@ export interface IApiClient {
     gitCommit(payload: RequestPayload<'host.gitCommit'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitCommit'>>>
     gitDiscard(payload: RequestPayload<'host.gitDiscard'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitDiscard'>>>
     gitLog(payload: RequestPayload<'host.gitLog'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitLog'>>>
+    gitSync(payload: RequestPayload<'host.gitSync'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitSync'>>>
+    gitBranches(payload: RequestPayload<'host.gitBranches'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitBranches'>>>
+    gitCheckout(payload: RequestPayload<'host.gitCheckout'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitCheckout'>>>
+    gitSuggestCommit(payload: RequestPayload<'host.gitSuggestCommit'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitSuggestCommit'>>>
+    terminalList(payload: RequestPayload<'host.terminalList'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalList'>>>
+    terminalOpen(payload: RequestPayload<'host.terminalOpen'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalOpen'>>>
+    terminalSend(payload: RequestPayload<'host.terminalSend'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalSend'>>>
+    terminalWrite(payload: RequestPayload<'host.terminalWrite'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalWrite'>>>
+    terminalResize(payload: RequestPayload<'host.terminalResize'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalResize'>>>
+    terminalRead(payload: RequestPayload<'host.terminalRead'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalRead'>>>
+    terminalSignal(payload: RequestPayload<'host.terminalSignal'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalSignal'>>>
+    terminalKill(payload: RequestPayload<'host.terminalKill'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.terminalKill'>>>
   }
   workspace: {
     list(payload: RequestPayload<'workspace.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'workspace.list'>>>
@@ -215,6 +233,18 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'host.gitCommit': hostGitCommitValueSchema,
   'host.gitDiscard': hostGitRootValueSchema,
   'host.gitLog': hostGitLogValueSchema,
+  'host.gitSync': hostGitRootValueSchema,
+  'host.gitBranches': hostGitBranchesValueSchema,
+  'host.gitCheckout': hostGitCheckoutValueSchema,
+  'host.gitSuggestCommit': hostGitSuggestCommitValueSchema,
+  'host.terminalList': hostTerminalListValueSchema,
+  'host.terminalOpen': hostTerminalOpenValueSchema,
+  'host.terminalSend': hostTerminalSendValueSchema,
+  'host.terminalWrite': hostTerminalWriteValueSchema,
+  'host.terminalResize': hostTerminalResizeValueSchema,
+  'host.terminalRead': hostTerminalReadValueSchema,
+  'host.terminalSignal': hostTerminalSignalValueSchema,
+  'host.terminalKill': hostTerminalKillValueSchema,
   'workspace.list': workspaceListValueSchema,
   'workspace.create': workspaceCreateValueSchema,
   'workspace.rename': workspaceRenameValueSchema,
@@ -475,6 +505,18 @@ export abstract class AbstractApiClient implements IApiClient {
     gitCommit: (payload, signal) => this.callUnary('host.gitCommit', payload, signal),
     gitDiscard: (payload, signal) => this.callUnary('host.gitDiscard', payload, signal),
     gitLog: (payload, signal) => this.callUnary('host.gitLog', payload, signal),
+    gitSync: (payload, signal) => this.callUnary('host.gitSync', payload, signal),
+    gitBranches: (payload, signal) => this.callUnary('host.gitBranches', payload, signal),
+    gitCheckout: (payload, signal) => this.callUnary('host.gitCheckout', payload, signal),
+    gitSuggestCommit: (payload, signal) => this.callUnary('host.gitSuggestCommit', payload, signal),
+    terminalList: (payload, signal) => this.callUnary('host.terminalList', payload, signal),
+    terminalOpen: (payload, signal) => this.callUnary('host.terminalOpen', payload, signal),
+    terminalSend: (payload, signal) => this.callUnary('host.terminalSend', payload, signal),
+    terminalWrite: (payload, signal) => this.callUnary('host.terminalWrite', payload, signal),
+    terminalResize: (payload, signal) => this.callUnary('host.terminalResize', payload, signal),
+    terminalRead: (payload, signal) => this.callUnary('host.terminalRead', payload, signal),
+    terminalSignal: (payload, signal) => this.callUnary('host.terminalSignal', payload, signal),
+    terminalKill: (payload, signal) => this.callUnary('host.terminalKill', payload, signal),
   }
 
   readonly workspace: IApiClient['workspace'] = {

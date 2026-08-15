@@ -57,12 +57,20 @@ export interface FileListing {
 /** One working-tree change reported by host.gitStatus (Cursor/VS Code SCM row). */
 export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict'
 
+/** Which side of `git status` a change row belongs to (Cursor SCM sections). */
+export type GitChangeArea = 'index' | 'worktree'
+
 /** One changed path relative to the repository root (git's `/` separators). */
 export interface GitChange {
   /** Repository-relative path using `/`. */
   path: string
   /** Collapsed porcelain status the editor tree and SCM list render. */
   status: GitFileStatus
+  /**
+   * `index` = staged (Cursor「暂存的更改」); `worktree` = unstaged / untracked
+   * (「更改」). A dirty file can appear once in each area (`MM`).
+   */
+  area: GitChangeArea
 }
 
 /** Which tree a workbench diff compares. */
@@ -90,6 +98,21 @@ export interface GitLogEntry {
   author: string
   /** Author timestamp as unix seconds. */
   timestamp: number
+  /** Parent hashes (`git log %P`). Omitted when the commit has none. */
+  parents?: string[]
+  /** Refs that currently point at this commit. Omitted when none do. */
+  refs?: GitRef[]
+}
+
+/** Kind of a decorated git ref on a log row. */
+export type GitRefKind = 'head' | 'branch' | 'remote' | 'tag'
+
+/** One branch, remote, tag, or HEAD pointer on a commit. */
+export interface GitRef {
+  /** Ref class. */
+  kind: GitRefKind
+  /** Short name (`main`, `origin/main`, `v1.0`, `HEAD`). */
+  name: string
 }
 
 /** host.gitCommit response. */
@@ -98,6 +121,78 @@ export interface GitCommitResult {
   root: string
   /** New HEAD hash. */
   hash: string
+}
+
+/** User-clicked remote verb. Never exposed as an agent tool. */
+export type GitSyncMode = 'fetch' | 'pull' | 'push'
+
+/** One local branch from `git for-each-ref refs/heads`. */
+export interface GitBranch {
+  /** Short branch name. */
+  name: string
+  /** True when this ref is HEAD. */
+  current: boolean
+  /** Upstream short name when configured. */
+  upstream?: string
+}
+
+/** Signals the UI PTY bridge may deliver to the foreground group. */
+export type TerminalWireSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'SIGTSTP' | 'SIGHUP'
+
+/** Why one line-oriented send returned control. */
+export type TerminalWaitReason = 'stdin_read' | 'inferred_idle' | 'timeout' | 'session_exit'
+
+/** Top-level PTY status on the wire (JSON-safe). */
+export type TerminalSessionStatusWire =
+  | { kind: 'running' }
+  | { kind: 'exited'; exitCode: number | null; signal: string | null }
+
+/** One listed UI PTY. */
+export interface TerminalListRow {
+  /** Host-minted PTY id (`pty-N`). */
+  id: string
+  /** Optional owner-local display name. */
+  name?: string
+  /** Current top-level process status. */
+  status: TerminalSessionStatusWire
+}
+
+/** host.terminalList response. */
+export interface TerminalList {
+  /** False when `ctx.terminals` is not mounted. */
+  available: boolean
+  /** PTYs owned by the session agent. */
+  sessions: TerminalListRow[]
+}
+
+/** host.terminalOpen response. */
+export interface TerminalOpenResult {
+  /** Host-minted PTY id. */
+  id: string
+  /** Optional owner-local display name. */
+  name?: string
+  /** Initial bounded output captured before publication. */
+  motd: string
+  /** Status at publication. */
+  status: TerminalSessionStatusWire
+}
+
+/** host.terminalSend response. */
+export interface TerminalSendResult {
+  /** Bounded rendered delta remaining at settlement. */
+  viewport: string
+  /** Why the wait returned. */
+  waitReason: TerminalWaitReason
+  /** Whether output was dropped from the operation or retained scrollback. */
+  truncated: boolean
+  /** Status at settlement. */
+  status: TerminalSessionStatusWire
+}
+
+/** host.terminalRead response. */
+export interface TerminalReadResult {
+  /** Retained scrollback in chronological order. */
+  text: string
 }
 
 /** host.gitStatus response: branch + working-tree changes for one workspace. */
@@ -223,9 +318,11 @@ export interface HostApi {
   /**
    * Unified diff for one path (or the whole tree). `side: worktree` is
    * unstaged (`git diff`); `side: staged` is the index (`git diff --cached`).
+   * When `commit` is set, the host returns that commit's first-parent
+   * patch and ignores `side`.
    */
   gitDiff(
-    request: RpcRequest<{ path: string; side: GitDiffSide; file?: string }>,
+    request: RpcRequest<{ path: string; side: GitDiffSide; file?: string; commit?: string }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<GitDiff>>
 
@@ -268,4 +365,101 @@ export interface HostApi {
     request: RpcRequest<{ path: string; limit?: number }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<GitLogEntry[]>>
+
+  /**
+   * User-initiated remote sync. `fetch` updates remotes; `pull` is
+   * `--ff-only` only; `push` publishes the current branch (first push may
+   * set `origin` upstream). Never force-pushes and never writes identity.
+   */
+  gitSync(
+    request: RpcRequest<{ path: string; mode: GitSyncMode }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string }>>
+
+  /**
+   * Local branches for the SCM branch picker.
+   */
+  gitBranches(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string; branches: GitBranch[] }>>
+
+  /**
+   * `git switch` / `git switch -c` / `git switch --detach`. `name` is
+   * schema-validated. `detach` checks out a commit hash and leaves HEAD
+   * detached. Never an agent tool.
+   */
+  gitCheckout(
+    request: RpcRequest<{ path: string; name: string; create?: boolean; detach?: boolean }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string; name: string }>>
+
+  /**
+   * Write a commit message from the staged diff via an auxiliary model
+   * call. The exact prompt is appended as `session/git-commit-llm-request`
+   * before dispatch. Never an agent tool.
+   */
+  gitSuggestCommit(
+    request: RpcRequest<{ path: string; sessionId: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ message: string }>>
+
+  /**
+   * List UI PTYs owned by the session agent. `available` is false when
+   * `ctx.terminals` is not mounted.
+   */
+  terminalList(
+    request: RpcRequest<{ sessionId: string }>,
+  ): Promise<RpcResponse<TerminalList>>
+
+  /**
+   * Spawn one UI PTY for the session agent (quota 3).
+   */
+  terminalOpen(
+    request: RpcRequest<{ sessionId: string; name?: string; cwd?: string; cols?: number; rows?: number }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<TerminalOpenResult>>
+
+  /**
+   * Send one exclusive line-oriented write and wait for idle.
+   */
+  terminalSend(
+    request: RpcRequest<{ sessionId: string; id: string; text: string; submit: boolean }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<TerminalSendResult>>
+
+  /**
+   * Fire-and-forget stdin write for xterm keystrokes (no exclusive idle wait).
+   */
+  terminalWrite(
+    request: RpcRequest<{ sessionId: string; id: string; data: string }>,
+  ): Promise<RpcResponse<{ written: true }>>
+
+  /**
+   * Change PTY winsize to match the xterm FitAddon size.
+   */
+  terminalResize(
+    request: RpcRequest<{ sessionId: string; id: string; cols: number; rows: number }>,
+  ): Promise<RpcResponse<{ resized: true }>>
+
+  /**
+   * Read retained scrollback for reconnect replay.
+   */
+  terminalRead(
+    request: RpcRequest<{ sessionId: string; id: string }>,
+  ): Promise<RpcResponse<TerminalReadResult>>
+
+  /**
+   * Deliver an allowed signal to the foreground group.
+   */
+  terminalSignal(
+    request: RpcRequest<{ sessionId: string; id: string; signal: TerminalWireSignal }>,
+  ): Promise<RpcResponse<{ delivered: boolean }>>
+
+  /**
+   * Close one UI PTY.
+   */
+  terminalKill(
+    request: RpcRequest<{ sessionId: string; id: string }>,
+  ): Promise<RpcResponse<{ closed: boolean }>>
 }

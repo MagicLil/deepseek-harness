@@ -8,8 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentFactory } from '@deepseek-ai/dsh-agent'
-import SessionStore from '@deepseek-ai/dsh-session'
-import type { Session } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
@@ -21,7 +20,8 @@ import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/help
 
 const {
   collectGitDiff, collectGitStage, collectGitUnstage, collectGitCommit,
-  collectGitDiscard, collectGitLog,
+  collectGitDiscard, collectGitLog, collectGitSync, collectGitBranches, collectGitCheckout,
+  generateGitCommitMessage,
 } = vi.hoisted(() => ({
   collectGitDiff: vi.fn(),
   collectGitStage: vi.fn(),
@@ -29,6 +29,10 @@ const {
   collectGitCommit: vi.fn(),
   collectGitDiscard: vi.fn(),
   collectGitLog: vi.fn(),
+  collectGitSync: vi.fn(),
+  collectGitBranches: vi.fn(),
+  collectGitCheckout: vi.fn(),
+  generateGitCommitMessage: vi.fn(),
 }))
 
 vi.mock('../src/git-ops.ts', () => ({
@@ -38,7 +42,12 @@ vi.mock('../src/git-ops.ts', () => ({
   collectGitCommit,
   collectGitDiscard,
   collectGitLog,
+  collectGitSync,
+  collectGitBranches,
+  collectGitCheckout,
 }))
+
+vi.mock('../src/git-commit-llm.ts', () => ({ generateGitCommitMessage }))
 
 let nextRpc = 1
 
@@ -118,7 +127,14 @@ async function harness() {
     defaultModelSelection: () => ({ provider: 'test', model: 'test-model' }),
     cwd: root,
   })
-  return { api, root }
+  return { api, root, ctx }
+}
+
+function liveSession(ctx: Context, id: string): SessionId {
+  const sessionId = SessionId(id)
+  const session = ctx.sessions.create(sessionId)
+  ctx.agents.register(stubAgent(session))
+  return sessionId
 }
 
 beforeEach(() => {
@@ -128,6 +144,10 @@ beforeEach(() => {
   collectGitCommit.mockReset()
   collectGitDiscard.mockReset()
   collectGitLog.mockReset()
+  collectGitSync.mockReset()
+  collectGitBranches.mockReset()
+  collectGitCheckout.mockReset()
+  generateGitCommitMessage.mockReset()
 })
 
 describe('host.git* handlers', () => {
@@ -141,14 +161,39 @@ describe('host.git* handlers', () => {
     collectGitCommit.mockResolvedValue({ ok: true, value: { root: '/r', hash: 'abc' } })
     collectGitDiscard.mockResolvedValue({ ok: true, value: { root: '/r' } })
     collectGitLog.mockResolvedValue({ ok: true, value: [] })
+    collectGitSync.mockResolvedValue({ ok: true, value: { root: '/r' } })
+    collectGitBranches.mockResolvedValue({ ok: true, value: { root: '/r', branches: [] } })
+    collectGitCheckout.mockResolvedValue({ ok: true, value: { root: '/r', name: 'feat' } })
     expect(expectOk(await api.host.gitDiff(request({ path: '/r', side: 'worktree' }), new AbortController().signal)))
       .toEqual({ root: '/r', side: 'worktree', text: 'diff' })
+    expect(collectGitDiff).toHaveBeenCalledWith('/r', 'worktree', undefined, expect.any(AbortSignal), undefined)
+    collectGitDiff.mockClear()
+    collectGitDiff.mockResolvedValue({
+      ok: true, value: { root: '/r', side: 'worktree', text: 'commit-diff' },
+    })
+    expect(expectOk(await api.host.gitDiff(
+      request({ path: '/r', side: 'worktree', commit: 'abcdef1' }),
+      new AbortController().signal,
+    ))).toEqual({ root: '/r', side: 'worktree', text: 'commit-diff' })
+    expect(collectGitDiff).toHaveBeenCalledWith('/r', 'worktree', undefined, expect.any(AbortSignal), 'abcdef1')
     expectOk(await api.host.gitStage(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal))
     expectOk(await api.host.gitUnstage(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal))
     expect(expectOk(await api.host.gitCommit(request({ path: '/r', message: 'm' }), new AbortController().signal)))
       .toEqual({ root: '/r', hash: 'abc' })
     expectOk(await api.host.gitDiscard(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal))
     expect(expectOk(await api.host.gitLog(request({ path: '/r' }), new AbortController().signal))).toEqual([])
+    expectOk(await api.host.gitSync(request({ path: '/r', mode: 'fetch' }), new AbortController().signal))
+    expect(expectOk(await api.host.gitBranches(request({ path: '/r' }), new AbortController().signal)))
+      .toEqual({ root: '/r', branches: [] })
+    expect(expectOk(await api.host.gitCheckout(request({ path: '/r', name: 'feat' }), new AbortController().signal)))
+      .toEqual({ root: '/r', name: 'feat' })
+    expect(expectOk(await api.host.gitCheckout(
+      request({ path: '/r', name: 'abcdef1', detach: true }),
+      new AbortController().signal,
+    ))).toEqual({ root: '/r', name: 'feat' })
+    expect(collectGitCheckout).toHaveBeenCalledWith(
+      '/r', 'abcdef1', false, true, expect.any(AbortSignal),
+    )
   })
 
   it('maps git-failed and aborted signals', async () => {
@@ -160,6 +205,9 @@ describe('host.git* handlers', () => {
     collectGitCommit.mockResolvedValue(failed)
     collectGitDiscard.mockResolvedValue(failed)
     collectGitLog.mockResolvedValue(failed)
+    collectGitSync.mockResolvedValue(failed)
+    collectGitBranches.mockResolvedValue(failed)
+    collectGitCheckout.mockResolvedValue(failed)
     expect(expectErr(await api.host.gitDiff(request({ path: '/r', side: 'staged', file: 'a.ts' }), new AbortController().signal)).code)
       .toBe('git-failed')
     expect(expectErr(await api.host.gitStage(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal)).code)
@@ -171,6 +219,12 @@ describe('host.git* handlers', () => {
     expect(expectErr(await api.host.gitDiscard(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal)).code)
       .toBe('git-failed')
     expect(expectErr(await api.host.gitLog(request({ path: '/r', limit: 3 }), new AbortController().signal)).code)
+      .toBe('git-failed')
+    expect(expectErr(await api.host.gitSync(request({ path: '/r', mode: 'pull' }), new AbortController().signal)).code)
+      .toBe('git-failed')
+    expect(expectErr(await api.host.gitBranches(request({ path: '/r' }), new AbortController().signal)).code)
+      .toBe('git-failed')
+    expect(expectErr(await api.host.gitCheckout(request({ path: '/r', name: 'feat', create: true }), new AbortController().signal)).code)
       .toBe('git-failed')
 
     const abort = new AbortController()
@@ -193,5 +247,108 @@ describe('host.git* handlers', () => {
     collectGitLog.mockResolvedValue(failed)
     expect(expectErr(await api.host.gitLog(request({ path: '/r' }), abort.signal)).code)
       .toBe('cancelled')
+    collectGitSync.mockResolvedValue(failed)
+    expect(expectErr(await api.host.gitSync(request({ path: '/r', mode: 'push' }), abort.signal)).code)
+      .toBe('cancelled')
+    collectGitBranches.mockResolvedValue(failed)
+    expect(expectErr(await api.host.gitBranches(request({ path: '/r' }), abort.signal)).code)
+      .toBe('cancelled')
+    collectGitCheckout.mockResolvedValue(failed)
+    expect(expectErr(await api.host.gitCheckout(request({ path: '/r', name: 'feat' }), abort.signal)).code)
+      .toBe('cancelled')
+  })
+
+  it('suggests a commit message from the staged diff', async () => {
+    const { api, ctx } = await harness()
+    const sessionId = liveSession(ctx, 'git-s1')
+    collectGitDiff.mockResolvedValue({
+      ok: true, value: { root: '/r', side: 'staged', text: 'diff --git a' },
+    })
+    collectGitLog.mockResolvedValue({
+      ok: true, value: [{ hash: 'a', subject: 'init', author: 'A', timestamp: 1 }],
+    })
+    generateGitCommitMessage.mockResolvedValue('feat: hello')
+    expect(expectOk(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    ))).toEqual({ message: 'feat: hello' })
+    expect(generateGitCommitMessage).toHaveBeenCalledWith(expect.objectContaining({
+      root: '/r',
+      stagedDiff: 'diff --git a',
+      recentSubjects: ['init'],
+      provider: 'test',
+      model: 'test-model',
+    }))
+
+    collectGitLog.mockResolvedValue({ ok: false, code: 'git-failed', message: 'no log' })
+    generateGitCommitMessage.mockResolvedValue('chore: still')
+    expect(expectOk(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    )).message).toBe('chore: still')
+    expect(generateGitCommitMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      recentSubjects: [],
+    }))
+  })
+
+  it('maps suggest-commit failures', async () => {
+    const { api, ctx } = await harness()
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId: 'missing' }),
+      new AbortController().signal,
+    )).code).toBe('session-not-found')
+
+    const sessionId = liveSession(ctx, 'git-s2')
+    collectGitDiff.mockResolvedValue({ ok: false, code: 'git-failed', message: 'boom' })
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    )).code).toBe('git-failed')
+    const abort = new AbortController()
+    abort.abort()
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      abort.signal,
+    )).code).toBe('cancelled')
+
+    collectGitDiff.mockResolvedValue({
+      ok: true, value: { root: '/r', side: 'staged', text: '   ' },
+    })
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    ))).toMatchObject({ code: 'git-failed', message: 'nothing staged' })
+
+    collectGitDiff.mockResolvedValue({
+      ok: true, value: { root: '/r', side: 'staged', text: 'diff' },
+    })
+    collectGitLog.mockResolvedValue({ ok: true, value: [] })
+    generateGitCommitMessage.mockRejectedValue(new Error('nothing staged'))
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    ))).toMatchObject({ code: 'git-failed', message: 'nothing staged' })
+    generateGitCommitMessage.mockRejectedValue(new Error('no model'))
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    ))).toMatchObject({ code: 'model-unavailable', message: 'no model' })
+    generateGitCommitMessage.mockRejectedValue(new Error('late abort'))
+    const late = new AbortController()
+    late.abort()
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      late.signal,
+    )).code).toBe('cancelled')
+  })
+
+  it('refuses suggest-commit when no adapter serves the session model', async () => {
+    const { api, ctx } = await harness()
+    const sessionId = liveSession(ctx, 'git-s3')
+    ctx.provide('llm', { listProviders: () => [] } as never)
+    expect(expectErr(await api.host.gitSuggestCommit(
+      request({ path: '/r', sessionId }),
+      new AbortController().signal,
+    )).code).toBe('model-unavailable')
   })
 })

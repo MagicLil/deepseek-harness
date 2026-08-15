@@ -81,6 +81,18 @@
     - id: marketplace
       name: '@deepseek-ai/dsh-host-marketplace'
 
+    - id: lsp
+      name: '@deepseek-ai/dsh-lsp'
+
+    - id: lsp-vue
+      name: '@deepseek-ai/dsh-lsp-vue'
+
+    - id: lsp-languages
+      name: '@deepseek-ai/dsh-lsp-languages'
+
+    - id: tool-lsp
+      name: '@deepseek-ai/dsh-tool-lsp'
+
     - id: api-gateway
       name: '@deepseek-ai/dsh-host-apiproxy'
 

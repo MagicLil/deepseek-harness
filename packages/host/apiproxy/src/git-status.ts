@@ -41,8 +41,7 @@ export function parseGitPorcelain(root: string, stdout: string): GitStatus {
   const { branch, ahead, behind, detached } = parseBranchHeader(header)
   const changes: GitChange[] = []
   for (const line of lines.slice(header.startsWith('##') ? 1 : 0)) {
-    const change = parseChangeLine(line)
-    if (change !== undefined) changes.push(change)
+    changes.push(...parseChangeLine(line))
   }
   return { root, branch, ahead, behind, detached, changes }
 }
@@ -61,14 +60,33 @@ function parseBranchHeader(header: string): Pick<GitStatus, 'branch' | 'ahead' |
   return { branch: name, ahead, behind, detached: false }
 }
 
-function parseChangeLine(line: string): GitChange | undefined {
-  if (line.length < 4) return undefined
+function parseChangeLine(line: string): GitChange[] {
+  if (line.length < 4) return []
   const index = line[0] ?? ' '
   const worktree = line[1] ?? ' '
   const rest = line.slice(3)
   const path = renameTarget(rest)
-  if (path === '') return undefined
-  return { path, status: collapseStatus(index, worktree) }
+  if (path === '') return []
+  const pair = `${index}${worktree}`
+  if (pair.includes('U') || pair === 'AA' || pair === 'DD') {
+    return [{ path, status: 'conflict', area: 'worktree' }]
+  }
+  if (pair === '??') return [{ path, status: 'untracked', area: 'worktree' }]
+  const rows: GitChange[] = []
+  if (index !== ' ' && index !== '?') {
+    rows.push({ path, status: letterStatus(index), area: 'index' })
+  }
+  if (worktree !== ' ' && worktree !== '?') {
+    rows.push({ path, status: letterStatus(worktree), area: 'worktree' })
+  }
+  return rows
+}
+
+function letterStatus(code: string): GitFileStatus {
+  if (code === 'R' || code === 'C') return 'renamed'
+  if (code === 'A') return 'added'
+  if (code === 'D') return 'deleted'
+  return 'modified'
 }
 
 function renameTarget(rest: string): string {
@@ -82,16 +100,6 @@ function unquote(value: string): string {
     return value.slice(1, -1).replaceAll('\\"', '"')
   }
   return value
-}
-
-function collapseStatus(index: string, worktree: string): GitFileStatus {
-  const pair = `${index}${worktree}`
-  if (pair.includes('U') || pair === 'AA' || pair === 'DD') return 'conflict'
-  if (pair === '??') return 'untracked'
-  if (index === 'R' || worktree === 'R') return 'renamed'
-  if (index === 'A' || worktree === 'A') return 'added'
-  if (index === 'D' || worktree === 'D') return 'deleted'
-  return 'modified'
 }
 
 /** Classified result of one `git` child process. */
@@ -121,11 +129,16 @@ export async function resolveGitRoot(path: string, signal?: AbortSignal): Promis
  * Spawn `git` with the given args. Callers own the `-C` root.
  * @param args - argv after `git`.
  * @param signal - aborts the child process.
+ * @param timeoutMs - child timeout (remote verbs pass a longer budget).
  */
-export async function runGit(args: string[], signal?: AbortSignal): Promise<GitRunResult> {
+export async function runGit(
+  args: string[],
+  signal?: AbortSignal,
+  timeoutMs = GIT_TIMEOUT_MS,
+): Promise<GitRunResult> {
   try {
     const { stdout } = await execFileAsync('git', args, {
-      timeout: GIT_TIMEOUT_MS,
+      timeout: timeoutMs,
       maxBuffer: GIT_MAX_BUFFER,
       windowsHide: true,
       signal,

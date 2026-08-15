@@ -56,7 +56,7 @@ function childEnvironment(spec: TerminalBackendSpawnSpec): Record<string, string
   // The subprocess provider supplies its own scrubbed ambient base; these are
   // deliberate terminal-specific overrides layered after it.
   return {
-    TERM: 'dumb',
+    TERM: 'xterm-256color',
     PAGER: 'cat',
     GIT_PAGER: 'cat',
     PS1: CONTROLLED_PROMPT,
@@ -126,8 +126,8 @@ export class BashTerminalBackend implements TerminalBackend {
       argv,
       cwd: spec.cwd ?? policy.workspaceRoot,
       env: childEnvironment(spec),
-      rows: this.config.rows,
-      cols: this.config.cols,
+      rows: spec.rows ?? this.config.rows,
+      cols: spec.cols ?? this.config.cols,
       graceMs: this.config.disposeGraceMs,
       signal: spec.signal,
     })

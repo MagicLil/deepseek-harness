@@ -17,10 +17,12 @@ import {
 import {
   hostCreateDirectoryRequestSchema, hostCreateDirectoryValueSchema,
   hostDescribeRequestSchema, hostDescribeValueSchema,
+  hostGitCheckoutRequestSchema, hostGitCheckoutValueSchema,
   hostGitCommitRequestSchema, hostGitCommitValueSchema,
   hostGitDiffRequestSchema, hostGitDiffValueSchema,
   hostGitDiscardRequestSchema, hostGitLogRequestSchema, hostGitLogValueSchema,
-  hostGitStageRequestSchema, hostGitUnstageRequestSchema, hostGitRootValueSchema,
+  hostGitStageRequestSchema, hostGitSuggestCommitRequestSchema, hostGitSuggestCommitValueSchema,
+  hostGitUnstageRequestSchema, hostGitRootValueSchema,
   hostListDirectoryRequestSchema, hostListDirectoryValueSchema,
 } from '../src/api/host.schema.ts'
 import {
@@ -352,6 +354,10 @@ describe('host domain schemas', () => {
       path: '/ws', side: 'worktree',
     })
     expect(hostGitDiffRequestSchema.parse({ path: '/ws', side: 'staged', file: 'a.ts' }).file).toBe('a.ts')
+    expect(hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', commit: 'abcdef1' }).commit)
+      .toBe('abcdef1')
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', commit: 'HEAD' })).toThrow()
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', commit: 'abc' })).toThrow()
     expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'staged', file: '/abs' })).toThrow()
     expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', file: '\\abs' })).toThrow()
     expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', file: '..\\x' })).toThrow()
@@ -374,6 +380,32 @@ describe('host domain schemas', () => {
     expect(hostGitLogValueSchema.parse([{
       hash: 'abc', subject: 's', author: 'a', timestamp: 1,
     }])).toEqual([{ hash: 'abc', subject: 's', author: 'a', timestamp: 1 }])
+    expect(hostGitLogValueSchema.parse([{
+      hash: 'mrg', subject: 'merge', author: 'a', timestamp: 2, parents: ['abc', 'def'],
+    }])[0]?.parents).toEqual(['abc', 'def'])
+    expect(hostGitLogValueSchema.parse([{
+      hash: 'abc', subject: 's', author: 'a', timestamp: 1,
+      refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'branch', name: 'main' }],
+    }])[0]?.refs?.[1]?.name).toBe('main')
+    expect(hostGitCheckoutRequestSchema.parse({ path: '/ws', name: 'feat' }).name).toBe('feat')
+    expect(hostGitCheckoutRequestSchema.parse({
+      path: '/ws', name: 'feat', create: true,
+    }).create).toBe(true)
+    expect(hostGitCheckoutRequestSchema.parse({
+      path: '/ws', name: 'abcdef1', detach: true,
+    }).detach).toBe(true)
+    expect(() => hostGitCheckoutRequestSchema.parse({
+      path: '/ws', name: 'feat', create: true, detach: true,
+    })).toThrow()
+    expect(() => hostGitCheckoutRequestSchema.parse({
+      path: '/ws', name: 'not-a-hash', detach: true,
+    })).toThrow()
+    expect(() => hostGitCheckoutRequestSchema.parse({ path: '/ws', name: 'bad..name' })).toThrow()
+    expect(hostGitCheckoutValueSchema.parse({ root: '/ws', name: 'feat' }).name).toBe('feat')
+    expect(hostGitSuggestCommitRequestSchema.parse({ path: '/ws', sessionId: 's1' }).sessionId).toBe('s1')
+    expect(() => hostGitSuggestCommitRequestSchema.parse({ path: '/ws', sessionId: '' })).toThrow()
+    expect(hostGitSuggestCommitValueSchema.parse({ message: 'feat: x' }).message).toBe('feat: x')
+    expect(() => hostGitSuggestCommitValueSchema.parse({ message: '' })).toThrow()
   })
 })
 

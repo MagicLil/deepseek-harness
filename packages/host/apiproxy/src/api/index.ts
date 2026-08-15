@@ -48,8 +48,10 @@ export type {
   SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionsApi, SessionSummary,
 } from './sessions.ts'
 export type {
-  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitChange, GitCommitResult,
-  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitStatus, HostApi,
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, HostApi,
+  TerminalList, TerminalListRow, TerminalOpenResult, TerminalReadResult, TerminalSendResult,
+  TerminalSessionStatusWire, TerminalWaitReason, TerminalWireSignal,
 } from './host.ts'
 export type {
   SubagentAddress, SubagentCatalog, SubagentInterruptReceipt, SubagentListEntry,

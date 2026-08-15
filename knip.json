@@ -335,6 +335,34 @@
         "typescript-language-server"
       ]
     },
+    "packages/lsp/lsp-vue": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixture-server.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@vue/language-server",
+        "typescript"
+      ]
+    },
+    "packages/lsp/lsp-languages": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixture-server.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "typescript",
+        "typescript-language-server"
+      ]
+    },
     "packages/sandbox/sandbox-local": {
       "entry": [
         "tests/**/*.spec.ts",

@@ -2624,6 +2624,26 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       gitCommit: request => ok(request, { root: request.payload.path, hash: 'deadbeef' }),
       gitDiscard: request => ok(request, { root: request.payload.path }),
       gitLog: request => ok(request, []),
+      gitSync: request => ok(request, { root: request.payload.path }),
+      gitBranches: request => ok(request, { root: request.payload.path, branches: [] }),
+      gitCheckout: request => ok(request, { root: request.payload.path, name: request.payload.name }),
+      gitSuggestCommit: request => ok(request, { message: 'chore: generated' }),
+      terminalList: request => ok(request, { available: false, sessions: [] }),
+      terminalOpen: request => err(request, {
+        code: 'internal', message: 'fixture has no PTY', details: {},
+      }),
+      terminalSend: request => err(request, {
+        code: 'internal', message: 'fixture has no PTY', details: {},
+      }),
+      terminalWrite: request => err(request, {
+        code: 'internal', message: 'fixture has no PTY', details: {},
+      }),
+      terminalResize: request => err(request, {
+        code: 'internal', message: 'fixture has no PTY', details: {},
+      }),
+      terminalRead: request => ok(request, { text: '' }),
+      terminalSignal: request => ok(request, { delivered: false }),
+      terminalKill: request => ok(request, { closed: false }),
     },
     workspace: {
       list: request => ok(request, {
@@ -3170,6 +3190,18 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.gitCommit': return this.api.host.gitCommit(request, new AbortController().signal)
       case 'host.gitDiscard': return this.api.host.gitDiscard(request, new AbortController().signal)
       case 'host.gitLog': return this.api.host.gitLog(request, new AbortController().signal)
+      case 'host.gitSync': return this.api.host.gitSync(request, new AbortController().signal)
+      case 'host.gitBranches': return this.api.host.gitBranches(request, new AbortController().signal)
+      case 'host.gitCheckout': return this.api.host.gitCheckout(request, new AbortController().signal)
+      case 'host.gitSuggestCommit': return this.api.host.gitSuggestCommit(request, new AbortController().signal)
+      case 'host.terminalList': return this.api.host.terminalList(request)
+      case 'host.terminalOpen': return this.api.host.terminalOpen(request, new AbortController().signal)
+      case 'host.terminalSend': return this.api.host.terminalSend(request, new AbortController().signal)
+      case 'host.terminalWrite': return this.api.host.terminalWrite(request)
+      case 'host.terminalResize': return this.api.host.terminalResize(request)
+      case 'host.terminalRead': return this.api.host.terminalRead(request)
+      case 'host.terminalSignal': return this.api.host.terminalSignal(request)
+      case 'host.terminalKill': return this.api.host.terminalKill(request)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)
       case 'workspace.rename': return this.api.workspace.rename(request)

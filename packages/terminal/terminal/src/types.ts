@@ -48,6 +48,10 @@ export interface TerminalSpawnRequest {
   name?: string
   /** Optional initial working directory interpreted by the backend. */
   cwd?: string
+  /** Optional initial columns (UI / FitAddon). */
+  cols?: number
+  /** Optional initial rows (UI / FitAddon). */
+  rows?: number
 }
 
 /** Fully identified request handed from the registry to a backend. */
@@ -160,6 +164,20 @@ export interface TerminalBackendSession {
   status(): TerminalSessionStatus
   /** Idempotently close the captured owned process tree and await quiescence. */
   close(reason: string): Promise<void>
+  /**
+   * Fire-and-forget stdin write (UI keystrokes). Does not take the exclusive
+   * send slot. Absent on backends that only expose model-facing startSend.
+   */
+  write?(data: string): Promise<void>
+  /**
+   * Change winsize for interactive layout. Absent when the substrate cannot resize.
+   */
+  resize?(cols: number, rows: number): void
+  /**
+   * Subscribe to raw decoded output (before model-facing sanitization).
+   * @returns disposer.
+   */
+  subscribeOutput?(listener: (delta: string) => void): () => void
 }
 
 /** Replaceable provider for one PTY session type. */

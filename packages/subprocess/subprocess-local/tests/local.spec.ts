@@ -182,6 +182,7 @@ describe('LocalSubprocessRuntime', () => {
       output: new PassThrough(),
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
+      resize: () => {},
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate,
@@ -206,6 +207,7 @@ describe('LocalSubprocessRuntime', () => {
       output: new PassThrough(),
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
+      resize: () => {},
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate: vi.fn(async () => { throw firstFailure }),
@@ -253,6 +255,7 @@ describe('LocalSubprocessRuntime', () => {
       output: new PassThrough(),
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
+      resize: () => {},
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate: vi.fn(async () => { throw failure }),
@@ -308,6 +311,7 @@ describe('LocalSubprocessRuntime', () => {
         return { dispose: () => {} }
       },
       write: () => {},
+      resize: () => {},
       kill: () => {},
     }
     vi.resetModules()
@@ -347,6 +351,7 @@ describe('LocalSubprocessRuntime', () => {
         return { dispose: () => {} }
       },
       write: () => {},
+      resize: () => {},
       kill: () => {},
     }
     vi.resetModules()
@@ -428,7 +433,7 @@ describe('LocalSubprocessRuntime', () => {
     await expect(handle.done).rejects.toThrow()
   })
 
-  it('loading a second implementation throws (one processes service per context — cordis standard)', async () => {
+  it('loading a second implementation throws (one processes service per context �?cordis standard)', async () => {
     const ctx = new Context()
     await ctx.plugin(LocalSubprocessRuntime)
     class SecondManager extends LocalSubprocessRuntime {}

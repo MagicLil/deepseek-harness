@@ -219,6 +219,36 @@ export class FakeApiClient implements IApiClient {
     }))),
     gitDiscard: (payload: unknown) => this.record('host.gitDiscard', payload, Promise.resolve(ok({ root: '/home/fake' }))),
     gitLog: (payload: unknown) => this.record('host.gitLog', payload, Promise.resolve(ok([]))),
+    gitSync: (payload: unknown) => this.record('host.gitSync', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitBranches: (payload: unknown) => this.record('host.gitBranches', payload, Promise.resolve(ok({
+      root: '/home/fake', branches: [],
+    }))),
+    terminalList: (payload: unknown) => this.record('host.terminalList', payload, Promise.resolve(ok({
+      available: false, sessions: [],
+    }))),
+    terminalOpen: (payload: unknown) => this.record('host.terminalOpen', payload, Promise.resolve(ok({
+      id: 'pty-1', motd: '', status: { kind: 'running' as const },
+    }))),
+    terminalSend: (payload: unknown) => this.record('host.terminalSend', payload, Promise.resolve(ok({
+      viewport: '', waitReason: 'inferred_idle' as const, truncated: false, status: { kind: 'running' as const },
+    }))),
+    terminalWrite: (payload: unknown) => this.record('host.terminalWrite', payload, Promise.resolve(ok({
+      written: true as const,
+    }))),
+    terminalResize: (payload: unknown) => this.record('host.terminalResize', payload, Promise.resolve(ok({
+      resized: true as const,
+    }))),
+    terminalRead: (payload: unknown) => this.record('host.terminalRead', payload, Promise.resolve(ok({ text: '' }))),
+    terminalSignal: (payload: unknown) => this.record('host.terminalSignal', payload, Promise.resolve(ok({
+      delivered: true,
+    }))),
+    terminalKill: (payload: unknown) => this.record('host.terminalKill', payload, Promise.resolve(ok({ closed: true }))),
+    gitCheckout: (payload: unknown) => this.record('host.gitCheckout', payload, Promise.resolve(ok({
+      root: '/home/fake', name: 'main',
+    }))),
+    gitSuggestCommit: (payload: unknown) => this.record('host.gitSuggestCommit', payload, Promise.resolve(ok({
+      message: 'chore: generated',
+    }))),
   }
 
   // The archive-set field defaults at the binding below so list stubs keep

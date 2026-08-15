@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-credentials/types'
 import type {} from '@deepseek-ai/dsh-llm/types'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import type {} from '@deepseek-ai/dsh-settings/types'
+import type {} from './terminal-events.ts'
 
 export {
   ApiRemoteSessionNotFound,
@@ -29,6 +30,7 @@ export type {
 } from './agent-lookup.ts'
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'
+export type { TerminalOutputPayload } from './terminal-events.ts'
 
 // Shape gate over the allowlist, kept in the Host face because the Host's event
 // vocabulary is the authoritative one. It pins three things at compile time:

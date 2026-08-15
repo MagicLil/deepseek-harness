@@ -245,6 +245,12 @@ export interface SubprocessTerminalHandle {
    */
   write(data: string): Promise<void>
   /**
+   * Change the PTY window size (winsize). No-op after exit.
+   * @param cols - columns (≥ 1).
+   * @param rows - rows (≥ 1).
+   */
+  resize(cols: number, rows: number): void
+  /**
    * Inspect the current foreground process group.
    * @returns its id and input-wait fact, or undefined when no foreground group can be resolved.
    */

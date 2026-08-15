@@ -27,6 +27,8 @@
     - id: terminal-bash
       name: '@deepseek-ai/dsh-terminal-bash'
       config:
+        # Shell path/args come from terminal-bash OS defaults (PowerShell on Windows).
+        # Do not put bare `!!js … ? … : …` here: YAML turns unquoted ternaries into mappings.
         timeoutMs: 300000
 
     - id: persistent-bash

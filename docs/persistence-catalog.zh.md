@@ -636,6 +636,17 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/core/session/src/types.ts:332`](../packages/core/session/src/types.ts)
 
+<a id="sessiongit-commit-llm-request--log-only"></a>
+
+#### `session/git-commit-llm-request` — log-only
+
+```ts persistence-catalog
+/** Log-only pre-dispatch record of one Git commit-message model request. */
+'session/git-commit-llm-request': GitCommitLlmRequestEventData
+```
+
+来源：[`packages/host/apiproxy/src/git-commit-llm.ts:28`](../packages/host/apiproxy/src/git-commit-llm.ts)
+
 <a id="sessiontitle--log-only"></a>
 
 #### `session/title` — log-only

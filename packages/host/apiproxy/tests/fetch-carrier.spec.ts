@@ -192,6 +192,50 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async gitLog(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: [] } }
       },
+      async gitSync(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w' } } }
+      },
+      async gitBranches(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w', branches: [] } } }
+      },
+      async gitCheckout(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w', name: request.payload.name } } }
+      },
+      async gitSuggestCommit(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { message: 'chore: generated' } } }
+      },
+      async terminalList(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { available: false, sessions: [] } } }
+      },
+      async terminalOpen(request) {
+        return {
+          rpcId: request.rpcId,
+          result: { ok: true, value: { id: 'pty-1', motd: '', status: { kind: 'running' as const } } },
+        }
+      },
+      async terminalSend(request) {
+        return {
+          rpcId: request.rpcId,
+          result: {
+            ok: true,
+            value: {
+              viewport: '',
+              waitReason: 'inferred_idle' as const,
+              truncated: false,
+              status: { kind: 'running' as const },
+            },
+          },
+        }
+      },
+      async terminalRead(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { text: '' } } }
+      },
+      async terminalSignal(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { delivered: true } } }
+      },
+      async terminalKill(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { closed: true } } }
+      },
     },
     workspace: {
       async list(request) {
@@ -471,6 +515,33 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
       .toEqual({ ok: true, value: { root: '/w' } })
     expect((await c.host.gitLog({ path: '/w', limit: 5 })).result)
       .toEqual({ ok: true, value: [] })
+    expect((await c.host.gitSync({ path: '/w', mode: 'fetch' })).result)
+      .toEqual({ ok: true, value: { root: '/w' } })
+    expect((await c.host.gitBranches({ path: '/w' })).result)
+      .toEqual({ ok: true, value: { root: '/w', branches: [] } })
+    expect((await c.host.gitCheckout({ path: '/w', name: 'main' })).result)
+      .toEqual({ ok: true, value: { root: '/w', name: 'main' } })
+    expect((await c.host.gitSuggestCommit({ path: '/w', sessionId: 's1' })).result)
+      .toEqual({ ok: true, value: { message: 'chore: generated' } })
+  })
+
+  it('round-trips host.terminal* verbs through the wire form', async () => {
+    const c = client()
+    expect((await c.host.terminalList({ sessionId: 's1' })).result)
+      .toEqual({ ok: true, value: { available: false, sessions: [] } })
+    expect((await c.host.terminalOpen({ sessionId: 's1' })).result)
+      .toEqual({ ok: true, value: { id: 'pty-1', motd: '', status: { kind: 'running' } } })
+    expect((await c.host.terminalSend({ sessionId: 's1', id: 'pty-1', text: 'ls', submit: true })).result)
+      .toEqual({
+        ok: true,
+        value: { viewport: '', waitReason: 'inferred_idle', truncated: false, status: { kind: 'running' } },
+      })
+    expect((await c.host.terminalRead({ sessionId: 's1', id: 'pty-1' })).result)
+      .toEqual({ ok: true, value: { text: '' } })
+    expect((await c.host.terminalSignal({ sessionId: 's1', id: 'pty-1', signal: 'SIGINT' })).result)
+      .toEqual({ ok: true, value: { delivered: true } })
+    expect((await c.host.terminalKill({ sessionId: 's1', id: 'pty-1' })).result)
+      .toEqual({ ok: true, value: { closed: true } })
   })
 
   it('round-trips skill.list through the wire form', async () => {

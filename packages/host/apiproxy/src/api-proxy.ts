@@ -96,9 +96,11 @@ import type { ClientResponse, RpcError, RpcReceipt, RpcRequest, RpcResponse } fr
 import type { FileEntry } from './api/host.ts'
 import { collectGitStatus } from './git-status.ts'
 import {
-  collectGitCommit, collectGitDiff, collectGitDiscard, collectGitLog,
-  collectGitStage, collectGitUnstage,
+  collectGitBranches, collectGitCheckout, collectGitCommit, collectGitDiff,
+  collectGitDiscard, collectGitLog, collectGitStage, collectGitSync, collectGitUnstage,
 } from './git-ops.ts'
+import { generateGitCommitMessage } from './git-commit-llm.ts'
+import { bindTerminalHost } from './terminal-bridge.ts'
 import { RpcId } from './api/rpc.ts'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
@@ -3138,8 +3140,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async gitDiff(request, signal) {
-        const { path, side, file } = request.payload
-        const result = await collectGitDiff(path, side, file, signal)
+        const { path, side, file, commit } = request.payload
+        const result = await collectGitDiff(path, side, file, signal, commit)
         if (!result.ok) {
           if (signal.aborted) {
             return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
@@ -3208,6 +3210,97 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         return ok(request, result.value)
       },
+
+      async gitSync(request, signal) {
+        const { path, mode } = request.payload
+        const result = await collectGitSync(path, mode, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitBranches(request, signal) {
+        const { path } = request.payload
+        const result = await collectGitBranches(path, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitCheckout(request, signal) {
+        const { path, name, create, detach } = request.payload
+        const result = await collectGitCheckout(path, name, create === true, detach === true, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitSuggestCommit(request, signal) {
+        const { path, sessionId } = request.payload
+        const found = await agentFor(sessionId as SessionId)
+        if ('error' in found) return err(request, found.error)
+        const selection = selectionFor(found.agent).current
+        if (!routeServed(selection.provider)) {
+          return err(request, {
+            code: 'model-unavailable',
+            message: `no adapter serves provider "${selection.provider}"; select a model for this session`,
+            details: { provider: selection.provider, model: selection.model },
+          })
+        }
+        const staged = await collectGitDiff(path, 'staged', undefined, signal)
+        if (!staged.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: staged.code, message: staged.message, details: { path } })
+        }
+        if (staged.value.text.trim() === '') {
+          return err(request, { code: 'git-failed', message: 'nothing staged', details: { path } })
+        }
+        const recent = await collectGitLog(path, 8, signal)
+        const subjects = recent.ok ? recent.value.map(row => row.subject) : []
+        try {
+          const message = await generateGitCommitMessage({
+            root: staged.value.root,
+            stagedDiff: staged.value.text,
+            recentSubjects: subjects,
+            session: found.agent.session,
+            provider: selection.provider,
+            model: selection.model,
+            sessionId: found.agent.session.id,
+            stream: options => ctx.llm.stream(options),
+            signal,
+          })
+          return ok(request, { message })
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          const text = error instanceof Error ? error.message : String(error)
+          if (text === 'nothing staged') {
+            return err(request, { code: 'git-failed', message: text, details: { path } })
+          }
+          return err(request, {
+            code: 'model-unavailable',
+            message: text,
+            details: { provider: selection.provider, model: selection.model },
+          })
+        }
+      },
+
+      ...bindTerminalHost(ctx, agentFor),
     },
 
     goals: {

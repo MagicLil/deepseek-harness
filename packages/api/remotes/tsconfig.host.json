@@ -10,6 +10,7 @@
     "src/index.ts",
     "src/invariant.ts",
     "src/remote-events.ts",
+    "src/terminal-events.ts",
     "src/types.ts"
   ],
   "references": [

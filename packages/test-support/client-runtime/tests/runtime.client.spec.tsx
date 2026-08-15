@@ -365,9 +365,11 @@ describe('workspaces', () => {
     expect(view.container.textContent).toContain('ws:pending')
 
     runtime.workspaces.startSession('w1' as WorkspaceId)
+    runtime.workspaces.startSession('w1' as WorkspaceId, { preferExisting: true })
     await expect(runtime.workspaces.connectWorkspace('w2' as WorkspaceId)).resolves.toBe('session-of-w2')
     expect(runtime.workspaces.calls).toEqual([
       { method: 'startSession', args: ['w1'] },
+      { method: 'startSession', args: ['w1', { preferExisting: true }] },
       { method: 'connectWorkspace', args: ['w2'] },
     ])
     const stub = vi.fn(() => Promise.resolve('other' as never))

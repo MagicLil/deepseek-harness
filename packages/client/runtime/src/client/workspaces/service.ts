@@ -2,7 +2,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  GitStatus, GitSyncMode,
   IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
@@ -187,10 +188,15 @@ export class WorkspaceRuntime implements IWorkspaces {
    * projection — connect its blank session and navigate there; with no
    * Workspace at all, clear the selection into the New Session view state.
    * Connect failures are non-fatal (console diagnostics; the current view
-   * stays usable).
+   * stays usable). Reusing the parked blank is a no-op when that blank is
+   * already current; unless `preferExisting` is set, mint a fresh session
+   * so the New Session button always produces a new conversation.
    * @param workspaceId - explicit target Workspace for scoped actions.
+   * @param opts - `preferExisting` focuses a workspace without minting, and
+   *   skips connect when the current session already belongs there.
+   *   `forceNew` always mints a session on the target Workspace.
    */
-  startSession(workspaceId?: WorkspaceId): void {
+  startSession(workspaceId?: WorkspaceId, opts?: { preferExisting?: boolean; forceNew?: boolean }): void {
     const workspace = this.list.getSnapshot()
     const current = this.sessions.list.getSnapshot().current
     const currentWorkspaceId = current === undefined
@@ -201,21 +207,43 @@ export class WorkspaceRuntime implements IWorkspaces {
       this.sessions.clear()
       return
     }
+    if (opts?.forceNew === true) {
+      void this.sessions.create({ workspaceId: target }).then(
+        (fresh) => { this.sessions.open(fresh) },
+        (reason: unknown) => { console.warn('new session failed:', reason) },
+      )
+      return
+    }
+    if (opts?.preferExisting === true && current !== undefined && currentWorkspaceId === target) {
+      return
+    }
     void this.connectWorkspace(target).then(
-      (sessionId) => { this.sessions.open(sessionId) },
+      async (sessionId) => {
+        if (this.sessions.list.getSnapshot().current === sessionId && opts?.preferExisting !== true) {
+          const fresh = await this.sessions.create({ workspaceId: target })
+          this.sessions.open(fresh)
+          return
+        }
+        this.sessions.open(sessionId)
+      },
       (reason: unknown) => { console.warn('new session failed:', reason) },
     )
   }
 
   /**
-   * Register an existing path as a Workspace.
+   * Register an existing path as a Workspace, then start that Workspace
+   * with preferExisting so Git and the composer follow the folder.
    * @param input - the Host create payload.
    * @returns the created or idempotently resolved Workspace.
    */
   async create(input: { path: string }): Promise<WorkspaceView> {
     const result = await this.manager.create(input)
     if (!result.ok) throw new WorkspaceCreateError(result.error)
-    return result.value.workspace
+    const created = result.value.workspace
+    // A newly registered folder must land in its own conversation; otherwise
+    // Git and the composer stay on the previous session's cwd.
+    this.startSession(created.workspaceId, { preferExisting: true })
+    return created
   }
 
   /**
@@ -328,6 +356,19 @@ export class WorkspaceRuntime implements IWorkspaces {
   }
 
   /**
+   * Unified diff for one commit.
+   * @param path - absolute workspace path or any file inside it.
+   * @param commit - commit hash (7–40 hex).
+   * @param signal - aborts the wire request.
+   * @returns the unified diff snapshot.
+   */
+  async gitCommitDiff(path: string, commit: string, signal?: AbortSignal): Promise<GitDiff> {
+    const response = await this.api.host.gitDiff({ path, side: 'worktree', commit }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
    * Stage repository-relative paths.
    * @param path - absolute workspace path or any file inside it.
    * @param files - repository-relative paths.
@@ -385,6 +426,71 @@ export class WorkspaceRuntime implements IWorkspaces {
       limit === undefined ? { path } : { path, limit },
       signal,
     )
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * User-initiated fetch / ff-only pull / push.
+   * @param path - absolute workspace path or any file inside it.
+   * @param mode - remote verb.
+   * @param signal - aborts the wire request.
+   */
+  async gitSync(path: string, mode: GitSyncMode, signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitSync({ path, mode }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Local branches for the SCM picker.
+   * @param path - absolute workspace path or any file inside it.
+   * @param signal - aborts the wire request.
+   * @returns branch rows.
+   */
+  async gitBranches(path: string, signal?: AbortSignal): Promise<GitBranch[]> {
+    const response = await this.api.host.gitBranches({ path }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value.branches
+  }
+
+  /**
+   * Switch or create a local branch.
+   * @param path - absolute workspace path or any file inside it.
+   * @param name - branch name.
+   * @param create - when true, create the branch.
+   * @param signal - aborts the wire request.
+   */
+  async gitCheckout(path: string, name: string, create?: boolean, signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitCheckout(
+      create === true ? { path, name, create: true } : { path, name },
+      signal,
+    )
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Detach HEAD at a commit.
+   * @param path - absolute workspace path or any file inside it.
+   * @param hash - commit hash.
+   * @param signal - aborts the wire request.
+   */
+  async gitCheckoutCommit(path: string, hash: string, signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitCheckout({ path, name: hash, detach: true }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Ask the session model for a commit message from the staged diff.
+   * @param path - absolute workspace path or any file inside it.
+   * @param sessionId - session that owns the model route and the log record.
+   * @param signal - aborts the wire request.
+   */
+  async gitSuggestCommit(
+    path: string,
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<{ message: string }> {
+    const response = await this.api.host.gitSuggestCommit({ path, sessionId }, signal)
     if (!response.result.ok) throw new GitAccessError(response.result.error)
     return response.result.value
   }

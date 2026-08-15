@@ -442,6 +442,185 @@ describe('WorkspaceRuntime', () => {
     expect(clear).toHaveBeenCalledOnce()
   })
 
+  it('mints a fresh session when New Session lands on the already-current blank', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({ items: [workspace('alpha', [sid('s-blank')])] as never[] }))
+    api.onList = () => Promise.resolve(ok({
+      items: [{ sessionId: sid('s-blank'), updatedAt: 1, running: false, blank: true, cwd: '/w/alpha' }] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-blank'))
+    api.onCreate = () => Promise.resolve(ok({ sessionId: sid('s-fresh') }))
+    workspaces.startSession()
+    await vi.waitFor(() => {
+      expect(api.callsOf('session.create')).toEqual([{ workspaceId: 'alpha' }])
+      expect(sessions.list.getSnapshot().current).toBe('s-fresh')
+    })
+  })
+
+  it('forceNew always mints a session on the target Workspace', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({
+      items: [
+        workspace('alpha', [sid('s-alpha')]),
+        workspace('beta', [sid('s-beta')]),
+      ] as never[],
+    }))
+    api.onList = () => Promise.resolve(ok({
+      items: [
+        { sessionId: sid('s-alpha'), updatedAt: 1, running: false, blank: true, cwd: '/w/alpha' },
+        { sessionId: sid('s-beta'), updatedAt: 2, running: false, blank: true, cwd: '/w/beta' },
+      ] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-alpha'))
+    const connect = vi.spyOn(workspaces, 'connectWorkspace')
+    api.onCreate = () => Promise.resolve(ok({ sessionId: sid('s-fresh') }))
+    workspaces.startSession(wid('beta'), { forceNew: true })
+    await vi.waitFor(() => {
+      expect(api.callsOf('session.create')).toEqual([{ workspaceId: 'beta' }])
+      expect(sessions.list.getSnapshot().current).toBe('s-fresh')
+    })
+    expect(connect).not.toHaveBeenCalled()
+  })
+
+  it('forceNew warns when minting fails and leaves the current session', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({ items: [workspace('beta', [sid('s-open')])] as never[] }))
+    api.onList = () => Promise.resolve(ok({
+      items: [{ sessionId: sid('s-open'), updatedAt: 1, running: false, blank: false }] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-open'))
+    api.onCreate = () => Promise.resolve(err({ code: 'internal', message: 'mint exploded', details: {} }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      workspaces.startSession(wid('beta'), { forceNew: true })
+      await vi.waitFor(() => {
+        expect(warn).toHaveBeenCalledWith('new session failed:', expect.any(Error))
+      })
+      expect(sessions.list.getSnapshot().current).toBe('s-open')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('preferExisting skips connect when the current session already belongs to the target', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({
+      items: [workspace('alpha', [sid('s-open')])] as never[],
+    }))
+    api.onList = () => Promise.resolve(ok({
+      items: [{ sessionId: sid('s-open'), updatedAt: 1, running: false, blank: false, cwd: '/w/alpha' }] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-open'))
+    const connect = vi.spyOn(workspaces, 'connectWorkspace')
+    workspaces.startSession(wid('alpha'), { preferExisting: true })
+    await Promise.resolve()
+    expect(connect).not.toHaveBeenCalled()
+    expect(api.callsOf('session.create')).toEqual([])
+    expect(sessions.list.getSnapshot().current).toBe('s-open')
+  })
+
+  it('preferExisting opens the connected session when focusing another Workspace', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({
+      items: [
+        workspace('alpha', [sid('s-alpha')]),
+        workspace('beta', [sid('s-beta')]),
+      ] as never[],
+    }))
+    api.onList = () => Promise.resolve(ok({
+      items: [
+        { sessionId: sid('s-alpha'), updatedAt: 1, running: false, blank: true, cwd: '/w/alpha' },
+        { sessionId: sid('s-beta'), updatedAt: 2, running: false, blank: true, cwd: '/w/beta' },
+      ] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-alpha'))
+    workspaces.startSession(wid('beta'), { preferExisting: true })
+    await vi.waitFor(() => {
+      expect(sessions.list.getSnapshot().current).toBe('s-beta')
+    })
+    expect(api.callsOf('session.create')).toEqual([])
+  })
+
+  it('warns when New Session connect fails and leaves the current session', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceList = () => Promise.resolve(ok({ items: [workspace('alpha', [sid('s-open')])] as never[] }))
+    api.onList = () => Promise.resolve(ok({
+      items: [{ sessionId: sid('s-open'), updatedAt: 1, running: false, blank: false }] as never[],
+    }))
+    await Promise.all([workspaces.refresh(), sessions.refresh()])
+    await Promise.resolve()
+    sessions.open(sid('s-open'))
+    const boom = new Error('connect exploded')
+    vi.spyOn(workspaces, 'connectWorkspace').mockRejectedValue(boom)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      workspaces.startSession(wid('alpha'))
+      await Promise.resolve()
+      expect(warn).toHaveBeenCalledWith('new session failed:', boom)
+      expect(sessions.list.getSnapshot().current).toBe('s-open')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('create starts the registered Workspace so the composer follows the new folder', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    api.onWorkspaceCreate = () => Promise.resolve(ok({
+      workspace: { ...workspace('picked'), path: '/w/picked', title: 'picked' }, created: true,
+    }))
+    api.onCreate = () => Promise.resolve(ok({ sessionId: sid('s-picked') }))
+    await expect(workspaces.create({ path: '/w/picked' })).resolves.toMatchObject({ workspaceId: 'picked' })
+    await vi.waitFor(() => {
+      expect(api.callsOf('session.create')).toEqual([{ workspaceId: 'picked' }])
+      expect(sessions.list.getSnapshot().current).toBe('s-picked')
+    })
+  })
+
+  it('a rejected create does not start a session', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    const start = vi.spyOn(workspaces, 'startSession')
+    api.onWorkspaceCreate = () => Promise.resolve(err({
+      code: 'workspace-invalid-path', message: 'missing', details: { path: '/missing' },
+    }))
+    await expect(workspaces.create({ path: '/missing' })).rejects.toBeInstanceOf(WorkspaceCreateError)
+    expect(start).not.toHaveBeenCalled()
+    expect(api.callsOf('session.create')).toEqual([])
+  })
+
   it('archives a session, projects the set from the response, list, and frame, and clears only the current one', async () => {
     const ctx = new Context()
     const api = new FakeApiClient()

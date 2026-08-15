@@ -294,6 +294,8 @@
     { "path": "./packages/sdk/protocol" },
     { "path": "./packages/lsp/lsp" },
     { "path": "./packages/lsp/lsp-stdio" },
+    { "path": "./packages/lsp/lsp-vue" },
+    { "path": "./packages/lsp/lsp-languages" },
     { "path": "./packages/lsp/tool-lsp" },
     { "path": "./apps/cli" },
     { "path": "./apps/desktop" }

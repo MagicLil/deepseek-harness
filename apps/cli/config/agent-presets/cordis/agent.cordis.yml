@@ -50,6 +50,26 @@
   name: '@deepseek-ai/dsh-tool-pwsh'
   disabled: !!js process.platform !== 'win32'
 
+# The PTY registry is agent-owned. The workbench UI spawn/send/kill verbs
+# resolve `found.agent.ctx.terminals`; a host-plane mount would collide with
+# this isolate (a row belongs to exactly one plane). Do not add
+# `tool-bash-persistent` here — this preset already has `tool-bash` / `tool-pwsh`.
+- id: persistent-shell
+  name: cordis:group
+  group: true
+  isolate:
+    terminals: true
+  config:
+    - id: pty
+      name: '@deepseek-ai/dsh-terminal'
+
+    - id: terminal-bash
+      name: '@deepseek-ai/dsh-terminal-bash'
+      config:
+        # Shell path/args come from terminal-bash OS defaults (PowerShell on Windows).
+        # Do not put bare `!!js … ? … : …` here: YAML turns unquoted ternaries into mappings.
+        timeoutMs: 300000
+
 # ── filesystem ──────────────────────────────────────────────────────────────
 
 # Both register into the host `tools` registry and provide nothing, so

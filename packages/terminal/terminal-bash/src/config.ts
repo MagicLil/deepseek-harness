@@ -2,13 +2,23 @@
 
 import z from '@deepseek-ai/schemastery'
 
+/** Interactive shell argv defaults for the host OS. */
+export function defaultShellInvocation(): { shellPath: string; shellArgs: string[] } {
+  if (process.platform === 'win32') {
+    return { shellPath: 'powershell.exe', shellArgs: ['-NoLogo', '-NoProfile'] }
+  }
+  return { shellPath: '/bin/bash', shellArgs: ['--noprofile', '--norc', '-i'] }
+}
+
+const defaults = defaultShellInvocation()
+
 /** Public plugin configuration. */
 export interface Config {
   /** Backend registry type (default: `shell`). */
   backendType?: string
-  /** Interactive shell executable (default: `/bin/bash`). */
+  /** Interactive shell executable (default: PowerShell on Windows, bash elsewhere). */
   shellPath?: string
-  /** Shell arguments (default: `--noprofile --norc -i`). */
+  /** Shell arguments (default: PowerShell quiet flags on Windows, bash non-login interactive elsewhere). */
   shellArgs?: string[]
   /** Terminal rows. */
   rows?: number
@@ -43,8 +53,8 @@ export type ResolvedConfig = Required<Config>
 /** Schemastery config exposed by the plugin. */
 export const Config: z<Config> = z.object({
   backendType: z.string().default('shell'),
-  shellPath: z.string().default('/bin/bash'),
-  shellArgs: z.array(z.string()).default(['--noprofile', '--norc', '-i']),
+  shellPath: z.string().default(defaults.shellPath),
+  shellArgs: z.array(z.string()).default(defaults.shellArgs),
   rows: z.number().default(40),
   cols: z.number().default(160),
   scrollbackLines: z.number().default(10_000),

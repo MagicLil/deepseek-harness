@@ -185,6 +185,32 @@ export class FakeApiClient implements IApiClient {
     }))),
     gitDiscard: payload => this.record('host.gitDiscard', payload, Promise.resolve(ok({ root: '/home/fake' }))),
     gitLog: payload => this.record('host.gitLog', payload, Promise.resolve(ok([]))),
+    gitSync: payload => this.record('host.gitSync', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitBranches: payload => this.record('host.gitBranches', payload, Promise.resolve(ok({
+      root: '/home/fake', branches: [],
+    }))),
+    gitCheckout: payload => this.record('host.gitCheckout', payload, Promise.resolve(ok({
+      root: '/home/fake', name: 'main',
+    }))),
+    gitSuggestCommit: payload => this.record('host.gitSuggestCommit', payload, Promise.resolve(ok({
+      message: 'chore: generated',
+    }))),
+    terminalList: payload => this.record('host.terminalList', payload, Promise.resolve(ok({
+      available: false, sessions: [],
+    }))),
+    terminalOpen: payload => this.record('host.terminalOpen', payload, Promise.resolve(ok({
+      id: 'pty-1', motd: '', status: { kind: 'running' as const },
+    }))),
+    terminalSend: payload => this.record('host.terminalSend', payload, Promise.resolve(ok({
+      viewport: '', waitReason: 'inferred_idle' as const, truncated: false, status: { kind: 'running' as const },
+    }))),
+    terminalWrite: payload => this.record('host.terminalWrite', payload, Promise.resolve(ok({ written: true as const }))),
+    terminalResize: payload => this.record('host.terminalResize', payload, Promise.resolve(ok({ resized: true as const }))),
+    terminalRead: payload => this.record('host.terminalRead', payload, Promise.resolve(ok({ text: '' }))),
+    terminalSignal: payload => this.record('host.terminalSignal', payload, Promise.resolve(ok({
+      delivered: true,
+    }))),
+    terminalKill: payload => this.record('host.terminalKill', payload, Promise.resolve(ok({ closed: true }))),
   }
 
   readonly workspace: IApiClient['workspace'] = {

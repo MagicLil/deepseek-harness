@@ -6,6 +6,8 @@ import goalsRemote from '@deepseek-ai/dsh-goal/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import marketplaceRemote from '@deepseek-ai/dsh-host-marketplace/remote'
+import vueLspRemote from '@deepseek-ai/dsh-lsp-vue/remote'
+import languagesLspRemote from '@deepseek-ai/dsh-lsp-languages/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -14,10 +16,18 @@ export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inven
 export type {
   DshPluginCard, DshPluginSearchResult, MarketplaceJobResult, VsixCard, VsixCompatibility, VsixSearchResult,
 } from '@deepseek-ai/dsh-host-marketplace/types'
+export type {
+  VueLspCompleteResult, VueLspCompletionItem, VueLspDiagnostic, VueLspDiagnosticsResult,
+} from '@deepseek-ai/dsh-lsp-vue/types'
+export type {
+  EditorLspCompleteResult, EditorLspCompletionItem, EditorLspDiagnostic, EditorLspDiagnosticsResult,
+} from '@deepseek-ai/dsh-lsp-languages/types'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-host-marketplace/remote'
+export type {} from '@deepseek-ai/dsh-lsp-vue/remote'
+export type {} from '@deepseek-ai/dsh-lsp-languages/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
@@ -31,6 +41,7 @@ export type {} from '@deepseek-ai/dsh-credentials/types'
 export type {} from '@deepseek-ai/dsh-llm/types'
 export type {} from '@deepseek-ai/dsh-agent-presets/types'
 export type {} from '@deepseek-ai/dsh-settings/types'
+export type { TerminalOutputPayload } from '../terminal-events.ts'
 
 /**
  * The carrier's Client-facing types, re-exported so a business package names one
@@ -39,8 +50,8 @@ export type {} from '@deepseek-ai/dsh-settings/types'
  */
 export type {
   ClientResponse, ConfigurableProviderView, ConnectionHandle, ConnectionSinks, ContentBlock,
-  CredentialView, DirectoryListing, DiscoveredModelView, FileEntry, FileListing, GitChange, GitCommitResult,
-  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitStatus, HistoryEntry,
+  CredentialView, DirectoryListing, DiscoveredModelView, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, HistoryEntry,
   HostFrame, IApiClient,
   MessageId, ModelCatalogFailure, ModelProviderGroup, ModelReasoningEffort, ModelSelection,
   MuxFrame, PromptContentPart, QuestionResponsePayload, QueueAction, RpcError, RpcId, RpcReceipt,
@@ -113,7 +124,8 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
   try {
     for (const contribution of [
-      commandsRemote, goalsRemote, dynamicRemote, pluginInventoryRemote, marketplaceRemote, messageFeedbackRemote,
+      commandsRemote, goalsRemote, dynamicRemote, pluginInventoryRemote, marketplaceRemote,
+      vueLspRemote, languagesLspRemote, messageFeedbackRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }
