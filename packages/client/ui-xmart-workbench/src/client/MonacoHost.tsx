@@ -41,42 +41,47 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
     const cleanups: Array<() => void> = []
     loadMonaco().then(
       (monaco) => {
-        const host = hostRef.current
-        /* v8 ignore next -- the ref is bound before the async boot settles. */
-        if (disposed || host === null) return
-        const language = languageFromPath(initialRef.current.path)
-        const uri = monaco.Uri.file(initialRef.current.path.replaceAll('\\', '/'))
-        const existing = monaco.editor.getModel(uri)
-        const model = existing ?? monaco.editor.createModel(initialRef.current.value, language, uri)
-        if (existing !== null) {
-          monaco.editor.setModelLanguage(existing, language)
-          if (existing.getValue() !== initialRef.current.value) existing.setValue(initialRef.current.value)
+        try {
+          const host = hostRef.current
+          /* v8 ignore next -- the ref is bound before the async boot settles. */
+          if (disposed || host === null) return
+          const language = languageFromPath(initialRef.current.path)
+          const uri = monaco.Uri.file(initialRef.current.path.replaceAll('\\', '/'))
+          const existing = monaco.editor.getModel(uri)
+          const model = existing ?? monaco.editor.createModel(initialRef.current.value, language, uri)
+          if (existing !== null) {
+            monaco.editor.setModelLanguage(existing, language)
+            if (existing.getValue() !== initialRef.current.value) existing.setValue(initialRef.current.value)
+          }
+          cleanups.push(() => { model.dispose() })
+          const editor = monaco.editor.create(host, {
+            model,
+            theme: darkTheme() ? 'vs-dark' : 'vs',
+            automaticLayout: true,
+            fontSize: 13,
+            fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            padding: { bottom: 16 },
+          })
+          cleanups.push(() => { editor.dispose() })
+          const contentSub = model.onDidChangeContent(() => { onChangeRef.current(model.getValue()) })
+          cleanups.push(() => { contentSub.dispose() })
+          if (languageClientRef.current !== undefined) {
+            cleanups.push(...bindLanguageClient(monaco, model, initialRef.current.path, languageClientRef))
+          }
+          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { onSaveRef.current() })
+          const observer = new MutationObserver(() => {
+            monaco.editor.setTheme(darkTheme() ? 'vs-dark' : 'vs')
+          })
+          observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+          cleanups.push(() => { observer.disconnect() })
+          editor.focus()
+          setPhase('ready')
         }
-        cleanups.push(() => { model.dispose() })
-        const editor = monaco.editor.create(host, {
-          model,
-          theme: darkTheme() ? 'vs-dark' : 'vs',
-          automaticLayout: true,
-          fontSize: 13,
-          fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
-          minimap: { enabled: true },
-          scrollBeyondLastLine: false,
-          padding: { bottom: 16 },
-        })
-        cleanups.push(() => { editor.dispose() })
-        const contentSub = model.onDidChangeContent(() => { onChangeRef.current(model.getValue()) })
-        cleanups.push(() => { contentSub.dispose() })
-        if (languageClientRef.current !== undefined) {
-          cleanups.push(...bindLanguageClient(monaco, model, initialRef.current.path, languageClientRef))
+        catch {
+          setPhase('error')
         }
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { onSaveRef.current() })
-        const observer = new MutationObserver(() => {
-          monaco.editor.setTheme(darkTheme() ? 'vs-dark' : 'vs')
-        })
-        observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
-        cleanups.push(() => { observer.disconnect() })
-        editor.focus()
-        setPhase('ready')
       },
       () => {
         if (!disposed) setPhase('error')
@@ -89,7 +94,7 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
   }, [])
 
   return (
-    <div className={css.wrap} data-testid="xmart-workbench-monaco">
+    <div className={css.wrap} data-testid="xmart-workbench-monaco" data-ready={phase === 'ready' || undefined}>
       {phase !== 'ready' && (
         <div className={css.note} data-state={phase}>
           {phase === 'loading' ? labels.loading : labels.error}

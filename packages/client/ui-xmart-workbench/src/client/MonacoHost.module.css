@@ -6,6 +6,16 @@
   min-width: 0;
 }
 
+.wrap:not([data-ready]) {
+  display: none;
+}
+
+.wrap[data-ready] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 .host {
   flex: 1;
   min-width: 0;

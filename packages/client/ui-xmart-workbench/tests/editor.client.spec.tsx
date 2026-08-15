@@ -8,7 +8,10 @@ import { EditorTab } from '../src/client/EditorTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { zh } from '../src/client/locales.ts'
 
-const lastHost = vi.hoisted(() => ({ languageClient: undefined as unknown }))
+const lastHost = vi.hoisted(() => ({
+  languageClient: undefined as unknown,
+  throwOnRender: false,
+}))
 
 vi.mock('../src/client/MonacoHost.tsx', () => ({
   MonacoHost: ({ onChange, onSave, languageClient }: {
@@ -16,6 +19,7 @@ vi.mock('../src/client/MonacoHost.tsx', () => ({
     onSave: () => void
     languageClient?: unknown
   }) => {
+    if (lastHost.throwOnRender) throw new Error('monaco render')
     lastHost.languageClient = languageClient
     return (
       <div>
@@ -31,6 +35,7 @@ beforeEach(() => { localStorage.clear() })
 afterEach(() => {
   localStorage.clear()
   lastHost.languageClient = undefined
+  lastHost.throwOnRender = false
   cleanup()
 })
 
@@ -319,5 +324,37 @@ describe('EditorTab', () => {
     )
     await act(async () => { await Promise.resolve() })
     expect(lastHost.languageClient).toBeDefined()
+  })
+
+  it('keeps the file text when Monaco throws on render', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    lastHost.throwOnRender = true
+    const writeFile = vi.fn(async () => {})
+    mount({ path: '/UserController.java', writeFile, readFile: async () => 'class User {}' })
+    await act(async () => { await Promise.resolve() })
+    const plain = screen.getByTestId('xmart-workbench-plain') as HTMLTextAreaElement
+    expect(plain.value).toBe('class User {}')
+    fireEvent.change(plain, { target: { value: 'class User { }' } })
+    expect(screen.getByText('未保存')).toBeTruthy()
+    fireEvent.click(screen.getByText('保存'))
+    await act(async () => { await Promise.resolve() })
+    expect(writeFile).toHaveBeenCalledWith('/UserController.java', 'class User { }')
+    spy.mockRestore()
+  })
+
+  it('opens an empty buffer when the host does not return text', async () => {
+    mount({ path: '/a.ts', readFile: async () => ({ raw: true } as unknown as string) })
+    await act(async () => { await Promise.resolve() })
+    expect((screen.getByTestId('xmart-workbench-plain') as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('opens the file when reloadToken throws', async () => {
+    const files = createWorkbenchFilesStore()
+    vi.spyOn(files, 'reloadToken').mockImplementation(() => { throw new Error('token') })
+    mount({ path: '/a.ts', files, readFile: async () => 'hello' })
+    await act(async () => { await Promise.resolve() })
+    expect((screen.getByTestId('xmart-workbench-plain') as HTMLTextAreaElement).value).toBe('hello')
+    act(() => { files.markReload(['/a.ts']) })
+    expect(screen.queryByTestId('xmart-workbench-reload')).toBeNull()
   })
 })

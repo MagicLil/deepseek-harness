@@ -361,7 +361,6 @@ export function apply(ctx: ClientContext): void {
       catch {
         workspaceRoot = undefined
       }
-      const remote = ctx.get('remote')
       const vueLsp = peekRemote(remote, 'vueLsp')
       const tsLsp = peekRemote(remote, 'tsLsp')
       const javaLsp = peekRemote(remote, 'javaLsp')
@@ -493,12 +492,12 @@ export function apply(ctx: ClientContext): void {
       sessionId,
       newSession: () => { ctx.workspaces.startSession() },
       openWorkspace,
-      closeActiveEditor,
-      showActivity,
+      closeActiveEditor: (id) => { closeActiveEditor(id as SessionId) },
+      showActivity: (id, activity) => { showActivity(id as SessionId, activity) },
       togglePrimary: () => { ctx.layout.toggleWorkbench() },
       toggleSessions: () => { ctx.layout.toggleSidebar() },
-      newTerminal: openTerminalTab,
-      toggleTerminal: toggleTerminalPanel,
+      newTerminal: (id) => { openTerminalTab(id as SessionId) },
+      toggleTerminal: (id) => { toggleTerminalPanel(id as SessionId) },
       dispatch: dispatchWindow,
     })
   }

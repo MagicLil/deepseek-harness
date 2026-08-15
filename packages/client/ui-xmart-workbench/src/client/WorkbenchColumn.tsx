@@ -19,15 +19,22 @@ import css from './WorkbenchColumn.module.css'
  */
 export class EditorPaneBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
-  { failed: boolean }
+  { failed: boolean; message: string }
 > {
-  override state = { failed: false }
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true }
+  override state = { failed: false, message: '' }
+  static getDerivedStateFromError(error: unknown): { failed: boolean; message: string } {
+    return { failed: true, message: error instanceof Error ? error.message : String(error) }
   }
   override render(): ReactNode {
-    if (this.state.failed) return this.props.fallback
-    return this.props.children
+    if (!this.state.failed) return this.props.children
+    return (
+      <div className={css.empty} data-testid="xmart-workbench-crashed">
+        <div>{this.props.fallback}</div>
+        {this.state.message !== '' && (
+          <code data-testid="xmart-workbench-crashed-detail">{this.state.message}</code>
+        )}
+      </div>
+    )
   }
 }
 
@@ -59,7 +66,7 @@ export function WorkbenchColumn({
       <div className={css.body}>
         <EditorPaneBoundary
           key={active?.id ?? 'empty'}
-          fallback={<div className={css.empty} data-testid="xmart-workbench-crashed">{t('column.crashed')}</div>}
+          fallback={t('column.crashed')}
         >
           {renderPane(active, active === undefined ? undefined : resolveBody(active.type), sessionId, t)}
         </EditorPaneBoundary>

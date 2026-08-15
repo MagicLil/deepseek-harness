@@ -59,6 +59,15 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+.empty code {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: pre-wrap;
+}
+
 .bar {
   display: flex;
   flex: none;
