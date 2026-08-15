@@ -1,0 +1,39 @@
+appId: ai.deepseek.harness
+productName: DeepSeek Harness
+copyright: Copyright © DeepSeek
+asar: false
+npmRebuild: false
+directories:
+  app: ../../.desktop-pack
+  output: ../../dist-desktop
+  buildResources: build
+files:
+  - '**/*'
+  - '!**/*.map'
+  - '!**/tests/**'
+  - '!**/src/**'
+extraMetadata:
+  main: lib/electron-main.js
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DeepSeek Harness
+  artifactName: DeepSeek-Harness-Setup-${version}-${arch}.${ext}
+portable:
+  artifactName: DeepSeek-Harness-Portable-${version}-${arch}.${ext}
+publish:
+  provider: github
+  owner: MagicLil
+  repo: deepseek-harness
+  releaseType: release

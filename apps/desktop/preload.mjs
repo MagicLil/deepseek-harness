@@ -1,10 +1,13 @@
 /**
- * Plain ESM preload for Electron (must not require a prior TypeScript build).
- * Mirrors apps/desktop/src/preload.ts channel names.
+ * Preload for Electron's sandboxed renderer.
+ *
+ * Must stay CommonJS: `webPreferences.sandbox` loads this file as a classic
+ * script, so `import` throws `Cannot use import statement outside a module`
+ * and `window.__DSH_IPC__` never appears.
  *
  * Returns only structured-cloneable values — the page rebuilds `Response`s.
  */
-import { contextBridge, ipcRenderer } from 'electron'
+const { contextBridge, ipcRenderer } = require('electron')
 
 const DSH_FETCH_CHANNEL = 'dsh:fetch'
 const DSH_LOAD_BUNDLE_CHANNEL = 'dsh:load-bundle'

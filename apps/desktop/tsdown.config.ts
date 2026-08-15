@@ -6,8 +6,9 @@ import { defineConfig } from 'tsdown'
  * Keep `@deepseek-ai/dsh/*` and other workspace packages external so
  * `profile-boot`'s `INSTALL_ANCHOR` stays `apps/cli/package.json` (bundling
  * would rewrite `import.meta.url` to this package and break bundle resolution).
- * Preload stays the checked-in plain `preload.mjs` Electron loads via
- * `webPreferences.preload` — do not prefer a bundled preload here.
+ * Preload stays the checked-in `preload.mjs` (CommonJS for the sandbox)
+ * Electron loads via `webPreferences.preload` — do not prefer a bundled
+ * ESM preload here.
  */
 export default defineConfig({
   entry: [
@@ -25,6 +26,7 @@ export default defineConfig({
   deps: {
     neverBundle: [
       'electron',
+      'electron-updater',
       /^@deepseek-ai\//,
     ],
   },

@@ -726,6 +726,19 @@
         "react-dom"
       ]
     },
+    "apps/desktop": {
+      "entry": [
+        "src/electron-main.ts",
+        "src/relaunch.ts",
+        "src/shell.ts",
+        "src/preload.ts",
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "apps/cli": {
       "entry": [
         "tests/**/*.spec.ts",

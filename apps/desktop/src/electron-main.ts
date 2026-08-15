@@ -10,9 +10,13 @@ import { app } from 'electron'
 import { loadLayeredEnv } from '@deepseek-ai/dsh-app-boot'
 import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
+import { desktopElectronUserArgv } from './launch-argv.ts'
+import { markAppQuitting } from './lifecycle.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 
 registerDesktopSchemes()
+app.setName('万物智汇')
+if (process.platform === 'win32') app.setAppUserModelId('ai.deepseek.harness')
 
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
@@ -22,6 +26,9 @@ if (!app.requestSingleInstanceLock()) {
   })
   app.on('activate', () => {
     focusDesktopWindow()
+  })
+  app.on('before-quit', () => {
+    markAppQuitting()
   })
   void main().catch((error: unknown) => {
     console.error(error)
@@ -45,8 +52,9 @@ function readVersion(): string {
  * Electron work via the module-level {@link registerDesktopSchemes} call.
  */
 async function main(): Promise<void> {
-  // Electron inserts the script path at argv[1]; dsh flags follow.
-  const invocation = parseDshArgs(process.argv.slice(2), readVersion())
+  // Unpackaged: Electron inserts the script at argv[1]. Packaged: the exe
+  // is argv[0] and a double-click has no profile token — inject `desktop`.
+  const invocation = parseDshArgs(desktopElectronUserArgv(process.argv, app.isPackaged), readVersion())
   if (invocation.mode !== 'profile' || invocation.profile !== 'desktop') {
     console.error('dsh desktop: electron-main only boots the desktop profile')
     app.exit(1)

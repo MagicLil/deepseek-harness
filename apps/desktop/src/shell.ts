@@ -8,7 +8,12 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BrowserWindow, app, dialog, ipcMain, protocol, screen, shell as electronShell } from 'electron'
+import { BrowserWindow, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
+import { checkDesktopUpdatesNow, showCloseToTrayHint, startDesktopAutoUpdate } from './auto-update.ts'
+import { consumeCloseToTrayHint } from './desktop-prefs.ts'
+import { desktopIconFilePath, ensureDesktopIconFile } from './icon.ts'
+import { isAppQuitting, markAppQuitting } from './lifecycle.ts'
+import { createDesktopTray, type DesktopTrayHandle } from './tray.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import { injectBootManifest, type WebBootGraph } from '@deepseek-ai/dsh-client-modules'
 import type { FetchHandler } from '@deepseek-ai/dsh-client-connection'
@@ -37,12 +42,14 @@ const END_CHANNEL = 'dsh:fetch-end'
 export const DSH_DESKTOP_ORIGIN = 'dsh://app'
 
 /**
- * Renderer CSP: no `unsafe-eval`. Plugin bundles load as classic inline
- * scripts, so `unsafe-inline` stays required.
+ * Renderer CSP. The web shell inlines cordis-plugin-loader, which builds
+ * `!!js` config evaluators with `new Function` + `eval` at module init —
+ * without `unsafe-eval` that throw is an EvalError and #root stays blank.
+ * Plugin bundles load as classic inline scripts, so `unsafe-inline` stays.
  */
 const DESKTOP_CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
@@ -250,12 +257,15 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
     }
     if (url.pathname.startsWith('/api/')) {
       // Renderer `fetch` / `<a download>` hit the custom protocol, not IPC.
-      return handler.fetch(toLoopbackRequest(url, {
+      const init: RequestInit = {
         method: request.method,
         headers: request.headers,
-        body: request.body,
         signal: request.signal,
-      }))
+      }
+      if (request.method !== 'GET' && request.method !== 'HEAD' && request.body !== null) {
+        init.body = request.body
+      }
+      return handler.fetch(toLoopbackRequest(url, init))
     }
     let pathname = decodeURIComponent(url.pathname)
     if (pathname === '/' || pathname === '') pathname = '/index.html'
@@ -371,11 +381,12 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
     return saved === undefined ? undefined : clampWindowState(saved, workAreas)
   })()
 
-  const win = new BrowserWindow({
+  const packageRoot = fileURLToPath(new URL('..', import.meta.url))
+  const iconPath = ensureDesktopIconFile(desktopIconFilePath(packageRoot), app.isPackaged)
+  const iconImage = nativeImage.createFromPath(iconPath)
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: restored?.width ?? DEFAULT_WINDOW_WIDTH,
     height: restored?.height ?? DEFAULT_WINDOW_HEIGHT,
-    x: restored?.x,
-    y: restored?.y,
     show: false,
     webPreferences: {
       preload: options.preloadPath,
@@ -383,8 +394,14 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
       nodeIntegration: false,
       sandbox: true,
     },
-    title: 'DeepSeek Harness',
-  })
+    title: '万物智汇',
+  }
+  if (!iconImage.isEmpty()) windowOptions.icon = iconImage
+  if (restored !== undefined) {
+    windowOptions.x = restored.x
+    windowOptions.y = restored.y
+  }
+  const win = new BrowserWindow(windowOptions)
   if (restored?.isMaximized === true) win.maximize()
 
   const persistBounds = (): void => {
@@ -405,7 +422,14 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   }
   win.on('resize', schedulePersist)
   win.on('move', schedulePersist)
-  win.on('close', persistBounds)
+  const smoke = process.env.DSH_DESKTOP_SMOKE_UNARY === '1'
+  win.on('close', (event) => {
+    persistBounds()
+    if (smoke || isAppQuitting()) return
+    event.preventDefault()
+    win.hide()
+    if (consumeCloseToTrayHint()) showCloseToTrayHint()
+  })
 
   const saveApiDownload = async (url: URL): Promise<void> => {
     try {
@@ -466,6 +490,19 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
 
   await win.loadURL(`${DSH_DESKTOP_ORIGIN}/`)
   win.show()
+
+  let tray: DesktopTrayHandle | undefined
+  if (!smoke) {
+    tray = createDesktopTray({
+      show: () => {
+        focusDesktopWindow()
+      },
+      checkUpdates: () => {
+        void checkDesktopUpdatesNow(win)
+      },
+    })
+    startDesktopAutoUpdate(win)
+  }
 
   if (process.env.DSH_DESKTOP_SMOKE_UNARY === '1') {
     void (async () => {
@@ -583,7 +620,9 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   return {
     closed,
     async dispose() {
+      markAppQuitting()
       abortAll()
+      tray?.dispose()
       ipcMain.removeHandler(DSH_FETCH_CHANNEL)
       ipcMain.removeHandler(DSH_LOAD_BUNDLE_CHANNEL)
       ipcMain.removeListener(DSH_FETCH_ABORT_CHANNEL, abortListener)
@@ -598,7 +637,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   }
 }
 
-/** Resolve this package's preload script path (checked-in plain ESM). */
+/** Resolve this package's preload script path (checked-in CJS for the sandbox). */
 export function resolvePreloadPath(): string {
   return fileURLToPath(new URL('../preload.mjs', import.meta.url))
 }

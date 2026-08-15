@@ -26,6 +26,10 @@ tmp/
 .idea
 mise.toml
 dist-exe/
+dist-desktop/
+.desktop-pack/
+apps/desktop/.pack/
+apps/desktop/build/
 python/sdk-runtime/src/deepseek_harness_runtime/runtime/dsh-jsonrpc-agent-*
 python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/
 python/**/__pycache__/
