@@ -69,7 +69,7 @@ export class IpcApiClient extends AbstractApiClient {
       this.ipc.abortFetch?.(requestId)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
-    return this.ipc.fetch(request).then(head => this.responseFromHead(head, requestId, signal, onAbort))
+    return this.ipc.fetch(request).then(head => this.responseFromHead(head, requestId, signal ?? undefined, onAbort))
   }
 
   /**

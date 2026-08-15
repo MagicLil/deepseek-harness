@@ -12,3 +12,5 @@ dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`d
 
 - 前端 dist 必须已构建（`pnpm run build`）。
 - 首次启动必须处于 Electron main（`dsh desktop` 会自动在 Electron 下重新执行）。
+- 再次启动会聚焦已有窗口。窗口位置记在 `$DSH_HOME/desktop-window.json`。
+- 会话日志导出走系统另存为；`http(s)` 链接用系统浏览器打开。

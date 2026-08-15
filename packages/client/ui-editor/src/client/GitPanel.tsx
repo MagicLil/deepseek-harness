@@ -100,10 +100,10 @@ export function letter(status: GitFileStatus): string {
 }
 
 export function markClass(status: GitFileStatus): string {
-  if (status === 'modified') return css.modified
-  if (status === 'added' || status === 'untracked') return css.added
-  if (status === 'deleted' || status === 'conflict') return css.deleted
-  return css.renamed
+  if (status === 'modified') return css.modified ?? ''
+  if (status === 'added' || status === 'untracked') return css.added ?? ''
+  if (status === 'deleted' || status === 'conflict') return css.deleted ?? ''
+  return css.renamed ?? ''
 }
 
 export function indexGitChanges(status: GitStatus): Record<string, GitFileStatus> {

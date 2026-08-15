@@ -12,3 +12,5 @@ When `surfaceContext` is true, the `app:desktop-surface` prompt section orients 
 
 - Frontend dist must already be built (`pnpm run build`).
 - First launch must run inside Electron main (`dsh desktop` re-execs under Electron automatically).
+- A second launch focuses the existing window. Bounds persist in `$DSH_HOME/desktop-window.json`.
+- Session-log export uses a native Save dialog; `http(s)` links open in the system browser.
