@@ -12,10 +12,11 @@
  * (HoverCard's grace close), which a `pointer-events: none` card cannot do. */
 .card {
   --dsw-hovercard-bg: #2C2C2E;
+  --dsw-hovercard-width: 244px;
   position: fixed;
   z-index: 100;
   box-sizing: border-box;
-  width: 244px;
+  width: var(--dsw-hovercard-width);
   padding: 12px 16px;
   border-radius: 12px;
   background: var(--dsw-hovercard-bg);
