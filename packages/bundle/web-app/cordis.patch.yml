@@ -280,6 +280,10 @@
     - id: ui-editor
       name: '@deepseek-ai/dsh-client-ui-editor'
 
+    # X-Mart workbench: empty right-hand column beside the conversation.
+    - id: ui-xmart-workbench
+      name: '@deepseek-ai/dsh-client-ui-xmart-workbench'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:

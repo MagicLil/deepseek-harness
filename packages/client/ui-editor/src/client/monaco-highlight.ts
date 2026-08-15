@@ -27,29 +27,6 @@ export const EDITOR_DARK_THEME = 'one-dark-pro'
 /** Shiki / Monaco theme id used while the app is in light appearance. */
 export const EDITOR_LIGHT_THEME = 'min-light'
 
-type LangModule = { default: typeof langTs }
-
-const LAZY_GRAMMARS = new Map<string, () => Promise<LangModule>>([
-  ['rust', () => import('@shikijs/langs/rust')],
-  ['go', () => import('@shikijs/langs/go')],
-  ['java', () => import('@shikijs/langs/java')],
-  ['c', () => import('@shikijs/langs/c')],
-  ['cpp', () => import('@shikijs/langs/cpp')],
-  ['csharp', () => import('@shikijs/langs/csharp')],
-  ['ruby', () => import('@shikijs/langs/ruby')],
-  ['php', () => import('@shikijs/langs/php')],
-  ['kotlin', () => import('@shikijs/langs/kotlin')],
-  ['swift', () => import('@shikijs/langs/swift')],
-  ['toml', () => import('@shikijs/langs/toml')],
-  ['ini', () => import('@shikijs/langs/ini')],
-  ['scss', () => import('@shikijs/langs/scss')],
-  ['less', () => import('@shikijs/langs/less')],
-  ['sql', () => import('@shikijs/langs/sql')],
-  ['xml', () => import('@shikijs/langs/xml')],
-  ['lua', () => import('@shikijs/langs/lua')],
-  ['mdx', () => import('@shikijs/langs/mdx')],
-])
-
 const EXT_TO_LANG = new Map<string, string>([
   ['ts', 'typescript'], ['tsx', 'typescript'], ['mts', 'typescript'], ['cts', 'typescript'],
   ['js', 'javascript'], ['jsx', 'javascript'], ['mjs', 'javascript'], ['cjs', 'javascript'],
@@ -105,12 +82,9 @@ export function isMarkdownPath(filePath: string): boolean {
 export async function prepareMonacoHighlight(monaco: Monaco, filePath: string): Promise<string> {
   const language = languageFromPath(filePath)
   const core = await ensureHighlighter()
-  if (language !== 'plaintext') {
-    await ensureLanguage(core, language)
-    if (!registeredIds.has(language)) {
-      monaco.languages.register({ id: language })
-      registeredIds.add(language)
-    }
+  if (language !== 'plaintext' && !registeredIds.has(language)) {
+    monaco.languages.register({ id: language })
+    registeredIds.add(language)
   }
   shikiToMonaco(core, monaco)
   return language
@@ -127,12 +101,4 @@ async function ensureHighlighter(): Promise<HighlighterCore> {
     return created
   })
   return highlighterPending
-}
-
-async function ensureLanguage(core: HighlighterCore, language: string): Promise<void> {
-  if (core.getLoadedLanguages().includes(language)) return
-  const load = LAZY_GRAMMARS.get(language)
-  if (load === undefined) return
-  const mod = await load()
-  await core.loadLanguage(mod.default)
 }

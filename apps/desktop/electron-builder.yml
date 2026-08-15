@@ -1,8 +1,9 @@
 appId: ai.deepseek.harness
-productName: DeepSeek Harness
-copyright: Copyright © DeepSeek
+productName: xmart
+copyright: Copyright © xmart
 asar: false
 npmRebuild: false
+afterPack: ./after-pack.cjs
 directories:
   app: ../../.desktop-pack
   output: ../../dist-desktop
@@ -28,10 +29,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: DeepSeek Harness
-  artifactName: DeepSeek-Harness-Setup-${version}-${arch}.${ext}
+  shortcutName: xmart
+  artifactName: xmart.${version}.${ext}
 portable:
-  artifactName: DeepSeek-Harness-Portable-${version}-${arch}.${ext}
+  artifactName: xmart.${version}-portable.${ext}
 publish:
   provider: github
   owner: MagicLil

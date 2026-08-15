@@ -100,7 +100,7 @@ export function clientBundle(
     const face = buildFace(env?.DSH_BUILD_FACE)
     const client = clientConfig(id, face === undefined
       ? 'src/client/index.ts'
-      : 'lib/types/client/index.js')
+      : 'lib/types/client/index.js', options.client)
     const node = [lib, ...(options.companions ?? [])]
     if (face === 'host') return options.hostPhase === true ? node : [SKIP_WORKSPACE_BUILD]
     if (face === 'client') return options.hostPhase === true ? [client] : [...node, client]
@@ -137,6 +137,8 @@ interface ClientBundleOptions {
   readonly companions?: readonly UserConfig[]
   /** Overrides for the package's primary Node-side library config. */
   readonly lib?: UserConfig
+  /** Overrides for the browser client bundle (merged over the shared preset). */
+  readonly client?: UserConfig
 }
 
 type BuildFace = 'host' | 'client' | undefined
@@ -167,7 +169,7 @@ function clientLibraryConfig(
   }
 }
 
-function clientConfig(id: string, entry: string): UserConfig {
+function clientConfig(id: string, entry: string, overrides: UserConfig = {}): UserConfig {
   return {
     name: `${id}/client`,
     entry: { client: entry },
@@ -269,8 +271,15 @@ function clientConfig(id: string, entry: string): UserConfig {
       banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(id)}, factory: (require) => {`,
       footer: 'return module.exports; } });',
       intro: 'var module = { exports: {} }; var exports = module.exports;',
+      ...overrides.outputOptions,
     },
+    ...omit(overrides, 'outputOptions'),
   }
+}
+
+function omit<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {
+  const { [key]: _dropped, ...rest } = value
+  return rest
 }
 
 /** Resolve an emitted JS asset import against its source-tree counterpart. */

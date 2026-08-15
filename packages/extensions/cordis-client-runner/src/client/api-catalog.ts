@@ -101,6 +101,26 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Close the details panel.',
         parameters: [],
       },
+      {
+        signature: 'openWorkbench(): void',
+        description: 'Open the workbench panel (no-op when already open).',
+        parameters: [],
+      },
+      {
+        signature: 'closeWorkbench(): void',
+        description: 'Close the workbench panel.',
+        parameters: [],
+      },
+      {
+        signature: 'toggleWorkbench(): void',
+        description: 'Toggle the workbench panel (closed ⟷ contract default width).',
+        parameters: [],
+      },
+      {
+        signature: 'setWorkbench(px: number): void',
+        description: 'Write the workbench width preference (clamped to the contract range).',
+        parameters: [{ name: 'px', description: 'requested width in px; closing uses {@link closeWorkbench} instead.' }],
+      },
     ],
   },
   {

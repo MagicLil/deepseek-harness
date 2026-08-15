@@ -5,7 +5,8 @@
  * the per-session active view dissolved into ui-conversation's session store
  * (its only consumer). What remains here is the contract other plugins'
  * apply worlds reach for panel transitions (sidebar toggle from ui-sidebar,
- * details open/close from ui-conversation) — writes stay inside the store's
+ * details open/close from ui-conversation, workbench open/close from
+ * ui-xmart-workbench) — writes stay inside the store's
  * declared action set, delivered as the registration's bound actions.
  */
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
@@ -27,6 +28,17 @@ export interface ILayout {
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
+  /** Open the workbench panel (no-op when already open). */
+  openWorkbench(): void
+  /** Close the workbench panel. */
+  closeWorkbench(): void
+  /** Toggle the workbench panel (closed ⟷ contract default width). */
+  toggleWorkbench(): void
+  /**
+   * Write the workbench width preference (clamped to the contract range).
+   * @param px - requested width in px; closing uses {@link closeWorkbench} instead.
+   */
+  setWorkbench(px: number): void
 }
 
 /** Cross-plugin panel-action face (ctx.layout). */
@@ -57,6 +69,29 @@ export class LayoutController implements ILayout {
   /** Close the details panel. */
   closeDetails(): void {
     this.#require().closeDetails()
+  }
+
+  /** Open the workbench panel (no-op when already open). */
+  openWorkbench(): void {
+    this.#require().openWorkbench()
+  }
+
+  /** Close the workbench panel. */
+  closeWorkbench(): void {
+    this.#require().closeWorkbench()
+  }
+
+  /** Toggle the workbench panel (closed ⟷ contract default width). */
+  toggleWorkbench(): void {
+    this.#require().toggleWorkbench()
+  }
+
+  /**
+   * Write the workbench width preference (clamped to the contract range).
+   * @param px - requested width in px; closing uses {@link closeWorkbench} instead.
+   */
+  setWorkbench(px: number): void {
+    this.#require().setWorkbench(px)
   }
 
   #require(): PanelActions {

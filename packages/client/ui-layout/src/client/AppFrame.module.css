@@ -42,9 +42,20 @@
   border-left: 1px solid var(--dsw-alias-border-l2);
 }
 
-/* The details subtree stays mounted at zero width, so its border must not paint
-   a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
+.workbenchCol {
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* The details/workbench subtrees stay mounted at zero width, so their borders
+   must not paint a 1px seam. The collapsed sidebar instead retains a bordered
+   compact rail. */
 .frame[data-details-collapsed] .detailsCol {
+  border-left: none;
+}
+
+.frame[data-workbench-collapsed] .workbenchCol {
   border-left: none;
 }
 
@@ -75,7 +86,8 @@
   }
 }
 
-.handle[data-side='details']::after {
+.handle[data-side='details']::after,
+.handle[data-side='workbench']::after {
   content: '';
   position: absolute;
   top: 50%;
@@ -87,7 +99,7 @@
   box-sizing: border-box;
   background: var(--dsw-alias-button-floating-fill);
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  /* Hover affordance: the details pill hides until the pointer is over its
+  /* Hover affordance: the pill hides until the pointer is over its
      column, the strip itself, or a drag. */
   opacity: 0;
   transition:
@@ -97,12 +109,17 @@
 
 .detailsCol:hover ~ .handle[data-side='details']::after,
 .handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after {
+.handle[data-side='details'][data-dragging='true']::after,
+.workbenchCol:hover ~ .handle[data-side='workbench']::after,
+.handle[data-side='workbench']:hover::after,
+.handle[data-side='workbench'][data-dragging='true']::after {
   opacity: 1;
 }
 
 .handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after {
+.handle[data-side='details'][data-dragging='true']::after,
+.handle[data-side='workbench']:hover::after,
+.handle[data-side='workbench'][data-dragging='true']::after {
   background: var(--dsw-alias-button-floating-hover);
   border-color: var(--dsw-alias-border-l3);
 }
