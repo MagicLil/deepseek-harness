@@ -567,14 +567,18 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-/* Plate lives on HoverCard's portaled #2C2C2E card. Theme tokens resolve
- * against the app chrome, not this plate — colors are local, like Cursor. */
+/* Own plate (not HoverCard): desktop web dist ships a stale HoverCard that
+ * ignores consumer classes. Colors are local — theme tokens miss this layer. */
 .hoverPlate {
-  --dsw-hovercard-width: 360px;
-  --dsw-hovercard-bg: #252526;
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: calc(100vw - 24px);
   padding: 12px 14px 14px;
   border: 1px solid #3e3e42;
   border-radius: 8px;
+  background: #252526;
   box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
 }
 
