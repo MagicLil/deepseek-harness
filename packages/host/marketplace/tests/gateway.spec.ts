@@ -137,9 +137,10 @@ describe('MarketplaceGateway', () => {
     gw.runtime.fetch = throwFetch()
     expect(await gw.installExtension({ id: 'acme.none', downloadUrl: 'https://x' }))
       .toMatchObject({ ok: false, error: 'net' })
-    gw.runtime.fetch = (async () => {
+    const boomFetch: typeof fetch = async () => {
       throw 'boom'
-    }) as typeof fetch
+    }
+    gw.runtime.fetch = boomFetch
     expect(await gw.installExtension({ id: 'acme.none', downloadUrl: 'https://x' }))
       .toMatchObject({ ok: false, error: 'download-failed' })
   })

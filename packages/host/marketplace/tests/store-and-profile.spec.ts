@@ -70,7 +70,8 @@ describe('profile-install', () => {
     expect(fail.code).toBe(1)
     const added = await addPlugin(dir, 'x', true, spawnOk(), fs.readText, fs.writeText)
     expect(added.code).toBe(0)
-    expect(JSON.parse(String(fs.files.get(join(dir, 'package.json')))).dsh.profile.bundles).toContain('a')
+    const written = await readProfilePackage(dir, fs.readText)
+    expect(written.dsh?.profile?.bundles).toContain('a')
     const removedFail = await removePlugin(dir, 'a', spawnFail(), fs.readText, fs.writeText)
     expect(removedFail.code).toBe(1)
     const removed = await removePlugin(dir, 'a', spawnOk(), fs.readText, fs.writeText)
@@ -82,7 +83,7 @@ describe('vsix-store', () => {
   it('lists, stores, and removes vsix files', async () => {
     const home = '/home'
     const fs = memFs()
-    expect(extensionsDir(home)).toBe(join(home, '.dsh', 'extensions'))
+    expect(extensionsDir(home)).toBe(join(home, 'extensions'))
     expect(await listStored(home, fs)).toEqual([])
     fs.files.set(join(extensionsDir(home), 'manifest.json'), 'null')
     expect(await listStored(home, fs)).toEqual([])

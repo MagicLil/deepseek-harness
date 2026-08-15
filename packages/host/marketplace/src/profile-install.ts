@@ -14,6 +14,10 @@ export interface ProfilePackageJson {
   dsh?: { profile?: { bundles?: string[] } }
 }
 
+function isProfilePackage(value: unknown): value is ProfilePackageJson {
+  return value !== null && typeof value === 'object'
+}
+
 /**
  * Read a profile package.json. Missing file → empty object.
  * @param profileDir - profile directory.
@@ -26,8 +30,8 @@ export async function readProfilePackage(
   try {
     const raw = await read(join(profileDir, 'package.json'), 'utf8')
     const parsed: unknown = JSON.parse(raw)
-    if (parsed === null || typeof parsed !== 'object') return {}
-    return parsed as ProfilePackageJson
+    if (!isProfilePackage(parsed)) return {}
+    return parsed
   }
   catch {
     return {}

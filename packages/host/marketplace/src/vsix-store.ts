@@ -28,15 +28,15 @@ const realFs: VsixFs = { mkdir, readFile, writeFile, rm }
 
 /**
  * Directory that holds vsix files and `manifest.json`.
- * @param home - user home (`~/.dsh` parent).
+ * @param home - harness home (`~/.dsh`), not the OS user home.
  */
 export function extensionsDir(home: string): string {
-  return join(home, '.dsh', 'extensions')
+  return join(home, 'extensions')
 }
 
 /**
  * Read the stored manifest. Missing file → empty list.
- * @param home - user home.
+ * @param home - harness home (`~/.dsh`).
  * @param fs - filesystem.
  */
 export async function listStored(home: string, fs: VsixFs = realFs): Promise<StoredVsix[]> {
@@ -60,7 +60,7 @@ export async function listStored(home: string, fs: VsixFs = realFs): Promise<Sto
 
 /**
  * Write the manifest atomically enough for this product (single writer).
- * @param home - user home.
+ * @param home - harness home (`~/.dsh`).
  * @param items - rows.
  * @param fs - filesystem.
  */
@@ -72,7 +72,7 @@ export async function writeManifest(home: string, items: readonly StoredVsix[], 
 
 /**
  * Save a vsix and record it.
- * @param home - user home.
+ * @param home - harness home (`~/.dsh`).
  * @param card - card being installed.
  * @param bytes - vsix body.
  * @param fs - filesystem.
@@ -103,7 +103,7 @@ export async function storeVsix(
 
 /**
  * Remove a stored vsix.
- * @param home - user home.
+ * @param home - harness home (`~/.dsh`).
  * @param id - `publisher.name`.
  * @param fs - filesystem.
  */
