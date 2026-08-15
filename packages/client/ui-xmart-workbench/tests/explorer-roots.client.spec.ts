@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { homeOf, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from '../src/client/explorer-roots.ts'
+import {
+  editorWorkspaceRoot, homeOf, inferWorkspaceFromFile, resolveExplorerRoots, resolveSessionCwd,
+  resolveTerminalCwd,
+} from '../src/client/explorer-roots.ts'
 
 const hmdp = { workspaceId: 'w1', path: 'D:\\work\\hmdp', title: 'hmdp', sessionIds: ['s1'] }
 const tool = { workspaceId: 'w2', path: 'D:\\work\\tool', title: 'tool', sessionIds: [] }
@@ -44,6 +47,12 @@ describe('resolveSessionCwd', () => {
       [hmdp, { workspaceId: 'w3', path: 'D:\\work\\hmdp\\web', title: 'web', sessionIds: [] }],
       'w2',
     )).toBe('D:\\work\\hmdp\\web')
+    expect(resolveSessionCwd(
+      's9',
+      'D:\\work\\hmdp\\web\\a.ts',
+      [{ workspaceId: 'w3', path: 'D:\\work\\hmdp\\web', title: 'web', sessionIds: [] }, hmdp],
+      undefined,
+    )).toBe('D:\\work\\hmdp\\web')
     expect(resolveSessionCwd('s9', 'D:\\work', [hmdp, tool], 'w2')).toBe('D:\\work\\tool')
     expect(resolveSessionCwd('s9', 'D:\\work\\tool', [hmdp, tool], 'w2')).toBe('D:\\work\\tool')
     expect(resolveSessionCwd('s9', '/live', [hmdp, tool], 'w2')).toBe('/live')
@@ -54,6 +63,41 @@ describe('resolveSessionCwd', () => {
     expect(resolveSessionCwd('s9', undefined, [{ ...hmdp, path: '' }, tool], undefined)).toBe('D:\\work\\tool')
     expect(resolveSessionCwd('s9', undefined, [], undefined)).toBeUndefined()
     expect(resolveSessionCwd('s9', '/ws', [], undefined)).toBe('/ws')
+  })
+})
+
+describe('editorWorkspaceRoot', () => {
+  it('prefers cwd, then the first explorer root', () => {
+    expect(editorWorkspaceRoot('/ws', [{ path: '/other', title: 'o' }])).toBe('/ws')
+    expect(editorWorkspaceRoot('', [{ path: '/ws', title: 'ws' }])).toBe('/ws')
+    expect(editorWorkspaceRoot(undefined, [{ path: '/ws', title: 'ws' }])).toBe('/ws')
+    expect(editorWorkspaceRoot(undefined, [{ path: '', title: 'x' }])).toBeUndefined()
+    expect(editorWorkspaceRoot('', [])).toBeUndefined()
+    expect(editorWorkspaceRoot('', [], 'D:\\work\\jianghuawei\\mod\\src\\main\\java\\Foo.java'))
+      .toBe('D:\\work\\jianghuawei\\mod')
+    expect(editorWorkspaceRoot(
+      'D:\\work\\xmart-web',
+      [{ path: 'D:\\work\\xmart-web', title: 'x' }],
+      'D:\\work\\xmart-web\\apps\\web\\src\\App.vue',
+    )).toBe('D:\\work\\xmart-web\\apps\\web')
+    expect(editorWorkspaceRoot('/mono', [], '/mono/apps/web/src/main.ts')).toBe('/mono/apps/web')
+    expect(editorWorkspaceRoot('/ws', [], '/ws/src/main/java/Foo.java')).toBe('/ws')
+    expect(editorWorkspaceRoot('/other', [], '/mono/apps/web/src/App.vue')).toBe('/mono/apps/web')
+    expect(editorWorkspaceRoot('/mono/apps/web/src', [], '/mono/apps/web/src/App.vue'))
+      .toBe('/mono/apps/web/src')
+    expect(editorWorkspaceRoot('/ws', [], 'App.vue')).toBe('/ws')
+  })
+})
+
+describe('inferWorkspaceFromFile', () => {
+  it('cuts at Maven src or the parent directory', () => {
+    expect(inferWorkspaceFromFile('')).toBeUndefined()
+    expect(inferWorkspaceFromFile('Foo.java')).toBeUndefined()
+    expect(inferWorkspaceFromFile('/mod/src/main/java/com/x/Foo.java')).toBe('/mod')
+    expect(inferWorkspaceFromFile('D:\\mod\\src\\main\\kotlin\\Foo.kt')).toBe('D:\\mod')
+    expect(inferWorkspaceFromFile('/mod/src/test/java/Foo.java')).toBe('/mod')
+    expect(inferWorkspaceFromFile('/app/src/views/A.vue')).toBe('/app')
+    expect(inferWorkspaceFromFile('/app/readme.md')).toBe('/app')
   })
 })
 

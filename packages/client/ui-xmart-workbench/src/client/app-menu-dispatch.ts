@@ -13,6 +13,12 @@ export type AppMenuCommand =
   | 'file-find'
   | 'file-replace'
   | 'file-close'
+  | 'file-quick-open'
+  | 'file-goto-line'
+  | 'file-goto-definition'
+  | 'file-goto-implementation'
+  | 'file-goto-references'
+  | 'file-show-hover'
   | 'settings-open'
   | 'activity-explorer'
   | 'activity-git'
@@ -31,8 +37,23 @@ export const WORKBENCH_FIND_EVENT = 'dsh:workbench-find'
 /** Window event that asks the mounted editor to open find-and-replace. */
 export const WORKBENCH_REPLACE_EVENT = 'dsh:workbench-replace'
 
+/** Window event that asks the editor column to open the file palette. */
+export const WORKBENCH_QUICK_OPEN_EVENT = 'dsh:workbench-quick-open'
+
+/** Window event whose `detail` is a Monaco action id. */
+export const WORKBENCH_EDITOR_ACTION_EVENT = 'dsh:workbench-editor-action'
+
 /** Window event that asks the settings shell to open its modal. */
 export const OPEN_SETTINGS_EVENT = 'dsh:open-settings'
+
+/** Menu commands that run a Monaco action on the focused editor. */
+export const EDITOR_ACTION_BY_COMMAND: Partial<Record<AppMenuCommand, string>> = {
+  'file-goto-line': 'editor.action.gotoLine',
+  'file-goto-definition': 'editor.action.revealDefinition',
+  'file-goto-implementation': 'editor.action.goToImplementation',
+  'file-goto-references': 'editor.action.goToReferences',
+  'file-show-hover': 'editor.action.showHover',
+}
 
 /** Dependencies the menu handler closes over from `apply`. */
 export type AppMenuDispatchDeps = {
@@ -45,7 +66,7 @@ export type AppMenuDispatchDeps = {
   toggleSessions: () => void
   newTerminal: (sessionId: string) => void
   toggleTerminal: (sessionId: string) => void
-  dispatch: (name: string) => void
+  dispatch: (name: string, detail?: string) => void
 }
 
 /**
@@ -77,6 +98,15 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
   }
   if (command === 'file-replace') {
     deps.dispatch(WORKBENCH_REPLACE_EVENT)
+    return
+  }
+  if (command === 'file-quick-open') {
+    deps.dispatch(WORKBENCH_QUICK_OPEN_EVENT)
+    return
+  }
+  const editorAction = EDITOR_ACTION_BY_COMMAND[command]
+  if (editorAction !== undefined) {
+    deps.dispatch(WORKBENCH_EDITOR_ACTION_EVENT, editorAction)
     return
   }
   if (command === 'session-new') {

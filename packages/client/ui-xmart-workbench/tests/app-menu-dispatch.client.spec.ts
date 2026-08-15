@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  activeFileTab, dispatchAppMenu, OPEN_SETTINGS_EVENT, WORKBENCH_FIND_EVENT,
-  WORKBENCH_REPLACE_EVENT, WORKBENCH_SAVE_EVENT,
+  activeFileTab, dispatchAppMenu, OPEN_SETTINGS_EVENT, WORKBENCH_EDITOR_ACTION_EVENT,
+  WORKBENCH_FIND_EVENT, WORKBENCH_QUICK_OPEN_EVENT, WORKBENCH_REPLACE_EVENT, WORKBENCH_SAVE_EVENT,
   type AppMenuCommand, type AppMenuDispatchDeps,
 } from '../src/client/app-menu-dispatch.ts'
 import { EMPTY_WORKBENCH_VIEW } from '../src/client/service.ts'
@@ -33,12 +33,16 @@ describe('dispatchAppMenu', () => {
   it('routes commands that do not need a session', () => {
     const d = deps({ sessionId: undefined })
     const rows: AppMenuCommand[] = [
-      'settings-open', 'file-save', 'file-find', 'file-replace', 'session-new', 'workspace-open',
+      'settings-open', 'file-save', 'file-find', 'file-replace', 'file-quick-open',
+      'file-goto-line', 'file-goto-definition', 'session-new', 'workspace-open',
       'sidebar-primary', 'sidebar-sessions',
     ]
     for (const command of rows) dispatchAppMenu(command, d)
     expect(d.calls.dispatch).toEqual([
       [OPEN_SETTINGS_EVENT], [WORKBENCH_SAVE_EVENT], [WORKBENCH_FIND_EVENT], [WORKBENCH_REPLACE_EVENT],
+      [WORKBENCH_QUICK_OPEN_EVENT],
+      [WORKBENCH_EDITOR_ACTION_EVENT, 'editor.action.gotoLine'],
+      [WORKBENCH_EDITOR_ACTION_EVENT, 'editor.action.revealDefinition'],
     ])
     expect(d.calls.newSession).toHaveLength(1)
     expect(d.calls.openWorkspace).toHaveLength(1)

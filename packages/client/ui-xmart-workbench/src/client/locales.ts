@@ -59,6 +59,16 @@ export type WorkbenchKey =
   | 'editor.loading'
   | 'editor.engineLoading'
   | 'editor.engineError'
+  | 'editor.noSource'
+  | 'editor.lspStarting'
+  | 'editor.lspFailed'
+  | 'editor.lspOff'
+  | 'editor.lspUnsupported'
+  | 'editor.lspNoWorkspace'
+  | 'editor.lspNoRemote'
+  | 'quickOpen.placeholder'
+  | 'quickOpen.empty'
+  | 'quickOpen.noWorkspace'
   | 'editor.save'
   | 'editor.saving'
   | 'editor.saved'
@@ -142,6 +152,15 @@ export type WorkbenchKey =
   | 'menu.edit.copy'
   | 'menu.edit.paste'
   | 'menu.edit.selectAll'
+  | 'menu.edit.find'
+  | 'menu.edit.replace'
+  | 'menu.go'
+  | 'menu.go.file'
+  | 'menu.go.line'
+  | 'menu.go.definition'
+  | 'menu.go.implementation'
+  | 'menu.go.references'
+  | 'menu.go.hover'
   | 'menu.view'
   | 'menu.view.primary'
   | 'menu.view.sessions'
@@ -226,6 +245,16 @@ export const zh: Record<WorkbenchKey, string> = {
   'editor.loading': '正在打开…',
   'editor.engineLoading': '正在加载编辑器内核…',
   'editor.engineError': '编辑器内核加载失败，请重新构建前端后重试',
+  'editor.noSource': '没有源码',
+  'editor.lspStarting': '正在启动语言服务…',
+  'editor.lspFailed': '语言服务没起来，跳转/悬停不可用。JDT 1.57 进程需要 Java 21+（会自动在 D:\\developTool 找；项目可以是 8/17/21）',
+  'editor.lspOff': '当前文件没有语言服务（需要已打开工作区，且仅支持 Java / TS / JS / Vue）',
+  'editor.lspUnsupported': '这个文件类型还没有语言服务（目前支持 Java / TS / JS / Vue）',
+  'editor.lspNoWorkspace': '语言服务还没对上工作区。侧栏能看见文件夹时，点一下文件或等会话 cwd 就绪',
+  'editor.lspNoRemote': '语言服务通道还没连上，请稍等几秒；一直这样就重启桌面端',
+  'quickOpen.placeholder': '输入文件名…',
+  'quickOpen.empty': '没有匹配的文件',
+  'quickOpen.noWorkspace': '没有工作区可搜索',
   'editor.save': '保存',
   'editor.saving': '保存中…',
   'editor.saved': '已保存',
@@ -311,6 +340,15 @@ export const zh: Record<WorkbenchKey, string> = {
   'menu.edit.copy': '复制',
   'menu.edit.paste': '粘贴',
   'menu.edit.selectAll': '全选',
+  'menu.edit.find': '查找',
+  'menu.edit.replace': '替换',
+  'menu.go': '转到',
+  'menu.go.file': '转到文件',
+  'menu.go.line': '转到行',
+  'menu.go.definition': '转到定义',
+  'menu.go.implementation': '转到实现',
+  'menu.go.references': '查找所有引用',
+  'menu.go.hover': '显示悬停提示',
   'menu.view': '视图',
   'menu.view.primary': '切换左侧边栏',
   'menu.view.sessions': '切换会话列表',
@@ -383,6 +421,16 @@ export const en: Record<WorkbenchKey, string> = {
   'editor.loading': 'Opening…',
   'editor.engineLoading': 'Loading the editor engine…',
   'editor.engineError': 'The editor engine failed to load. Rebuild the frontend and retry.',
+  'editor.noSource': 'No source available',
+  'editor.lspStarting': 'Starting the language server…',
+  'editor.lspFailed': 'Language server failed to start. JDT 1.57 needs Java 21+ (auto-scanned under D:\\developTool; projects may still be 8/17/21)',
+  'editor.lspOff': 'No language server for this file (needs a workspace; Java / TS / JS / Vue only)',
+  'editor.lspUnsupported': 'No language server for this file type (Java / TS / JS / Vue only)',
+  'editor.lspNoWorkspace': 'Language server has no workspace root yet. Re-click the file after the explorer tree appears',
+  'editor.lspNoRemote': 'The language-server channel is not connected yet. Wait a few seconds, or relaunch the desktop app',
+  'quickOpen.placeholder': 'Type a file name…',
+  'quickOpen.empty': 'No matching files',
+  'quickOpen.noWorkspace': 'No workspace to search',
   'editor.save': 'Save',
   'editor.saving': 'Saving…',
   'editor.saved': 'Saved',
@@ -468,6 +516,15 @@ export const en: Record<WorkbenchKey, string> = {
   'menu.edit.copy': 'Copy',
   'menu.edit.paste': 'Paste',
   'menu.edit.selectAll': 'Select All',
+  'menu.edit.find': 'Find',
+  'menu.edit.replace': 'Replace',
+  'menu.go': 'Go',
+  'menu.go.file': 'Go to File',
+  'menu.go.line': 'Go to Line',
+  'menu.go.definition': 'Go to Definition',
+  'menu.go.implementation': 'Go to Implementation',
+  'menu.go.references': 'Go to References',
+  'menu.go.hover': 'Show Hover',
   'menu.view': 'View',
   'menu.view.primary': 'Toggle Primary Sidebar',
   'menu.view.sessions': 'Toggle Session List',

@@ -36,6 +36,7 @@ afterEach(() => {
   localStorage.clear()
   lastHost.languageClient = undefined
   lastHost.throwOnRender = false
+  vi.useRealTimers()
   cleanup()
 })
 
@@ -72,6 +73,20 @@ function mount(opts?: {
 describe('EditorTab', () => {
   it('shows the no-path copy', () => {
     mount()
+    expect(screen.getByText('这个标签没有文件路径。')).toBeTruthy()
+    cleanup()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'empty' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => ''}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        getRemotes={() => ({})}
+      />,
+    )
     expect(screen.getByText('这个标签没有文件路径。')).toBeTruthy()
   })
 
@@ -261,6 +276,7 @@ describe('EditorTab', () => {
       definition: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
       hover: vi.fn(async () => ({ ok: true as const, value: {} })),
       references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      implementation: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
     }
     const tsLsp = { ...vueLsp }
     const javaLsp = { ...vueLsp }
@@ -323,10 +339,106 @@ describe('EditorTab', () => {
         files={createWorkbenchFilesStore()}
         workspaceRoot="/ws"
         javaLsp={javaLsp}
+        openFile={() => {}}
       />,
     )
     await act(async () => { await Promise.resolve() })
     expect(lastHost.languageClient).toBeDefined()
+  })
+
+  it('picks up a late Remote and a late workspace root', async () => {
+    vi.useFakeTimers()
+    const javaLsp = {
+      open: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      change: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      close: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      complete: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      definition: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      hover: vi.fn(async () => ({ ok: true as const, value: {} })),
+      references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      implementation: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+    }
+    let remotes: { javaLsp?: typeof javaLsp } = {}
+    const late = { root: undefined as string | undefined }
+    const listeners = new Set<() => void>()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'Foo.java', path: '/Foo.java' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'class Foo {}'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        getWorkspaceRoot={() => late.root}
+        watchWorkspace={(fn) => {
+          listeners.add(fn)
+          return () => { listeners.delete(fn) }
+        }}
+        getRemotes={() => remotes}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('语言服务还没对上工作区。侧栏能看见文件夹时，点一下文件或等会话 cwd 就绪')).toBeTruthy()
+    expect(lastHost.languageClient).toBeUndefined()
+    remotes = { javaLsp }
+    late.root = '/ws'
+    act(() => { for (const fn of listeners) fn() })
+    await act(async () => { await Promise.resolve() })
+    expect(lastHost.languageClient).toBeDefined()
+    cleanup()
+    remotes = {}
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'Foo.java', path: '/Foo.java' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'class Foo {}'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        getRemotes={() => remotes}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('语言服务通道还没连上，请稍等几秒；一直这样就重启桌面端')).toBeTruthy()
+    remotes = { javaLsp }
+    await act(async () => { vi.advanceTimersByTime(400) })
+    expect(lastHost.languageClient).toBeDefined()
+    cleanup()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'a.md', path: '/a.md' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => '# hi'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('这个文件类型还没有语言服务（目前支持 Java / TS / JS / Vue）')).toBeTruthy()
+    cleanup()
+    remotes = {}
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'Foo.java', path: '/Foo.java' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'class Foo {}'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        getRemotes={() => remotes}
+      />,
+    )
+    await act(async () => { vi.advanceTimersByTime(20_000) })
+    vi.useRealTimers()
   })
 
   it('keeps the file text when Monaco throws on render', async () => {

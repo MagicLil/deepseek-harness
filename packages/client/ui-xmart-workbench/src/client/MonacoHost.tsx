@@ -8,8 +8,11 @@ import { loadMonaco, type Monaco } from './monaco-loader.ts'
 import { languageFromPath } from './language-from-path.ts'
 import { EDITOR_DARK_THEME, EDITOR_LIGHT_THEME, prepareMonacoHighlight } from './monaco-highlight.ts'
 import type { EditorHover, EditorLanguageClient, EditorLocation } from './editor-lsp.ts'
+import { hoverWhenReady, markLanguageWarmed, shouldSuppressLspStarting } from './editor-lsp.ts'
 import { fileUrlToPath, normalizeEditorPath, requestReveal, subscribeReveal, takeReveal } from './editor-nav.ts'
-import { WORKBENCH_FIND_EVENT, WORKBENCH_REPLACE_EVENT } from './app-menu-dispatch.ts'
+import {
+  WORKBENCH_EDITOR_ACTION_EVENT, WORKBENCH_FIND_EVENT, WORKBENCH_REPLACE_EVENT,
+} from './app-menu-dispatch.ts'
 import { bindEditorLayout } from './editor-layout.ts'
 import css from './MonacoHost.module.css'
 
@@ -64,7 +67,6 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
           if (disposed || host === null) return
           const language = await prepareMonacoHighlight(monaco, initialRef.current.path)
           /* v8 ignore start -- unmount can win the highlight boot. */
-          // oxlint-disable-next-line typescript/no-unnecessary-condition -- `disposed` flips during the await.
           if (disposed || hostRef.current === null) return
           /* v8 ignore stop */
           const uri = monaco.Uri.file(initialRef.current.path.replaceAll('\\', '/'))
@@ -85,6 +87,8 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
             minimap: { enabled: true },
             scrollBeyondLastLine: false,
             padding: { bottom: 16 },
+            links: false,
+            hover: { delay: 400, sticky: true },
           })
           cleanups.push(() => { editor.dispose() })
           cleanups.push(bindEditorLayout(editor, host))
@@ -104,6 +108,15 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
             ))
           }
           editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { onSaveRef.current() })
+          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F12, () => {
+            void editor.getAction('editor.action.goToImplementation')?.run()
+          })
+          const mouse = editor.onMouseDown((event) => {
+            if (!event.event.leftButton) return
+            if (!(event.event.ctrlKey || event.event.metaKey)) return
+            void editor.getAction('editor.action.revealDefinition')?.run()
+          })
+          cleanups.push(() => { mouse.dispose() })
           const applyReveal = (): void => {
             const reveal = takeReveal(initialRef.current.path)
             if (reveal === undefined) return
@@ -119,11 +132,17 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
           }
           const onFind = (): void => { runAction('actions.find') }
           const onReplace = (): void => { runAction('editor.action.startFindReplaceAction') }
+          const onEditorAction = (event: Event): void => {
+            const id = 'detail' in event ? Reflect.get(event, 'detail') : undefined
+            if (typeof id === 'string' && id !== '') runAction(id)
+          }
           window.addEventListener(WORKBENCH_FIND_EVENT, onFind)
           window.addEventListener(WORKBENCH_REPLACE_EVENT, onReplace)
+          window.addEventListener(WORKBENCH_EDITOR_ACTION_EVENT, onEditorAction)
           cleanups.push(() => {
             window.removeEventListener(WORKBENCH_FIND_EVENT, onFind)
             window.removeEventListener(WORKBENCH_REPLACE_EVENT, onReplace)
+            window.removeEventListener(WORKBENCH_EDITOR_ACTION_EVENT, onEditorAction)
           })
           const observer = new MutationObserver(() => {
             monaco.editor.setTheme(darkTheme() ? EDITOR_DARK_THEME : EDITOR_LIGHT_THEME)
@@ -207,17 +226,15 @@ function bindLanguageClient(
     }, () => {})
   }
 
-  if (lspStarting !== undefined && lspStarting !== '') onNote(lspStarting)
+  if (!shouldSuppressLspStarting(filePath) && lspStarting !== undefined && lspStarting !== '') onNote(lspStarting)
   void client.open(filePath, model.getValue()).then(
     () => {
+      markLanguageWarmed(filePath)
       onNote(null)
       paint()
     },
-    () => { onNote(lspFailed ?? null) },
+    (error: unknown) => { onNote(lspFailNote(lspFailed, error)) },
   )
-  /* v8 ignore next -- close is best-effort on unmount. */
-  cleanups.push(() => { void languageClientRef.current?.close(filePath).catch(() => {}) })
-
   let debounce: ReturnType<typeof setTimeout> | null = null
   const changeSub = model.onDidChangeContent(() => {
     if (debounce !== null) clearTimeout(debounce)
@@ -283,7 +300,7 @@ function bindLanguageClient(
       const live = languageClientRef.current
       /* v8 ignore next -- the provider can fire after unmount. */
       if (live === undefined) return null
-      return live.hover(filePath, position.lineNumber - 1, position.column - 1).then((card) => {
+      return hoverWhenReady(live, filePath, position.lineNumber - 1, position.column - 1).then((card) => {
         if (card === undefined) return null
         return { contents: [{ value: card.contents }], ...hoverRange(card) }
       }, () => null)
@@ -303,6 +320,19 @@ function bindLanguageClient(
     },
   })
   cleanups.push(() => { references.dispose() })
+
+  const implementation = monaco.languages.registerImplementationProvider(language, {
+    provideImplementation: (_current, position) => {
+      const live = languageClientRef.current
+      /* v8 ignore next -- the provider can fire after unmount. */
+      if (live === undefined) return []
+      return live.implementation(filePath, position.lineNumber - 1, position.column - 1).then(
+        items => mapFileLocations(monaco, items),
+        () => [],
+      )
+    },
+  })
+  cleanups.push(() => { implementation.dispose() })
 
   const opener = monaco.editor.registerEditorOpener({
     openCodeEditor: (_source, resource, selectionOrPosition) => {
@@ -371,6 +401,13 @@ function revealFromSelection(selectionOrPosition: IRange | IPosition | undefined
     line: selectionOrPosition.lineNumber - 1,
     character: selectionOrPosition.column - 1,
   }
+}
+
+/** Show the host error under the generic banner so Java-8 vs missing JDT is visible. */
+export function lspFailNote(fallback: string | undefined, error: unknown): string | null {
+  if (fallback === undefined || fallback === '') return null
+  const detail = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  return detail === '' ? fallback : `${fallback}（${detail}）`
 }
 
 /** Best-effort path from a Monaco resource when `toString()` is not a `file:` URI. */

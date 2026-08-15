@@ -4,7 +4,8 @@
  * recency, then the first registered path. Stacking every rail folder
  * mixed unrelated projects in one pane.
  */
-import { basename, isUnder } from './route-file.ts'
+import { isTsPath, isVuePath } from './editor-lsp.ts'
+import { basename, dirname, isUnder } from './route-file.ts'
 
 /** Minimal workspace row the explorer needs. */
 export type ExplorerWorkspace = {
@@ -103,6 +104,55 @@ export function resolveSessionCwd(
     if (recent !== undefined) return recent.path
   }
   return workspaces.find(row => row.path !== '')?.path
+}
+
+/**
+ * Guess a project root from an open file when the session has no cwd yet.
+ * Cuts at `src/main/java` (Maven) or `src`, else the file's directory.
+ * @param filePath - absolute editor path.
+ */
+export function inferWorkspaceFromFile(filePath: string): string | undefined {
+  if (filePath === '') return undefined
+  const posix = filePath.replace(/\\/g, '/')
+  const markers = ['/src/main/java/', '/src/main/kotlin/', '/src/test/java/', '/src/']
+  for (const marker of markers) {
+    const at = posix.toLowerCase().indexOf(marker)
+    if (at > 0) {
+      const root = posix.slice(0, at)
+      return filePath.includes('\\') ? root.replace(/\//g, '\\') : root
+    }
+  }
+  const parent = dirname(filePath)
+  return parent === filePath ? undefined : parent
+}
+
+/**
+ * Workspace root the editor language client should bind to.
+ * Vue / TS files use the nearest package (`…/apps/web` from `…/src/App.vue`)
+ * so Volar does not index a whole monorepo. Java stays on the session cwd
+ * (Maven parent). Otherwise cwd, then the first explorer root, then a guess.
+ * @param cwd - {@link resolveSessionCwd} result.
+ * @param roots - explorer roots currently shown.
+ * @param filePath - open editor path.
+ */
+export function editorWorkspaceRoot(
+  cwd: string | undefined,
+  roots: readonly ExplorerRoot[],
+  filePath?: string,
+): string | undefined {
+  if (typeof filePath === 'string' && filePath !== '' && (isVuePath(filePath) || isTsPath(filePath))) {
+    const inferred = inferWorkspaceFromFile(filePath)
+    if (inferred !== undefined) {
+      if (typeof cwd !== 'string' || cwd === '' || isUnder(inferred, cwd) || !isUnder(filePath, cwd)) {
+        return inferred
+      }
+    }
+  }
+  if (typeof cwd === 'string' && cwd !== '') return cwd
+  const path = roots[0]?.path
+  if (typeof path === 'string' && path !== '') return path
+  if (typeof filePath === 'string' && filePath !== '') return inferWorkspaceFromFile(filePath)
+  return undefined
 }
 
 /**

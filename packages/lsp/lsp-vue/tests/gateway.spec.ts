@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import Lsp from '@deepseek-ai/dsh-lsp'
-import VueLspGateway from '../src/index.ts'
+import VueLspGateway, { toEditorHover, toEditorLocations } from '../src/index.ts'
 import type { VueLspPool } from '../src/provider.ts'
 
 const contexts: Context[] = []
@@ -16,11 +16,13 @@ function fakePool(): {
   open: ReturnType<typeof vi.fn>
   change: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
+  warmup: ReturnType<typeof vi.fn>
   query: ReturnType<typeof vi.fn>
 } {
   const open = vi.fn(async () => {})
   const change = vi.fn(async () => {})
   const close = vi.fn(async () => {})
+  const warmup = vi.fn(async () => {})
   const query = vi.fn(async () => ({ kind: 'hover', hover: { contents: 'h' } }))
   const pool = {
     id: 'vue',
@@ -28,6 +30,7 @@ function fakePool(): {
     open,
     change,
     close,
+    warmup,
     complete: vi.fn(async () => [{ label: 'A' }]),
     diagnostics: vi.fn(async () => [{
       message: 'm',
@@ -38,10 +41,29 @@ function fakePool(): {
       endCharacter: 1,
     }]),
     query,
+    navigate: vi.fn(async (operation: string) => {
+      if (operation === 'hover') {
+        return {
+          kind: 'hover',
+          hover: {
+            contents: 'doc',
+            range: { start: { line: 0, character: 1 }, end: { line: 0, character: 4 } },
+          },
+        }
+      }
+      return {
+        kind: 'locations',
+        locations: [{
+          uri: 'file:///ws/A.vue',
+          range: { start: { line: 2, character: 0 }, end: { line: 2, character: 3 } },
+        }],
+        resolvedWorkspaceUri: 'file:///ws',
+      }
+    }),
     disposeAll: vi.fn(async () => {}),
     asProvider: vi.fn(),
   } as unknown as VueLspPool
-  return { pool, open, change, close, query }
+  return { pool, open, change, close, warmup, query }
 }
 
 async function harness(): Promise<{
@@ -51,6 +73,7 @@ async function harness(): Promise<{
   open: ReturnType<typeof vi.fn>
   change: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
+  warmup: ReturnType<typeof vi.fn>
   query: ReturnType<typeof vi.fn>
 }> {
   const ctx = new Context()
@@ -70,13 +93,16 @@ describe('VueLspGateway', () => {
     const { gw } = await harness()
     expect(gw.typertRemote).toMatchObject({ serviceKey: 'vueLsp', namespace: 'vueLsp' })
     expect(remoteMethods(gw).map(item => item.method)).toEqual([
-      'open', 'change', 'close', 'complete', 'diagnostics',
+      'open', 'change', 'close', 'complete', 'diagnostics', 'definition', 'hover', 'references', 'implementation',
+      'warmup',
     ])
   })
 
   it('forwards editor remotes to the pool', async () => {
-    const { gw, open, change, close } = await harness()
+    const { gw, open, change, close, warmup } = await harness()
     const signal = new AbortController().signal
+    await gw.warmup({ workspaceRoot: '/ws' }, signal)
+    expect(warmup).toHaveBeenCalledWith('/ws', signal)
     await gw.open({ workspaceRoot: '/ws', path: 'A.vue', text: '<template />' }, signal)
     await gw.change({ workspaceRoot: '/ws', path: 'A.vue', text: '<p />' }, signal)
     await gw.close({ workspaceRoot: '/ws', path: 'A.vue' }, signal)
@@ -96,6 +122,42 @@ describe('VueLspGateway', () => {
     expect(open).toHaveBeenCalled()
     expect(change).toHaveBeenCalled()
     expect(close).toHaveBeenCalled()
+    expect(await gw.definition({
+      workspaceRoot: '/ws', path: 'A.vue', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/A.vue',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.hover({
+      workspaceRoot: '/ws', path: 'A.vue', line: 0, character: 1,
+    }, signal)).toEqual({
+      contents: 'doc', startLine: 0, startCharacter: 1, endLine: 0, endCharacter: 4,
+    })
+    expect(await gw.references({
+      workspaceRoot: '/ws', path: 'A.vue', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/A.vue',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.implementation({
+      workspaceRoot: '/ws', path: 'A.vue', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/A.vue',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+  })
+
+  it('maps a mismatched navigate kind to an empty editor result', () => {
+    expect(toEditorLocations({ kind: 'hover', hover: { contents: 'x' } })).toEqual({ items: [] })
+    expect(toEditorHover({ kind: 'locations', locations: [], resolvedWorkspaceUri: 'file:///ws' })).toEqual({})
+    expect(toEditorHover({ kind: 'hover', hover: null })).toEqual({})
+    expect(toEditorHover({ kind: 'hover', hover: { contents: 'only' } })).toEqual({ contents: 'only' })
   })
 
   it('lazily creates the default pool', async () => {

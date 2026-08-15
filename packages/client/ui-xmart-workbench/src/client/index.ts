@@ -13,10 +13,12 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {
   ActivityBarInjected, BottomPanelInjected, MenuBarInjected, PrimarySidebarInjected,
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
+import { XMART_ACCENT_TOKENS } from './brand-accent.ts'
 import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
 import { createWorkbenchStore, inheritWorkbenchPersist } from './stores.ts'
 import { XmartWorkbenchController } from './service.ts'
@@ -29,14 +31,14 @@ import { WorkbenchSettingsSection } from './WorkbenchSettingsSection.tsx'
 import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
 import { EditorTab } from './EditorTab.tsx'
-import { peekRemote } from './editor-lsp.ts'
+import { peekEditorRemotes } from './editor-lsp.ts'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
 import { GitTab } from './GitTab.tsx'
 import { DiffTab } from './DiffTab.tsx'
 import { readTaskTurn, TasksTab } from './TasksTab.tsx'
 import { TerminalTab } from './TerminalTab.tsx'
 import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
-import { resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
+import { editorWorkspaceRoot, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
@@ -77,7 +79,7 @@ declare module '@deepseek-ai/cordis' {
  */
 export const inject = [
   'slots', 'locale', 'layout', 'workspaces', 'sessions', 'conversation', 'conversationEvents',
-  'connection', 'remote',
+  'connection', 'remote', 'theme',
 ]
 
 /** Empty viewer body (matching only; hidden tabs render the real UI). */
@@ -94,6 +96,10 @@ function ViewerStub() {
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-xmart-workbench: dictionaries')
+  ctx.effect(
+    () => ctx.theme.overrideTokens('ui-xmart-workbench', XMART_ACCENT_TOKENS),
+    'ui-xmart-workbench: brand accent',
+  )
 
   const workbench = new XmartWorkbenchController()
   const files = createWorkbenchFilesStore()
@@ -381,26 +387,32 @@ export function apply(ctx: ClientContext): void {
     hidden: true,
     dedupeKey: tab => tab.path,
     component: (props) => {
-      let workspaceRoot: string | undefined
-      try {
-        workspaceRoot = getCwd(props.sessionId)
+      const lookup = (key: string): unknown => {
+        try {
+          return ctx.get(key)
+        }
+        catch {
+          return undefined
+        }
       }
-      catch {
-        workspaceRoot = undefined
+      const getWorkspaceRoot = (): string | undefined => {
+        try {
+          return editorWorkspaceRoot(getCwd(props.sessionId), getRoots(props.sessionId), props.tab.path)
+        }
+        catch {
+          return editorWorkspaceRoot(undefined, [], props.tab.path)
+        }
       }
-      const vueLsp = peekRemote(remote, 'vueLsp')
-      const tsLsp = peekRemote(remote, 'tsLsp')
-      const javaLsp = peekRemote(remote, 'javaLsp')
       return createElement(EditorTab, {
         ...props,
         t,
         readFile: (path, signal) => ctx.workspaces.readFile(path, signal),
         writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
         files,
-        ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
-        ...(vueLsp === undefined ? {} : { vueLsp }),
-        ...(tsLsp === undefined ? {} : { tsLsp }),
-        ...(javaLsp === undefined ? {} : { javaLsp }),
+        getWorkspaceRoot,
+        watchWorkspace: watchWorkspaceFacts,
+        getRemotes: () => peekEditorRemotes(remote, lookup),
+        openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
       })
     },
   }), 'ui-xmart-workbench: editor tab')
@@ -475,9 +487,11 @@ export function apply(ctx: ClientContext): void {
     lastFsSeq = noteFsTouch(files, lastFsSeq, seq, refresh, reload)
   })), 'ui-xmart-workbench: fs events')
 
-  const dispatchWindow = (name: string): void => {
+  const dispatchWindow = (name: string, detail?: string): void => {
     const target = globalThis as { dispatchEvent?: (event: Event) => boolean }
-    target.dispatchEvent?.(new Event(name))
+    target.dispatchEvent?.(
+      detail === undefined ? new Event(name) : new CustomEvent(name, { detail }),
+    )
   }
   const openWorkspace = (): void => {
     void ctx.workspaces.pickDirectory()
@@ -542,6 +556,28 @@ export function apply(ctx: ClientContext): void {
       closeTab: (id) => { workbench.closeTab(id, { sessionId }) },
       activateTab: (id) => { workbench.activateTab(id, { sessionId }) },
       resolveBody: type => workbench.getTab(type)?.component,
+      listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
+      getRoots: () => getRoots(sessionId),
+      openFile: (path) => { workbench.openFile(path, { sessionId }) },
+      getRemotes: () => peekEditorRemotes(remote, (key) => {
+        try {
+          return ctx.get(key)
+        }
+        catch {
+          return undefined
+        }
+      }),
+      getWorkspaceRoot: (filePath) => {
+        try {
+          return editorWorkspaceRoot(getCwd(sessionId), getRoots(sessionId), filePath)
+        }
+        catch {
+          return editorWorkspaceRoot(undefined, [], filePath)
+        }
+      },
+      watchWorkspace: watchWorkspaceFacts,
+      readFile: (path, signal) => ctx.workspaces.readFile(path, signal),
+      files,
       hooks: {
         workbenchSession: workbench.observeSession(sessionId),
         workbenchRegistry: workbench.observeRegistry(),

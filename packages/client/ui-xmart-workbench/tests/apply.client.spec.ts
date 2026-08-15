@@ -16,6 +16,7 @@ import { BottomPanel } from '../src/client/BottomPanel.tsx'
 import { WorkbenchSettingsSection } from '../src/client/WorkbenchSettingsSection.tsx'
 import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-xmart-workbench'
 import * as invariant from '@deepseek-ai/dsh-client-ui-xmart-workbench/invariant'
+import { XMART_ACCENT_TOKENS } from '../src/client/brand-accent.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -136,10 +137,12 @@ async function bench() {
   ctx.provide('conversationEvents', conversationEvents)
   ctx.provide('connection', { api: { host: {} } })
   ctx.provide('remote', { $on: () => () => {} })
+  const overrideTokens = vi.fn(() => () => {})
+  ctx.provide('theme', { overrideTokens })
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
     setDraft, conversationEvents, sessions, cancel, openSubagent,
-    sessionById, workspaceState, sessionList, sessionListeners,
+    sessionById, workspaceState, overrideTokens, sessionList, sessionListeners,
   }
 }
 
@@ -165,7 +168,7 @@ describe('ui-xmart-workbench apply', () => {
   it('declares the services it drives', () => {
     expect(inject).toEqual([
       'slots', 'locale', 'layout', 'workspaces', 'sessions', 'conversation', 'conversationEvents',
-      'connection', 'remote',
+      'connection', 'remote', 'theme',
     ])
   })
 
@@ -211,6 +214,7 @@ describe('ui-xmart-workbench apply', () => {
     expect(service.matchFileViewer('a.md')?.id).toBe('markdown')
     expect(service.matchFileViewer('a.bin', new Uint8Array([0]))?.id).toBe('binary-download')
     expect(b.locale.bind('workbench')('tab.demo')).toBe('演示')
+    expect(b.overrideTokens).toHaveBeenCalledWith('ui-xmart-workbench', XMART_ACCENT_TOKENS)
   })
 
   it('registers the column, activity bar, primary sidebar, bottom panel, and settings section', async () => {
@@ -250,6 +254,9 @@ describe('ui-xmart-workbench apply', () => {
     const column = (
       b.slots.entries('workbench')[0]!.inject as unknown as (id: string) => WorkbenchColumnInjected
     )('s1')
+    expect(column.getRoots?.()).toEqual([{ path: 'D:\\hmdp', title: 'hmdp' }])
+    await column.listEntries?.('/ws')
+    column.openFile?.('/ws/a.ts')
     const Explorer = column.resolveBody('explorer')
     expect(Explorer).toBeTypeOf('function')
     if (typeof Explorer !== 'function') return
@@ -309,6 +316,9 @@ describe('ui-xmart-workbench apply', () => {
     const column = (
       b.slots.entries('workbench')[0]!.inject as unknown as (id: string) => WorkbenchColumnInjected
     )('s1')
+    expect(column.getWorkspaceRoot?.('/ws/a.ts')).toBe('/ws')
+    expect(column.getRemotes?.()).toEqual({})
+    expect(column.readFile).toBeTypeOf('function')
     const primary = (
       b.slots.entries('primarySidebar')[0]!.inject as unknown as (id: string) => PrimarySidebarInjected
     )('s1')
@@ -405,13 +415,22 @@ describe('ui-xmart-workbench apply', () => {
       definition: async () => ({ ok: true as const, value: { items: [] } }),
       hover: async () => ({ ok: true as const, value: {} }),
       references: async () => ({ ok: true as const, value: { items: [] } }),
+      implementation: async () => ({ ok: true as const, value: { items: [] } }),
     }
     Object.assign(b.ctx.get('remote') as object, {
       vueLsp: lspRemote, tsLsp: lspRemote, javaLsp: lspRemote,
     })
-    expect((Editor as typeof renderFile)({
+    const withBag = (Editor as typeof renderFile)({
       tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
-    })).toBeTruthy()
+    }) as { props: { getRemotes: () => { tsLsp?: unknown }; getWorkspaceRoot: () => string | undefined } }
+    expect(withBag.props.getRemotes().tsLsp).toBe(lspRemote)
+    expect(withBag.props.getWorkspaceRoot()).toBe('/ws')
+    b.ctx.provide('remote.javaLsp', lspRemote)
+    const withService = (Editor as typeof renderFile)({
+      tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/ws/src/main/java/F.java' },
+      visible: true, sessionId: 's1',
+    }) as { props: { getRemotes: () => { javaLsp?: unknown } } }
+    expect(withService.props.getRemotes().javaLsp).toBe(lspRemote)
     expect((Image as typeof renderFile)({
       tab: { id: 'im', type: 'image', title: 'a.png', path: '/p/a.png' }, visible: true, sessionId: 's1',
     })).toBeTruthy()
@@ -446,9 +465,15 @@ describe('ui-xmart-workbench apply', () => {
     explorerEl.props.watchWorkbench(() => {})()
     const editorEl = (Editor as typeof renderFile)({
       tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
-    }) as { props: { readFile: (path: string) => Promise<string>; writeFile: (path: string, content: string) => Promise<void> } }
+    }) as { props: {
+      readFile: (path: string) => Promise<string>
+      writeFile: (path: string, content: string) => Promise<void>
+      openFile: (path: string) => void
+    } }
     await editorEl.props.readFile('/p/a.ts')
     await editorEl.props.writeFile('/p/a.ts', 'x')
+    editorEl.props.openFile('/p/Other.java')
+    expect(service.getSnapshot('s1').tabs.some(row => row.path === '/p/Other.java')).toBe(true)
     const imageEl = (Image as typeof renderFile)({
       tab: { id: 'im', type: 'image', title: 'a.png', path: '/p/a.png' }, visible: true, sessionId: 's1',
     }) as { props: { openSystem: (path: string) => Promise<void> } }
@@ -672,6 +697,8 @@ describe('ui-xmart-workbench apply', () => {
       listener?.('session-new')
       listener?.('workspace-open')
       listener?.('file-save')
+      listener?.('file-quick-open')
+      listener?.('file-goto-line')
       listener?.('file-close')
       listener?.('settings-open')
       listener?.('activity-git')
@@ -683,7 +710,9 @@ describe('ui-xmart-workbench apply', () => {
       expect(workspaces!.pickDirectory).toHaveBeenCalledOnce()
       await Promise.resolve()
       expect(workspaces!.create).toHaveBeenCalledWith({ path: '/ws/picked' })
-      expect(dispatched).toEqual(['dsh:workbench-save', 'dsh:open-settings'])
+      expect(dispatched).toEqual([
+        'dsh:workbench-save', 'dsh:workbench-quick-open', 'dsh:workbench-editor-action', 'dsh:open-settings',
+      ])
       expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.path === '/ws/a.ts')).toBe(false)
       expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
       expect(b.layout.openWorkbench).toHaveBeenCalled()
@@ -780,21 +809,30 @@ describe('ui-xmart-workbench apply', () => {
     b.sessions.list.getSnapshot = () => {
       throw new Error('snap')
     }
-    expect(() => renderEditor({
+    expect(column.getWorkspaceRoot?.('/F.java')).toBe('/')
+    const broken = renderEditor({
       tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/F.java' },
       visible: true,
       sessionId: 's1',
-    })).not.toThrow()
+    }) as { props: { getWorkspaceRoot: () => string | undefined; getRemotes: () => { javaLsp?: unknown } } }
+    expect(broken.props.getWorkspaceRoot()).toBe('/')
     b.sessions.list.getSnapshot = snap
     Object.defineProperty(b.ctx.get('remote') as object, 'javaLsp', {
       configurable: true,
       get() { throw new Error('jdt down') },
     })
-    expect(() => renderEditor({
+    const live = renderEditor({
       tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/F.java' },
       visible: true,
       sessionId: 's1',
-    })).not.toThrow()
+    }) as { props: { getRemotes: () => { javaLsp?: unknown } } }
+    expect(live.props.getRemotes().javaLsp).toBeUndefined()
+    const get = b.ctx.get.bind(b.ctx)
+    vi.spyOn(b.ctx, 'get').mockImplementation((key: string) => {
+      if (String(key).startsWith('remote.')) throw new Error('lookup')
+      return get(key)
+    })
+    expect(live.props.getRemotes().javaLsp).toBeUndefined()
   })
 
   it('unregisters slot entries on teardown', async () => {

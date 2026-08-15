@@ -1,12 +1,14 @@
 /**
  * Resolve a local Eclipse JDT Language Server install and the Java binary.
  * First-use download is injectable so tests never hit the network.
+ * JDT LS 1.57+ needs Java 21+ to run (OSGi ee=JavaSE/21). Project compile
+ * JDKs (8 / 17 / 21) are discovered separately and advertised as runtimes.
  * @module @deepseek-ai/dsh-lsp-languages/resolve-java
  */
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 
@@ -16,6 +18,8 @@ export const JDTLS_MILESTONE = '1.57.0'
 export const JDTLS_TARBALL = 'jdt-language-server-1.57.0-202602261110.tar.gz'
 /** Official milestone download URL. */
 export const JDTLS_URL = `https://download.eclipse.org/jdtls/milestones/${JDTLS_MILESTONE}/${JDTLS_TARBALL}`
+/** Minimum major that can launch this JDT LS milestone (bundles require JavaSE 21). */
+export const JDTLS_MIN_JAVA = 21
 
 /** A resolved JDT LS product tree. */
 export interface JdtlsRuntime {
@@ -41,24 +45,236 @@ export interface JdtlsIo {
   readonly writeFile?: (path: string, bytes: Buffer) => void
   /** Create directories. */
   readonly mkdir?: (path: string) => void
+  /** Major version of a `java` / `java.exe` binary (`8` / `17` / `21`). */
+  readonly javaMajor?: (command: string) => number | undefined
+  /** Read a text file (project `pom.xml` / `.java-version`). */
+  readonly readText?: (path: string) => string
+}
+
+/** One JDK found on disk. */
+export interface DiscoveredJdk {
+  /** JDK home (`JAVA_HOME` shape). */
+  readonly home: string
+  /** Absolute `java` / `java.exe`. */
+  readonly java: string
+  /** Major version (`8` / `17` / `21`). */
+  readonly major: number
+}
+
+/** One JDT `java.configuration.runtimes` entry. */
+export interface JdtRuntime {
+  /** Eclipse execution-environment name (`JavaSE-1.8` / `JavaSE-17`). */
+  readonly name: string
+  /** JDK home. */
+  readonly path: string
+  /** Whether this runtime is the project default. */
+  readonly default?: boolean
 }
 
 /**
- * Java executable: `JAVA_HOME/bin/java` when present, otherwise `java` on PATH.
+ * Parse a version token (`17`, `1.8`, `21.0.2`, `21-tem`) into a major.
+ * @param raw - version token or first line of `.java-version`.
+ */
+export function parseJavaMajor(raw: string): number | undefined {
+  const cleaned = raw.trim().replace(/^java-?/i, '').replace(/[-_+].*$/, '')
+  const match = /^(\d+)(?:\.(\d+))?/.exec(cleaned)
+  if (match === null) return undefined
+  const first = Number(match[1])
+  if (first === 1 && match[2] !== undefined) return Number(match[2])
+  return first
+}
+
+/**
+ * Parse `java -version` stderr/stdout into a major.
+ * @param text - combined process output.
+ */
+export function parseJavaVersionOutput(text: string): number | undefined {
+  const quoted = /version\s+"([^"]+)"/.exec(text)?.[1]
+  if (quoted !== undefined) return parseJavaMajor(quoted)
+  return parseJavaMajor(text)
+}
+
+/**
+ * Run `java -version` and return the major, or undefined when unreadable.
+ * @param command - java executable.
+ */
+export function javaMajorVersion(command: string): number | undefined {
+  try {
+    const result = spawnSync(command, ['-version'], { encoding: 'utf8' })
+    return parseJavaVersionOutput(`${result.stderr ?? ''}\n${result.stdout ?? ''}`)
+  } catch {
+    /* v8 ignore next -- spawnSync almost never throws; a missing binary returns status. */
+    return undefined
+  }
+}
+
+/**
+ * Eclipse execution-environment name for a JDK major.
+ * @param major - `8` / `17` / `21`.
+ */
+export function jdtRuntimeName(major: number): string {
+  if (major <= 8) return 'JavaSE-1.8'
+  return `JavaSE-${major}`
+}
+
+/**
+ * Java executable: a discovered 21+ JDK when present, else `JAVA_HOME/bin` or PATH.
+ * JDT LS itself needs 21+; project compile JDKs are advertised separately.
  * @param env - process env.
  * @param platform - `process.platform`.
+ * @param io - optional fs / version overrides.
  */
 export function resolveJavaCommand(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
+  io: JdtlsIo = {},
 ): string {
+  const picked = pickJdtlsJdk(discoverJdks(env, platform, io), env, platform, io)
+  if (picked !== undefined) return picked.java
+  const exe = javaExe(platform)
   const home = env.JAVA_HOME
   if (typeof home === 'string' && home !== '') {
-    const exe = platform === 'win32' ? 'java.exe' : 'java'
     const candidate = join(home, 'bin', exe)
-    if (existsSync(candidate)) return candidate
+    if (existsFn(io)(candidate)) return candidate
   }
-  return platform === 'win32' ? 'java.exe' : 'java'
+  return exe
+}
+
+/**
+ * Java used to launch JDT LS. Throws when the machine only has confirmed Java < 21.
+ * @param env - process env.
+ * @param platform - `process.platform`.
+ * @param io - optional fs / version overrides.
+ */
+export function resolveJdtlsJavaCommand(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  io: JdtlsIo = {},
+): string {
+  const jdks = discoverJdks(env, platform, io)
+  const picked = pickJdtlsJdk(jdks, env, platform, io)
+  if (picked !== undefined) return picked.java
+  const old = jdks.filter(jdk => jdk.major < JDTLS_MIN_JAVA)
+  if (old.length > 0) {
+    throw new Error(
+      `lsp-languages: JDT LS ${JDTLS_MILESTONE} needs Java ${JDTLS_MIN_JAVA}+ to run. Found only ${old.map(jdk => `Java ${jdk.major} at ${jdk.home}`).join('; ')}. Install JDK ${JDTLS_MIN_JAVA}+ (e.g. D:\\developTool\\java21) or set DSH_JDTLS_JAVA.`,
+    )
+  }
+  return resolveJavaCommand(env, platform, io)
+}
+
+/**
+ * Scan env, siblings, PATH, and well-known vendor folders for JDKs.
+ * @param env - process env.
+ * @param platform - `process.platform`.
+ * @param io - optional fs / version overrides.
+ */
+export function discoverJdks(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  io: JdtlsIo = {},
+): DiscoveredJdk[] {
+  const exists = existsFn(io)
+  const list = listFn(io)
+  const majorOf = io.javaMajor ?? javaMajorVersion
+  const exe = javaExe(platform)
+  const homes = new Set<string>()
+  const addHome = (home: string | undefined): void => {
+    if (typeof home === 'string' && home !== '') homes.add(home)
+  }
+  addHome(asHome(env.DSH_JDTLS_JAVA, exe))
+  addHome(env.JAVA_HOME)
+  addHome(env.JDK_HOME)
+  for (const home of [...homes]) addListedChildren(dirname(home), homes, list)
+  for (const root of wellKnownJdkRoots(env, platform)) {
+    if (exists(root)) addListedChildren(root, homes, list)
+  }
+  for (const home of homesFromPath(env, platform, exists, exe)) addHome(home)
+
+  const found: DiscoveredJdk[] = []
+  const seen = new Set<string>()
+  for (const home of homes) {
+    const java = join(home, 'bin', exe)
+    if (!exists(java)) continue
+    const major = majorOf(java)
+    if (major === undefined) continue
+    const key = normalizePathKey(home, platform)
+    if (seen.has(key)) continue
+    seen.add(key)
+    found.push({ home, java, major })
+  }
+  return found.sort((a, b) => b.major - a.major || a.home.localeCompare(b.home))
+}
+
+/**
+ * Pick the JDK that should run JDT LS (21+). `DSH_JDTLS_JAVA` wins, then `JAVA_HOME` if ≥21, else newest 21+.
+ * @param jdks - discovered JDKs.
+ * @param env - process env.
+ * @param platform - `process.platform`.
+ * @param io - optional fs / version overrides.
+ */
+export function pickJdtlsJdk(
+  jdks: readonly DiscoveredJdk[],
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  io: JdtlsIo = {},
+): DiscoveredJdk | undefined {
+  const exists = existsFn(io)
+  const majorOf = io.javaMajor ?? javaMajorVersion
+  const exe = javaExe(platform)
+  const override = asHome(env.DSH_JDTLS_JAVA, exe)
+  if (override !== undefined) {
+    const java = join(override, 'bin', exe)
+    if (exists(java)) {
+      const major = majorOf(java)
+      if (major === undefined || major >= JDTLS_MIN_JAVA) {
+        return { home: override, java, major: major ?? JDTLS_MIN_JAVA }
+      }
+    }
+  }
+  const modern = jdks.filter(jdk => jdk.major >= JDTLS_MIN_JAVA).toSorted((a, b) => b.major - a.major)
+  const fromHome = modern.find(jdk => samePath(jdk.home, env.JAVA_HOME, platform))
+  return fromHome ?? modern[0]
+}
+
+/**
+ * Read the project's intended Java major from `.java-version` / Maven / Gradle, walking parents.
+ * @param workspacePath - canonical workspace (or inferred module root).
+ * @param io - optional fs overrides.
+ */
+export function detectProjectJavaVersion(workspacePath: string, io: JdtlsIo = {}): number | undefined {
+  const exists = existsFn(io)
+  const readText = io.readText ?? ((path: string) => readFileSync(path, 'utf8'))
+  let dir = workspacePath
+  for (let i = 0; i < 8; i += 1) {
+    const found = projectJavaInDir(dir, exists, readText)
+    if (found !== undefined) return found
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return undefined
+}
+
+/**
+ * Map discovered JDKs to JDT `java.configuration.runtimes`, marking the project major as default.
+ * @param jdks - discovered JDKs.
+ * @param projectMajor - project compile major when known.
+ */
+export function toJdtRuntimes(jdks: readonly DiscoveredJdk[], projectMajor?: number): JdtRuntime[] {
+  const byName = new Map<string, DiscoveredJdk>()
+  for (const jdk of jdks) {
+    const name = jdtRuntimeName(jdk.major)
+    const current = byName.get(name)
+    if (current === undefined || (projectMajor === jdk.major && current.major !== projectMajor)) {
+      byName.set(name, jdk)
+    }
+  }
+  return [...byName.entries()].map(([name, jdk]) => ({
+    name,
+    path: jdk.home,
+    ...(projectMajor === jdk.major ? { default: true } : {}),
+  }))
 }
 
 /**
@@ -151,7 +367,7 @@ export async function ensureJdtls(options: {
   const platform = options.platform ?? process.platform
   const io = options.io ?? {}
   const exists = io.exists ?? existsSync
-  const java = resolveJavaCommand(env, platform)
+  const java = resolveJdtlsJavaCommand(env, platform, io)
   const home = jdtlsHome(env)
   const plugins = join(home, 'plugins')
   if (!exists(plugins)) {
@@ -196,7 +412,7 @@ export function javaServerArgv(runtime: JdtlsRuntime, dataDir: string): {
 }
 
 /**
- * Ensure JDT LS, create the Equinox data dir, and return the spawn argv.
+ * Ensure JDT LS, create the Equinox data dir, and return the spawn argv plus JDT runtimes.
  * @param workspacePath - canonical workspace path (hashed into `-data`).
  * @param options - env / io / skip-download (same as {@link ensureJdtls}).
  */
@@ -208,12 +424,179 @@ export async function javaSessionLaunch(
     platform?: NodeJS.Platform
     download?: boolean
   } = {},
-): Promise<{ command: string; args: string[] }> {
+): Promise<{ command: string; args: string[]; initializationOptions?: unknown }> {
+  const env = options.env ?? process.env
+  const platform = options.platform ?? process.platform
+  const io = options.io ?? {}
   const runtime = await ensureJdtls(options)
-  const dataDir = jdtlsDataDir(workspacePath, options.env)
-  const mkdir = options.io?.mkdir ?? ((path: string) => { mkdirSync(path, { recursive: true }) })
+  const dataDir = jdtlsDataDir(workspacePath, env)
+  const mkdir = io.mkdir ?? ((path: string) => { mkdirSync(path, { recursive: true }) })
   mkdir(dataDir)
-  return javaServerArgv(runtime, dataDir)
+  const argv = javaServerArgv(runtime, dataDir)
+  const runtimes = toJdtRuntimes(discoverJdks(env, platform, io), detectProjectJavaVersion(workspacePath, io))
+  if (runtimes.length === 0) return argv
+  return {
+    ...argv,
+    initializationOptions: {
+      settings: { java: { configuration: { runtimes } } },
+    },
+  }
+}
+
+function javaExe(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'java.exe' : 'java'
+}
+
+function existsFn(io: JdtlsIo): (path: string) => boolean {
+  return io.exists ?? existsSync
+}
+
+function listFn(io: JdtlsIo): (path: string) => string[] {
+  return io.list ?? ((path: string) => {
+    try {
+      return readdirSync(path)
+    } catch {
+      return []
+    }
+  })
+}
+
+function asHome(value: string | undefined, exe: string): string | undefined {
+  if (typeof value !== 'string' || value === '') return undefined
+  if (value.endsWith(exe) || value.endsWith('java') || value.endsWith('java.exe')) {
+    return dirname(dirname(value))
+  }
+  return value
+}
+
+function wellKnownJdkRoots(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] {
+  const user = env.USERPROFILE ?? env.HOME ?? ''
+  if (platform === 'win32') {
+    return [
+      'D:\\developTool',
+      'C:\\developTool',
+      'C:\\Program Files\\Java',
+      'C:\\Program Files\\Eclipse Adoptium',
+      'C:\\Program Files\\Microsoft',
+      'C:\\Program Files\\Amazon Corretto',
+      'C:\\Program Files\\BellSoft',
+      'C:\\Program Files\\Zulu',
+      join(user, '.jdks'),
+      join(user, '.sdkman', 'candidates', 'java'),
+    ]
+  }
+  return [
+    '/usr/lib/jvm',
+    '/usr/java',
+    '/opt/java',
+    '/opt/homebrew/opt/openjdk',
+    join(user, '.sdkman', 'candidates', 'java'),
+    join(user, '.jdks'),
+  ]
+}
+
+function addListedChildren(
+  parent: string,
+  homes: Set<string>,
+  list: (path: string) => string[],
+): void {
+  if (!isSafeToList(parent)) return
+  for (const name of list(parent)) {
+    if (/java|jdk|jre|temurin|adoptium|zulu|corretto|graal|semeru|liberica/i.test(name)) {
+      homes.add(join(parent, name))
+    }
+  }
+}
+
+function isSafeToList(dir: string): boolean {
+  const normalized = dir.replace(/[\\/]+$/, '')
+  return normalized !== '' && normalized !== '/' && !/^[a-zA-Z]:$/.test(normalized)
+}
+
+function homesFromPath(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  exists: (path: string) => boolean,
+  exe: string,
+): string[] {
+  const pathEnv = env.PATH ?? env.Path ?? ''
+  const sep = platform === 'win32' ? ';' : ':'
+  const homes: string[] = []
+  for (const dir of pathEnv.split(sep)) {
+    if (dir !== '' && exists(join(dir, exe))) homes.push(dirname(dir))
+  }
+  return homes
+}
+
+function normalizePathKey(path: string, platform: NodeJS.Platform): string {
+  const normalized = path.replace(/[\\/]+$/, '').replace(/\\/g, '/')
+  return platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function samePath(a: string, b: string | undefined, platform: NodeJS.Platform): boolean {
+  if (typeof b !== 'string' || b === '') return false
+  return normalizePathKey(a, platform) === normalizePathKey(b, platform)
+}
+
+function projectJavaInDir(
+  dir: string,
+  exists: (path: string) => boolean,
+  readText: (path: string) => string,
+): number | undefined {
+  const files: Array<{ name: string; parse: (text: string) => number | undefined }> = [
+    { name: '.java-version', parse: text => parseJavaMajor(text) },
+    { name: '.sdkmanrc', parse: versionFromSdkmanrc },
+    { name: '.tool-versions', parse: versionFromToolVersions },
+    { name: 'pom.xml', parse: versionFromPom },
+    { name: 'build.gradle', parse: versionFromGradle },
+    { name: 'build.gradle.kts', parse: versionFromGradle },
+  ]
+  for (const file of files) {
+    const path = join(dir, file.name)
+    if (!exists(path)) continue
+    try {
+      const found = file.parse(readText(path))
+      if (found !== undefined) return found
+    } catch {
+      /* unreadable marker; try the next file / parent. */
+    }
+  }
+  return undefined
+}
+
+function versionFromPom(text: string): number | undefined {
+  const patterns = [
+    /<maven\.compiler\.release>\s*([^<]+)\s*</i,
+    /<maven\.compiler\.source>\s*([^<]+)\s*</i,
+    /<java\.version>\s*([^<]+)\s*</i,
+    /<maven\.compiler\.target>\s*([^<]+)\s*</i,
+  ]
+  for (const pattern of patterns) {
+    const token = pattern.exec(text)?.[1]
+    if (token === undefined) continue
+    const major = parseJavaMajor(token.trim())
+    if (major !== undefined) return major
+  }
+  return undefined
+}
+
+function versionFromGradle(text: string): number | undefined {
+  if (/JavaVersion\.VERSION_1_8/.test(text)) return 8
+  const named = /JavaVersion\.VERSION_(\d+)/.exec(text)?.[1]
+  if (named !== undefined) return Number(named)
+  const source = /sourceCompatibility\s*=\s*['"]?(\d+|1\.\d+)/.exec(text)?.[1]
+  if (source !== undefined) return parseJavaMajor(source)
+  return undefined
+}
+
+function versionFromSdkmanrc(text: string): number | undefined {
+  const token = /^java\s*=\s*(\S+)/m.exec(text)?.[1]
+  return token === undefined ? undefined : parseJavaMajor(token)
+}
+
+function versionFromToolVersions(text: string): number | undefined {
+  const token = /^java\s+(\S+)/m.exec(text)?.[1]
+  return token === undefined ? undefined : parseJavaMajor(token)
 }
 
 async function defaultFetch(url: string): Promise<Buffer> {

@@ -92,6 +92,11 @@ describe('MenuBar', () => {
     act(() => { fireEvent.keyDown(window, { key: 'n', ctrlKey: true, code: 'KeyN' }) })
     act(() => { fireEvent.keyDown(window, { key: 'o', metaKey: true, code: 'KeyO' }) })
     act(() => { fireEvent.keyDown(window, { key: 's', ctrlKey: true, code: 'KeyS' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'f', ctrlKey: true, code: 'KeyF' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'h', ctrlKey: true, code: 'KeyH' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'p', ctrlKey: true, code: 'KeyP' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'g', ctrlKey: true, code: 'KeyG' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'P', ctrlKey: true, shiftKey: true, code: 'KeyP' }) })
     act(() => { fireEvent.keyDown(window, { key: ',', ctrlKey: true, code: 'Comma' }) })
     act(() => { fireEvent.keyDown(window, { key: 'b', ctrlKey: true, code: 'KeyB' }) })
     act(() => { fireEvent.keyDown(window, { key: 'L', ctrlKey: true, shiftKey: true, code: 'KeyL' }) })
@@ -102,6 +107,7 @@ describe('MenuBar', () => {
     act(() => { fireEvent.keyDown(window, { key: 'l', ctrlKey: true, code: 'KeyL' }) })
     expect(run.mock.calls.map(row => row[0])).toEqual([
       'terminal-toggle', 'session-new', 'workspace-open', 'file-save',
+      'file-find', 'file-replace', 'file-quick-open', 'file-goto-line',
       'settings-open', 'sidebar-primary', 'sidebar-sessions',
     ])
   })
@@ -110,7 +116,7 @@ describe('MenuBar', () => {
     const exec = vi.fn().mockReturnValue(true)
     Object.defineProperty(document, 'execCommand', { configurable: true, value: exec })
     const alert = vi.spyOn(window, 'alert').mockImplementation(() => {})
-    mount()
+    const { run } = mount()
     act(() => { screen.getByTestId('xmart-menu-edit').click() })
     act(() => { screen.getByRole('menuitem', { name: '撤销' }).click() })
     act(() => { screen.getByTestId('xmart-menu-edit').click() })
@@ -123,10 +129,21 @@ describe('MenuBar', () => {
     act(() => { screen.getByRole('menuitem', { name: '粘贴' }).click() })
     act(() => { screen.getByTestId('xmart-menu-edit').click() })
     act(() => { screen.getByRole('menuitem', { name: '全选' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-edit').click() })
+    act(() => { screen.getByRole('menuitem', { name: '查找' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-edit').click() })
+    act(() => { screen.getByRole('menuitem', { name: '替换' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-go').click() })
+    act(() => { screen.getByRole('menuitem', { name: '转到文件' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-go').click() })
+    act(() => { screen.getByRole('menuitem', { name: '转到定义' }).click() })
     act(() => { screen.getByTestId('xmart-menu-help').click() })
     act(() => { screen.getByRole('menuitem', { name: '关于万物智汇' }).click() })
     expect(exec.mock.calls.map(row => row[0])).toEqual([
       'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
+    ])
+    expect(run.mock.calls.map(row => row[0])).toEqual([
+      'file-find', 'file-replace', 'file-quick-open', 'file-goto-definition',
     ])
     expect(alert).toHaveBeenCalledWith('万物智汇\n桌面 / Web AI Agent 工作台。')
     alert.mockRestore()

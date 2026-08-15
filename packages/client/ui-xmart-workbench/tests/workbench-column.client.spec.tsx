@@ -12,6 +12,8 @@ import type { WorkbenchColumnProps } from '../src/client/contract.ts'
 import { EMPTY_WORKBENCH_VIEW } from '../src/client/service.ts'
 import type { TabBodyProps, WorkbenchView } from '../src/client/types.ts'
 import { zh } from '../src/client/locales.ts'
+import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
+import { WORKBENCH_QUICK_OPEN_EVENT } from '../src/client/app-menu-dispatch.ts'
 
 afterEach(cleanup)
 
@@ -156,5 +158,98 @@ describe('WorkbenchColumn', () => {
     expect(closeTab).toHaveBeenCalledWith('a')
     act(() => { fireEvent.mouseDown(screen.getByTestId('xmart-workbench-tab-b'), { button: 1 }) })
     expect(closeTab).toHaveBeenCalledWith('b')
+  })
+
+  it('forwards language-server preload props when a project folder is open', async () => {
+    const warmup = vi.fn(async () => ({ ok: true as const, value: undefined }))
+    const javaLsp = {
+      open: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      change: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      close: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      complete: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      definition: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      hover: vi.fn(async () => ({ ok: true as const, value: {} })),
+      references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      implementation: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      warmup,
+    }
+    const props = {
+      width: 400,
+      sessionId: 's1' as SessionId,
+      useSession: (() => null) as never,
+      useSessions: (() => null) as never,
+      useWorkspaces: (() => null) as never,
+      openTab: vi.fn(),
+      closeTab: vi.fn(),
+      activateTab: vi.fn(),
+      resolveBody: () => undefined,
+      useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+      useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+      t,
+      getRemotes: () => ({ javaLsp }),
+      getWorkspaceRoot: () => '/ws',
+      getRoots: () => [{ path: '/ws', title: 'ws' }],
+      watchWorkspace: () => () => {},
+      listEntries: async () => ({
+        path: '/ws',
+        truncated: false,
+        entries: [{ name: 'pom.xml', path: '/ws/pom.xml', kind: 'file' as const, hidden: false }],
+      }),
+      readFile: async () => '',
+      files: createWorkbenchFilesStore(),
+      openFile: () => {},
+    } as WorkbenchColumnProps
+    render(<WorkbenchColumn {...props} />)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(warmup).toHaveBeenCalledWith({ workspaceRoot: '/ws' })
+  })
+
+  it('uses quick-open fallbacks when host callbacks are missing', async () => {
+    mount()
+    await act(async () => { window.dispatchEvent(new Event(WORKBENCH_QUICK_OPEN_EVENT)) })
+    expect(screen.getByTestId('xmart-quick-open')).toBeTruthy()
+    cleanup()
+    const base = {
+      width: 400,
+      sessionId: 's1' as SessionId,
+      useSession: (() => null) as never,
+      useSessions: (() => null) as never,
+      useWorkspaces: (() => null) as never,
+      openTab: vi.fn(),
+      closeTab: vi.fn(),
+      activateTab: vi.fn(),
+      resolveBody: () => undefined,
+      useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+      useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+      t,
+      getRoots: () => [{ path: '/ws', title: 'ws' }],
+    }
+    render(<WorkbenchColumn {...base as WorkbenchColumnProps} />)
+    await act(async () => {
+      window.dispatchEvent(new Event(WORKBENCH_QUICK_OPEN_EVENT))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    cleanup()
+    render(<WorkbenchColumn {...({
+      ...base,
+      listEntries: async () => ({
+        path: '/ws',
+        truncated: false,
+        entries: [{ name: 'a.ts', path: '/ws/a.ts', kind: 'file' as const, hidden: false }],
+      }),
+    } as WorkbenchColumnProps)} />)
+    await act(async () => {
+      window.dispatchEvent(new Event(WORKBENCH_QUICK_OPEN_EVENT))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('option', { name: /a\.ts/ }))
   })
 })

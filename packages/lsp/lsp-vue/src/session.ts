@@ -5,7 +5,7 @@
  */
 
 import { LspError } from '@deepseek-ai/dsh-lsp'
-import type { LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
+import type { LspOperation, LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
 import {
   negotiatePositionEncoding,
   normalizeHover,
@@ -34,6 +34,8 @@ interface OpenDoc {
   version: number
   text: string
 }
+
+const HOVER_TIMEOUT_MS = 3_000
 
 const CLIENT_CAPABILITIES = {
   general: { positionEncodings: ['utf-16'] },
@@ -82,6 +84,14 @@ export class VueLspSession {
   /** Latest published diagnostics for a source path. */
   diagnosticsFor(workspaceRoot: string, filePath: string): VueLspDiagnostic[] {
     return this.diagnostics.get(fileUrlFor(workspaceRoot, filePath)) ?? []
+  }
+
+  /**
+   * Wait until `initialize` finishes so a later `open` does not pay the handshake.
+   * @param signal - abort.
+   */
+  whenReady(signal?: AbortSignal): Promise<void> {
+    return this.enqueue(signal, () => this.ensureReady(signal))
   }
 
   open(workspaceRoot: string, filePath: string, text: string, signal?: AbortSignal): Promise<void> {
@@ -145,6 +155,57 @@ export class VueLspSession {
         position: { line, character },
       }), signal)
       return normalizeCompletions(payload)
+    })
+  }
+
+  /**
+   * Definition / hover / references on an already-open editor buffer.
+   * A closed buffer returns an empty result (same rule as {@link complete}).
+   * @param operation - one of the three editor-facing seam operations.
+   * @param workspaceRoot - workspace used to mint the document URI.
+   * @param filePath - open buffer path.
+   * @param line - zero-based line.
+   * @param character - zero-based UTF-16 offset.
+   * @param signal - abort.
+   */
+  navigate(
+    operation: LspOperation,
+    workspaceRoot: string,
+    filePath: string,
+    line: number,
+    character: number,
+    signal?: AbortSignal,
+  ): Promise<LspQueryResult> {
+    return this.enqueue(signal, async () => {
+      await this.ensureReady(signal)
+      const uri = fileUrlFor(workspaceRoot, filePath)
+      if (!this.docs.has(uri)) {
+        return operation === 'hover'
+          ? { kind: 'hover' as const, hover: null }
+          : { kind: 'locations' as const, locations: [], resolvedWorkspaceUri: this.spec.workspaceUri }
+      }
+      const hoverDeadline = deadline(
+        signal,
+        operation === 'hover' ? HOVER_TIMEOUT_MS : 0,
+        'LSP_HOVER',
+      )
+      try {
+        const payload = await abortable(this.connection.request(requestMethod(operation), {
+          textDocument: { uri },
+          position: { line, character },
+          ...(operation === 'findReferences' ? { context: { includeDeclaration: true } } : {}),
+        }), hoverDeadline.signal)
+        if (operation === 'hover') {
+          return { kind: 'hover' as const, hover: normalizeHover(payload) }
+        }
+        return {
+          kind: 'locations' as const,
+          locations: normalizeLocations(payload),
+          resolvedWorkspaceUri: this.spec.workspaceUri,
+        }
+      } finally {
+        hoverDeadline[Symbol.dispose]()
+      }
     })
   }
 

@@ -9,7 +9,7 @@ import type { AppMenuCommand } from './app-menu-dispatch.ts'
 import { isShellTabType, TERMINAL_TAB_LIMIT } from './types.ts'
 import css from './MenuBar.module.css'
 
-type MenuId = 'file' | 'edit' | 'view' | 'terminal' | 'help'
+type MenuId = 'file' | 'edit' | 'go' | 'view' | 'terminal' | 'help'
 
 /** Full-width product menu (see module doc). */
 export function MenuBar({
@@ -46,6 +46,26 @@ export function MenuBar({
       if (event.code === 'KeyS' && !event.shiftKey) {
         event.preventDefault()
         run('file-save')
+        return
+      }
+      if (event.code === 'KeyF' && !event.shiftKey) {
+        event.preventDefault()
+        run('file-find')
+        return
+      }
+      if (event.code === 'KeyH' && !event.shiftKey) {
+        event.preventDefault()
+        run('file-replace')
+        return
+      }
+      if (event.code === 'KeyP' && !event.shiftKey) {
+        event.preventDefault()
+        run('file-quick-open')
+        return
+      }
+      if (event.code === 'KeyG' && !event.shiftKey) {
+        event.preventDefault()
+        run('file-goto-line')
         return
       }
       if (event.code === 'Comma') {
@@ -107,11 +127,36 @@ export function MenuBar({
           { id: 'copy', label: t('menu.edit.copy') },
           { id: 'paste', label: t('menu.edit.paste') },
           { id: 'selectAll', label: t('menu.edit.selectAll') },
+          { type: 'separator', id: 'edit-find-sep' },
+          { id: 'file-find', label: t('menu.edit.find') },
+          { id: 'file-replace', label: t('menu.edit.replace') },
         ]}
         onSelect={(id) => {
           close()
+          if (id === 'file-find' || id === 'file-replace') {
+            run(id)
+            return
+          }
           document.execCommand(id)
         }}
+        onClose={close}
+      />
+      <TopMenu
+        id="go"
+        open={open}
+        setOpen={setOpen}
+        label={t('menu.go')}
+        testId="xmart-menu-go"
+        items={[
+          { id: 'file-quick-open', label: t('menu.go.file') },
+          { id: 'file-goto-line', label: t('menu.go.line') },
+          { type: 'separator', id: 'go-sep' },
+          { id: 'file-goto-definition', label: t('menu.go.definition') },
+          { id: 'file-goto-implementation', label: t('menu.go.implementation') },
+          { id: 'file-goto-references', label: t('menu.go.references') },
+          { id: 'file-show-hover', label: t('menu.go.hover') },
+        ]}
+        onSelect={(id) => { select(id as AppMenuCommand) }}
         onClose={close}
       />
       <TopMenu

@@ -22,6 +22,7 @@ dsh web GUI 的浏览器侧：shell 启动、浏览器与宿主通信、共享 U
 | [`ui-layout/`](ui-layout/README.md) | 排列应用的主要区域。 |
 | [`ui-xmart-workbench/`](ui-xmart-workbench/README.md) | 提供 Cursor 式活动栏、左侧边栏（资源管理器/Git/任务）、中间编辑器、底栏终端位和工作台设置页。 |
 | [`ui-xmart-marketplace/`](ui-xmart-marketplace/README.md) | 提供活动栏上的「插件 / 扩展」侧栏。 |
+| [`ui-xmart-skills/`](ui-xmart-skills/README.md) | 提供个人、项目与导入 skill 的设置页。 |
 | [`ui-sidebar/`](ui-sidebar/README.md) | 展示工作区与会话导航。 |
 | [`ui-workspace/`](ui-workspace/README.md) | 提供工作区选择与创建界面。 |
 | [`ui-conversation/`](ui-conversation/README.md) | 展示当前对话及其输入界面。 |

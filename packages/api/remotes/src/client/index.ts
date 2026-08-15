@@ -6,6 +6,7 @@ import goalsRemote from '@deepseek-ai/dsh-goal/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import marketplaceRemote from '@deepseek-ai/dsh-host-marketplace/remote'
+import skillManagerRemote from '@deepseek-ai/dsh-host-skill-manager/remote'
 import vueLspRemote from '@deepseek-ai/dsh-lsp-vue/remote'
 import languagesLspRemote from '@deepseek-ai/dsh-lsp-languages/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
@@ -26,6 +27,7 @@ export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-host-marketplace/remote'
+export type {} from '@deepseek-ai/dsh-host-skill-manager/remote'
 export type {} from '@deepseek-ai/dsh-lsp-vue/remote'
 export type {} from '@deepseek-ai/dsh-lsp-languages/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
@@ -125,7 +127,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   try {
     for (const contribution of [
       commandsRemote, goalsRemote, dynamicRemote, pluginInventoryRemote, marketplaceRemote,
-      vueLspRemote, languagesLspRemote, messageFeedbackRemote,
+      skillManagerRemote, vueLspRemote, languagesLspRemote, messageFeedbackRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

@@ -34,6 +34,13 @@ afterEach(async () => {
 })
 
 describe('PersistentLspPool', () => {
+  it('warms a session without opening a buffer', async () => {
+    const created = makePool(ctx.fs)
+    pool = created
+    await created.warmup(ws)
+    expect(await created.diagnostics(ws, 'app.ts')).toEqual([])
+  })
+
   it('opens a buffer, returns diagnostics and completions, then queries hover', async () => {
     const created = makePool(ctx.fs, {
       LSP_FAKE_DIAGNOSTICS: JSON.stringify([{
@@ -56,6 +63,9 @@ describe('PersistentLspPool', () => {
       languageId: 'typescript',
     })
     expect(hover).toEqual({ kind: 'hover', hover: { contents: 'hi' } })
+    expect(await created.navigate('hover', ws, 'app.ts', 0, 1)).toEqual({
+      kind: 'hover', hover: { contents: 'hi' },
+    })
     await created.close(ws, 'app.ts')
   })
 

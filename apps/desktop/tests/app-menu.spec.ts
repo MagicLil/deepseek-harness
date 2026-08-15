@@ -7,7 +7,7 @@ describe('desktopAppMenuSpec', () => {
     expect(labels.file).toBe('文件')
     expect(labels.helpAbout).toBe('关于万物智汇')
     expect(desktopAppMenuSpec(labels).map(row => row.id)).toEqual([
-      'file', 'edit', 'view', 'terminal', 'help',
+      'file', 'edit', 'go', 'view', 'terminal', 'help',
     ])
     const file = desktopAppMenuSpec(labels)[0]
     expect(file.submenu).toEqual([
@@ -21,7 +21,12 @@ describe('desktopAppMenuSpec', () => {
       { type: 'separator' },
       { type: 'role', role: 'quit' },
     ])
-    const terminal = desktopAppMenuSpec(labels)[3]
+    const go = desktopAppMenuSpec(labels)[2]
+    expect(go?.submenu).toEqual(expect.arrayContaining([
+      { type: 'command', id: 'file-quick-open', label: '转到文件', accelerator: 'CommandOrControl+P' },
+      { type: 'command', id: 'file-goto-definition', label: '转到定义', accelerator: 'F12' },
+    ]))
+    const terminal = desktopAppMenuSpec(labels)[4]
     expect(terminal).toMatchObject({
       id: 'terminal',
       label: '终端',
@@ -30,7 +35,12 @@ describe('desktopAppMenuSpec', () => {
         { type: 'command', id: 'terminal-toggle', label: '切换终端', accelerator: 'CommandOrControl+`' },
       ],
     })
-    expect(desktopAppMenuSpec(labels)[4]?.submenu).toEqual([
+    const edit = desktopAppMenuSpec(labels)[1]
+    expect(edit?.submenu).toEqual(expect.arrayContaining([
+      { type: 'command', id: 'file-find', label: '查找', accelerator: 'CommandOrControl+F' },
+      { type: 'command', id: 'file-replace', label: '替换', accelerator: 'CommandOrControl+H' },
+    ]))
+    expect(desktopAppMenuSpec(labels)[5]?.submenu).toEqual([
       { type: 'about', label: '关于万物智汇' },
       { type: 'separator' },
       { type: 'role', role: 'toggleDevTools' },
@@ -38,6 +48,9 @@ describe('desktopAppMenuSpec', () => {
   })
 
   it('uses English copy when the OS locale is not Chinese', () => {
+    expect(desktopAppMenuLabels('en-US').fileFind).toBe('Find')
+    expect(desktopAppMenuLabels('en-US').fileReplace).toBe('Replace')
+    expect(desktopAppMenuLabels('en-US').goFile).toBe('Go to File')
     expect(desktopAppMenuLabels('en-US').terminal).toBe('Terminal')
     expect(desktopAppMenuLabels('EN').fileNewSession).toBe('New Session')
     expect(desktopAppMenuLabels('en').helpAbout).toBe('About Xmart')

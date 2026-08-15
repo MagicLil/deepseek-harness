@@ -10,6 +10,7 @@ import { TsLspGateway } from './ts-gateway.ts'
 import { JavaLspGateway } from './java-gateway.ts'
 
 export type * from './types.ts'
+export { toEditorHover, toEditorLocations } from './types.ts'
 export { PersistentLspPool } from './pool.ts'
 export type { PersistentLspPoolOptions, SessionLaunch } from './pool.ts'
 export { PersistentLspSession } from './session.ts'
@@ -33,6 +34,15 @@ export {
 } from './resolve-typescript.ts'
 export {
   resolveJavaCommand,
+  resolveJdtlsJavaCommand,
+  discoverJdks,
+  pickJdtlsJdk,
+  detectProjectJavaVersion,
+  toJdtRuntimes,
+  jdtRuntimeName,
+  parseJavaMajor,
+  parseJavaVersionOutput,
+  javaMajorVersion,
   jdtlsHome,
   jdtlsConfigName,
   inspectJdtls,
@@ -42,6 +52,7 @@ export {
   javaServerArgv,
   javaSessionLaunch,
   JDTLS_MILESTONE,
+  JDTLS_MIN_JAVA,
   JDTLS_TARBALL,
   JDTLS_URL,
 } from './resolve-java.ts'

@@ -19,10 +19,15 @@ import type {
   VueLspCompleteResult,
   VueLspDiagnosticsRequest,
   VueLspDiagnosticsResult,
+  VueLspHoverResult,
+  VueLspLocationsResult,
   VueLspOpenRequest,
+  VueLspWarmupRequest,
 } from './types.ts'
+import { toEditorHover, toEditorLocations } from './types.ts'
 
 export type * from './types.ts'
+export { toEditorHover, toEditorLocations } from './types.ts'
 export { VueLspPool } from './provider.ts'
 export { VueLspSession } from './session.ts'
 export { VueLspConnection, defaultServerRequest } from './connection.ts'
@@ -109,6 +114,84 @@ export class VueLspGateway extends TypertRemoteService {
   async diagnostics(request: VueLspDiagnosticsRequest, signal?: AbortSignal): Promise<VueLspDiagnosticsResult> {
     const items = await this.pool.diagnostics(request.workspaceRoot, request.path, signal)
     return { items }
+  }
+
+  /**
+   * Go-to-definition at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('definition')
+  async definition(request: VueLspCompleteRequest, signal?: AbortSignal): Promise<VueLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'goToDefinition',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Hover documentation at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('hover')
+  async hover(request: VueLspCompleteRequest, signal?: AbortSignal): Promise<VueLspHoverResult> {
+    return toEditorHover(await this.pool.navigate(
+      'hover',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Find-references at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('references')
+  async references(request: VueLspCompleteRequest, signal?: AbortSignal): Promise<VueLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'findReferences',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Go-to-implementation at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('implementation')
+  async implementation(request: VueLspCompleteRequest, signal?: AbortSignal): Promise<VueLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'goToImplementation',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Start the Vue language server for this workspace before any `.vue` buffer is opened.
+   * @param request - workspace root.
+   * @param signal - abort.
+   */
+  @Remote('warmup')
+  async warmup(request: VueLspWarmupRequest, signal?: AbortSignal): Promise<void> {
+    await this.pool.warmup(request.workspaceRoot, signal)
   }
 
   private defaultOptions(): VuePoolOptions {

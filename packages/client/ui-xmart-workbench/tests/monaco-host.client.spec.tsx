@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { darkTheme, MonacoHost } from '../src/client/MonacoHost.tsx'
-import { WORKBENCH_FIND_EVENT, WORKBENCH_REPLACE_EVENT } from '../src/client/app-menu-dispatch.ts'
+import { darkTheme, lspFailNote, MonacoHost } from '../src/client/MonacoHost.tsx'
+import {
+  WORKBENCH_EDITOR_ACTION_EVENT, WORKBENCH_FIND_EVENT, WORKBENCH_REPLACE_EVENT,
+} from '../src/client/app-menu-dispatch.ts'
 import { requestReveal } from '../src/client/editor-nav.ts'
+import { markLanguageWarmingKey, resetLanguageWarmth } from '../src/client/editor-lsp.ts'
 
-const { contentFns, existing, editor, monaco, loadImpl } = vi.hoisted(() => {
+const { contentFns, mouseFns, existing, editor, monaco, loadImpl } = vi.hoisted(() => {
   const contentFns: Array<() => void> = []
+  const mouseFns: Array<(event: {
+    event: { leftButton: boolean; ctrlKey: boolean; metaKey: boolean }
+  }) => void> = []
   const existing = {
     getValue: () => 'old',
     setValue: vi.fn(),
@@ -32,6 +38,12 @@ const { contentFns, existing, editor, monaco, loadImpl } = vi.hoisted(() => {
     setPosition: vi.fn(),
     revealPositionInCenter: vi.fn(),
     getAction: vi.fn((_id?: string): { run: ReturnType<typeof vi.fn> } | undefined => ({ run: vi.fn() })),
+    onMouseDown: vi.fn((fn: (event: {
+      event: { leftButton: boolean; ctrlKey: boolean; metaKey: boolean }
+    }) => void) => {
+      mouseFns.push(fn)
+      return { dispose: vi.fn() }
+    }),
   }
   const monaco = {
     Uri: { file: (path: string) => ({ path, toString: () => `file://${path}` }) },
@@ -50,13 +62,14 @@ const { contentFns, existing, editor, monaco, loadImpl } = vi.hoisted(() => {
       registerDefinitionProvider: vi.fn(() => ({ dispose: vi.fn() })),
       registerHoverProvider: vi.fn(() => ({ dispose: vi.fn() })),
       registerReferenceProvider: vi.fn(() => ({ dispose: vi.fn() })),
+      registerImplementationProvider: vi.fn(() => ({ dispose: vi.fn() })),
     },
     MarkerSeverity: { Error: 8, Warning: 4, Info: 2, Hint: 1 },
     KeyMod: { CtrlCmd: 1 },
-    KeyCode: { KeyS: 2 },
+    KeyCode: { KeyS: 2, F12: 12 },
   }
   return {
-    contentFns, existing, model, editor, monaco,
+    contentFns, mouseFns, existing, model, editor, monaco,
     loadImpl: { current: () => Promise.resolve(monaco) },
   }
 })
@@ -82,8 +95,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetLanguageWarmth()
   cleanup()
   contentFns.length = 0
+  mouseFns.length = 0
   document.body.removeAttribute('data-ds-dark-theme')
   monaco.editor.getModel.mockReturnValue(null)
   monaco.editor.create.mockReset()
@@ -93,6 +108,7 @@ afterEach(() => {
   monaco.languages.registerDefinitionProvider.mockClear()
   monaco.languages.registerHoverProvider.mockClear()
   monaco.languages.registerReferenceProvider.mockClear()
+  monaco.languages.registerImplementationProvider.mockClear()
   editor.getAction.mockClear()
   editor.layout.mockClear()
   editor.setPosition.mockClear()
@@ -110,6 +126,14 @@ describe('darkTheme', () => {
 })
 
 describe('MonacoHost', () => {
+  it('keeps the generic LSP failure note and appends the host error', () => {
+    expect(lspFailNote(undefined, new Error('x'))).toBeNull()
+    expect(lspFailNote('', new Error('x'))).toBeNull()
+    expect(lspFailNote('失败', new Error(''))).toBe('失败')
+    expect(lspFailNote('失败', 'boom')).toBe('失败（boom）')
+    expect(lspFailNote('失败', 1)).toBe('失败')
+  })
+
   it('boots, reports edits and save, and follows the theme', async () => {
     document.body.setAttribute('data-ds-dark-theme', '')
     const onChange = vi.fn()
@@ -131,6 +155,7 @@ describe('MonacoHost', () => {
       theme: 'one-dark-pro',
       automaticLayout: false,
       fixedOverflowWidgets: true,
+      links: false,
     })
     contentFns[0]?.()
     expect(onChange).toHaveBeenCalledWith('next')
@@ -252,6 +277,9 @@ describe('MonacoHost', () => {
       references: vi.fn(async () => [
         { uri: 'file:///ws/Other.vue', startLine: 4, startCharacter: 1, endLine: 4, endCharacter: 5 },
       ]),
+      implementation: vi.fn(async () => [
+        { uri: 'file:///ws/Impl.vue', startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 4 },
+      ]),
       diagnostics: vi.fn(async () => [{
         message: 'oops',
         severity: 1,
@@ -338,13 +366,13 @@ describe('MonacoHost', () => {
       contents: [{ value: 'doc' }],
     })
     languageClient.hover.mockResolvedValueOnce(undefined)
-    expect(await hover.provideHover({}, { lineNumber: 1, column: 2 })).toBeNull()
+    expect(await hover.provideHover({}, { lineNumber: 1, column: 3 })).toBeNull()
     languageClient.hover.mockResolvedValueOnce({ contents: 'plain' })
-    expect(await hover.provideHover({}, { lineNumber: 1, column: 2 })).toEqual({
+    expect(await hover.provideHover({}, { lineNumber: 1, column: 4 })).toEqual({
       contents: [{ value: 'plain' }],
     })
     languageClient.hover.mockRejectedValueOnce(new Error('nope'))
-    expect(await hover.provideHover({}, { lineNumber: 1, column: 2 })).toBeNull()
+    expect(await hover.provideHover({}, { lineNumber: 1, column: 5 })).toBeNull()
     const refsCall = monaco.languages.registerReferenceProvider.mock.calls[0] as unknown as [
       string,
       { provideReferences: (model: unknown, position: { lineNumber: number; column: number }) => Promise<unknown[]> },
@@ -353,9 +381,17 @@ describe('MonacoHost', () => {
     expect(await refs.provideReferences({}, { lineNumber: 1, column: 2 })).toHaveLength(1)
     languageClient.references.mockRejectedValueOnce(new Error('nope'))
     expect(await refs.provideReferences({}, { lineNumber: 1, column: 2 })).toEqual([])
+    const implCall = monaco.languages.registerImplementationProvider.mock.calls[0] as unknown as [
+      string,
+      { provideImplementation: (model: unknown, position: { lineNumber: number; column: number }) => Promise<unknown[]> },
+    ]
+    const impl = implCall[1]
+    expect(await impl.provideImplementation({}, { lineNumber: 1, column: 2 })).toHaveLength(1)
+    languageClient.implementation.mockRejectedValueOnce(new Error('nope'))
+    expect(await impl.provideImplementation({}, { lineNumber: 1, column: 2 })).toEqual([])
     await act(async () => { vi.advanceTimersByTime(1500); await Promise.resolve() })
     cleanup()
-    expect(languageClient.close).toHaveBeenCalledWith('/a.vue')
+    expect(languageClient.close).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
 
@@ -369,6 +405,7 @@ describe('MonacoHost', () => {
       definition: vi.fn(async () => []),
       hover: vi.fn(async () => undefined),
       references: vi.fn(async () => []),
+      implementation: vi.fn(async () => []),
       diagnostics: vi.fn(async () => []),
     }
     render(
@@ -391,6 +428,25 @@ describe('MonacoHost', () => {
     await act(async () => { settleOpen?.(); await Promise.resolve(); await Promise.resolve() })
     expect(screen.queryByTestId('xmart-workbench-nav-note')).toBeNull()
     cleanup()
+    languageClient.open.mockImplementation(async () => {})
+    render(
+      <MonacoHost
+        initialValue="class Bar {}"
+        filePath="/Other.java"
+        labels={{
+          loading: '加载内核',
+          error: '内核失败',
+          lspStarting: '正在启动语言服务',
+          lspFailed: '语言服务没起来',
+        }}
+        onChange={() => {}}
+        onSave={() => {}}
+        languageClient={languageClient}
+      />,
+    )
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.queryByTestId('xmart-workbench-nav-note')).toBeNull()
+    cleanup()
     languageClient.open.mockRejectedValueOnce(new Error('jdt'))
     render(
       <MonacoHost
@@ -408,7 +464,52 @@ describe('MonacoHost', () => {
       />,
     )
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(screen.getByTestId('xmart-workbench-nav-note').textContent).toBe('语言服务没起来')
+    expect(screen.getByTestId('xmart-workbench-nav-note').textContent).toBe('语言服务没起来（jdt）')
+    cleanup()
+    languageClient.open.mockRejectedValueOnce(new Error('jdt'))
+    render(
+      <MonacoHost
+        initialValue="class Foo {}"
+        filePath="/Baz.java"
+        labels={{ loading: '加载内核', error: '内核失败' }}
+        onChange={() => {}}
+        onSave={() => {}}
+        languageClient={languageClient}
+      />,
+    )
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.queryByTestId('xmart-workbench-nav-note')).toBeNull()
+  })
+
+  it('hides the starting note while a project warmup is in flight', async () => {
+    markLanguageWarmingKey('java')
+    const languageClient = {
+      open: vi.fn(() => new Promise<void>(() => {})),
+      change: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+      complete: vi.fn(async () => []),
+      definition: vi.fn(async () => []),
+      hover: vi.fn(async () => undefined),
+      references: vi.fn(async () => []),
+      implementation: vi.fn(async () => []),
+      diagnostics: vi.fn(async () => []),
+    }
+    render(
+      <MonacoHost
+        initialValue="class Foo {}"
+        filePath="/Warm.java"
+        labels={{
+          loading: '加载内核',
+          error: '内核失败',
+          lspStarting: '正在启动语言服务',
+        }}
+        onChange={() => {}}
+        onSave={() => {}}
+        languageClient={languageClient}
+      />,
+    )
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.queryByTestId('xmart-workbench-nav-note')).toBeNull()
   })
 
   it('reveals a pending location, runs find/replace, and opens another file', async () => {
@@ -432,6 +533,7 @@ describe('MonacoHost', () => {
       }>> => []),
       hover: vi.fn(async (): Promise<{ contents: string } | undefined> => undefined),
       references: vi.fn(async () => []),
+      implementation: vi.fn(async () => []),
       diagnostics: vi.fn(async () => []),
     }
     render(
@@ -447,11 +549,36 @@ describe('MonacoHost', () => {
     )
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
     expect(editor.setPosition).toHaveBeenCalledWith({ lineNumber: 10, column: 3 })
+    const gotoRun = vi.fn()
+    editor.getAction.mockImplementation((_id?: string) => ({
+      run: _id === 'actions.find' ? findRun : _id === 'editor.action.gotoLine' ? gotoRun : vi.fn(),
+    }))
     await act(async () => {
       window.dispatchEvent(new Event(WORKBENCH_FIND_EVENT))
       window.dispatchEvent(new Event(WORKBENCH_REPLACE_EVENT))
+      window.dispatchEvent(new CustomEvent(WORKBENCH_EDITOR_ACTION_EVENT, { detail: 'editor.action.gotoLine' }))
+      window.dispatchEvent(new Event(WORKBENCH_EDITOR_ACTION_EVENT))
+      window.dispatchEvent(new CustomEvent(WORKBENCH_EDITOR_ACTION_EVENT, { detail: 1 }))
+      window.dispatchEvent(new CustomEvent(WORKBENCH_EDITOR_ACTION_EVENT, { detail: '' }))
     })
     expect(findRun).toHaveBeenCalled()
+    expect(gotoRun).toHaveBeenCalled()
+    mouseFns[0]?.({ event: { leftButton: false, ctrlKey: true, metaKey: false } })
+    mouseFns[0]?.({ event: { leftButton: true, ctrlKey: false, metaKey: false } })
+    const revealRun = vi.fn()
+    editor.getAction.mockImplementation((_id?: string) => ({
+      run: _id === 'editor.action.revealDefinition' ? revealRun : vi.fn(),
+    }))
+    mouseFns[0]?.({ event: { leftButton: true, ctrlKey: true, metaKey: false } })
+    mouseFns[0]?.({ event: { leftButton: true, ctrlKey: false, metaKey: true } })
+    expect(revealRun).toHaveBeenCalledTimes(2)
+    const implCmd = editor.addCommand.mock.calls.find(call => call[0] === (monaco.KeyMod.CtrlCmd | monaco.KeyCode.F12))
+    const implRun = vi.fn()
+    editor.getAction.mockImplementation((_id?: string) => ({
+      run: _id === 'editor.action.goToImplementation' ? implRun : vi.fn(),
+    }))
+    ;(implCmd?.[1] as (() => void) | undefined)?.()
+    expect(implRun).toHaveBeenCalled()
     const openerCall = monaco.editor.registerEditorOpener.mock.calls[0] as unknown as [{
       openCodeEditor: (
         source: unknown,

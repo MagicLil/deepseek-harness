@@ -22,8 +22,12 @@ import type {
   EditorLspCompleteResult,
   EditorLspDiagnosticsRequest,
   EditorLspDiagnosticsResult,
+  EditorLspHoverResult,
+  EditorLspLocationsResult,
   EditorLspOpenRequest,
+  EditorLspWarmupRequest,
 } from './types.ts'
+import { toEditorHover, toEditorLocations } from './types.ts'
 
 /** Remote-only TypeScript LSP service plus the `ctx.lsp` provider registration. */
 export class TsLspGateway extends TypertRemoteService {
@@ -105,6 +109,84 @@ export class TsLspGateway extends TypertRemoteService {
   async diagnostics(request: EditorLspDiagnosticsRequest, signal?: AbortSignal): Promise<EditorLspDiagnosticsResult> {
     const items = await this.pool.diagnostics(request.workspaceRoot, request.path, signal)
     return { items }
+  }
+
+  /**
+   * Go-to-definition at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('definition')
+  async definition(request: EditorLspCompleteRequest, signal?: AbortSignal): Promise<EditorLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'goToDefinition',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Hover documentation at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('hover')
+  async hover(request: EditorLspCompleteRequest, signal?: AbortSignal): Promise<EditorLspHoverResult> {
+    return toEditorHover(await this.pool.navigate(
+      'hover',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Find-references at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('references')
+  async references(request: EditorLspCompleteRequest, signal?: AbortSignal): Promise<EditorLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'findReferences',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Go-to-implementation at a zero-based UTF-16 cursor on an open buffer.
+   * @param request - workspace, path, and position.
+   * @param signal - abort.
+   */
+  @Remote('implementation')
+  async implementation(request: EditorLspCompleteRequest, signal?: AbortSignal): Promise<EditorLspLocationsResult> {
+    return toEditorLocations(await this.pool.navigate(
+      'goToImplementation',
+      request.workspaceRoot,
+      request.path,
+      request.line,
+      request.character,
+      signal,
+    ))
+  }
+
+  /**
+   * Start the TypeScript language server for this workspace before any buffer is opened.
+   * @param request - workspace root.
+   * @param signal - abort.
+   */
+  @Remote('warmup')
+  async warmup(request: EditorLspWarmupRequest, signal?: AbortSignal): Promise<void> {
+    await this.pool.warmup(request.workspaceRoot, signal)
   }
 
   private defaultOptions(): PersistentLspPoolOptions {

@@ -10,6 +10,9 @@ import type { WorkbenchKey } from './locales.ts'
 import { isShellTabType } from './types.ts'
 import { TabBar } from './TabBar.tsx'
 import { TabPlaceholder } from './TabPlaceholder.tsx'
+import { QuickOpen } from './QuickOpen.tsx'
+import { EditorLspSync } from './EditorLspSync.tsx'
+import { EditorLspWarmup } from './EditorLspWarmup.tsx'
 import css from './WorkbenchColumn.module.css'
 
 /**
@@ -45,6 +48,14 @@ export function WorkbenchColumn({
   closeTab,
   activateTab,
   resolveBody,
+  listEntries,
+  getRoots,
+  openFile,
+  getRemotes,
+  getWorkspaceRoot,
+  watchWorkspace,
+  readFile,
+  files,
   useWorkbenchSession,
   t,
 }: WorkbenchColumnProps) {
@@ -71,6 +82,28 @@ export function WorkbenchColumn({
           {renderPane(active, active === undefined ? undefined : resolveBody(active.type), sessionId, t)}
         </EditorPaneBoundary>
       </div>
+      <EditorLspWarmup
+        {...(getRemotes === undefined ? {} : { getRemotes })}
+        {...(getWorkspaceRoot === undefined ? {} : { getWorkspaceRoot })}
+        {...(getRoots === undefined ? {} : { getRoots })}
+        {...(watchWorkspace === undefined ? {} : { watchWorkspace })}
+        {...(listEntries === undefined ? {} : { listEntries })}
+        {...(readFile === undefined ? {} : { readFile })}
+      />
+      <EditorLspSync
+        tabs={tabs}
+        {...(getRemotes === undefined ? {} : { getRemotes })}
+        {...(getWorkspaceRoot === undefined ? {} : { getWorkspaceRoot })}
+        {...(watchWorkspace === undefined ? {} : { watchWorkspace })}
+        {...(readFile === undefined ? {} : { readFile })}
+        {...(files === undefined ? {} : { files })}
+      />
+      <QuickOpen
+        t={t}
+        getRoots={getRoots ?? (() => [])}
+        listEntries={listEntries ?? (async () => ({ path: '', entries: [], truncated: false }))}
+        openFile={openFile ?? (() => {})}
+      />
     </div>
   )
 }

@@ -42,6 +42,13 @@ function query(operation: LspProviderQuery['operation'] = 'hover'): LspProviderQ
 }
 
 describe('PersistentLspSession', () => {
+  it('warms initialize before the first open', async () => {
+    const s = session()
+    await s.whenReady()
+    await s.open(ws, 'app.ts', 'const x = 1')
+    expect(s.diagnosticsFor(ws, 'app.ts')).toEqual([])
+  })
+
   it('opens, publishes diagnostics, completes, and changes', async () => {
     const marker = join(root, 'open.txt')
     const s = session({
@@ -115,6 +122,35 @@ describe('PersistentLspSession', () => {
       text: 'const x = 1',
     })
     expect(refs.kind).toBe('locations')
+  })
+
+  it('navigates an open editor buffer and returns empty for a closed one', async () => {
+    const s = session({
+      LSP_FAKE_DEF: JSON.stringify({
+        uri: 'file:///x',
+        range: { start: { line: 1, character: 0 }, end: { line: 1, character: 2 } },
+      }),
+      LSP_FAKE_HOVER: JSON.stringify({ contents: 'nav' }),
+      LSP_FAKE_REFS: JSON.stringify([{
+        uri: 'file:///x',
+        range: { start: { line: 3, character: 0 }, end: { line: 3, character: 1 } },
+      }]),
+    })
+    expect(await s.navigate('goToDefinition', ws, 'app.ts', 0, 1)).toEqual({
+      kind: 'locations', locations: [], resolvedWorkspaceUri: pathToFileURL(ws).href,
+    })
+    expect(await s.navigate('hover', ws, 'app.ts', 0, 1)).toEqual({ kind: 'hover', hover: null })
+    await s.open(ws, 'app.ts', 'const x = 1')
+    const definition = await s.navigate('goToDefinition', ws, 'app.ts', 0, 1)
+    expect(definition).toEqual({
+      kind: 'locations',
+      locations: [{ uri: 'file:///x', range: { start: { line: 1, character: 0 }, end: { line: 1, character: 2 } } }],
+      resolvedWorkspaceUri: pathToFileURL(ws).href,
+    })
+    expect(await s.navigate('hover', ws, 'app.ts', 0, 1)).toEqual({ kind: 'hover', hover: { contents: 'nav' } })
+    const refs = await s.navigate('findReferences', ws, 'app.ts', 0, 1)
+    expect(refs.kind).toBe('locations')
+    if (refs.kind === 'locations') expect(refs.locations).toHaveLength(1)
   })
 
   it('rejects a disposed session and an aborted signal', async () => {

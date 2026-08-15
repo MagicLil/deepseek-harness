@@ -15,6 +15,7 @@ The host side of the dsh web GUI: the API gateway every client shape shares, and
 | [`directory-picker-auto/`](directory-picker-auto/README.md) | Host-adaptive picker composition | mounts a backend |
 | [`plugin-inventory/`](plugin-inventory/README.md) | Read-only projection of current Loader entries | Remote `pluginInventory/list` |
 | [`marketplace/`](marketplace/README.md) | DSH plugin install and Open VSX vsix download | Remote `marketplace/*` |
+| [`skill-manager/`](skill-manager/README.md) | Personal/project skill files and foreign import | Remote `skillManager/*` |
 
 `apiproxy` remains transport-independent; [`client/connection`](../client/connection/README.md) supplies the browser/HTTP carrier. Picker implementations replace one another behind the shared seam.
 

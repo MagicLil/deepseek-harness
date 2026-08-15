@@ -15,9 +15,18 @@ export interface DesktopAppMenuLabels {
   fileNewSession: string
   fileOpenWorkspace: string
   fileSave: string
+  fileFind: string
+  fileReplace: string
   fileCloseEditor: string
   fileSettings: string
   edit: string
+  go: string
+  goFile: string
+  goLine: string
+  goDefinition: string
+  goImplementation: string
+  goReferences: string
+  goHover: string
   view: string
   viewExplorer: string
   viewGit: string
@@ -46,7 +55,7 @@ export type DesktopAppMenuAction =
 
 /** One top-level application-menu column. */
 export type DesktopAppMenuItem = {
-  id: 'file' | 'edit' | 'view' | 'terminal' | 'help'
+  id: 'file' | 'edit' | 'go' | 'view' | 'terminal' | 'help'
   label: string
   submenu: DesktopAppMenuAction[]
 }
@@ -62,9 +71,18 @@ export function desktopAppMenuLabels(locale: string): DesktopAppMenuLabels {
     fileNewSession: zh ? '新会话' : 'New Session',
     fileOpenWorkspace: zh ? '打开工作区…' : 'Open Workspace…',
     fileSave: zh ? '保存' : 'Save',
+    fileFind: zh ? '查找' : 'Find',
+    fileReplace: zh ? '替换' : 'Replace',
     fileCloseEditor: zh ? '关闭编辑器' : 'Close Editor',
     fileSettings: zh ? '设置' : 'Settings',
     edit: zh ? '编辑' : 'Edit',
+    go: zh ? '转到' : 'Go',
+    goFile: zh ? '转到文件' : 'Go to File',
+    goLine: zh ? '转到行' : 'Go to Line',
+    goDefinition: zh ? '转到定义' : 'Go to Definition',
+    goImplementation: zh ? '转到实现' : 'Go to Implementation',
+    goReferences: zh ? '查找所有引用' : 'Go to References',
+    goHover: zh ? '显示悬停提示' : 'Show Hover',
     view: zh ? '视图' : 'View',
     viewExplorer: zh ? '资源管理器' : 'Explorer',
     viewGit: zh ? '源代码管理' : 'Source Control',
@@ -80,7 +98,7 @@ export function desktopAppMenuLabels(locale: string): DesktopAppMenuLabels {
 }
 
 /**
- * Top-level menu order: File / Edit / View / Terminal / Help.
+ * Top-level menu order: File / Edit / Go / View / Terminal / Help.
  * @param labels - {@link desktopAppMenuLabels}.
  */
 export function desktopAppMenuSpec(labels: DesktopAppMenuLabels): DesktopAppMenuItem[] {
@@ -111,6 +129,22 @@ export function desktopAppMenuSpec(labels: DesktopAppMenuLabels): DesktopAppMenu
         { type: 'role', role: 'copy' },
         { type: 'role', role: 'paste' },
         { type: 'role', role: 'selectAll' },
+        { type: 'separator' },
+        { type: 'command', id: 'file-find', label: labels.fileFind, accelerator: 'CommandOrControl+F' },
+        { type: 'command', id: 'file-replace', label: labels.fileReplace, accelerator: 'CommandOrControl+H' },
+      ],
+    },
+    {
+      id: 'go',
+      label: labels.go,
+      submenu: [
+        { type: 'command', id: 'file-quick-open', label: labels.goFile, accelerator: 'CommandOrControl+P' },
+        { type: 'command', id: 'file-goto-line', label: labels.goLine, accelerator: 'CommandOrControl+G' },
+        { type: 'separator' },
+        { type: 'command', id: 'file-goto-definition', label: labels.goDefinition, accelerator: 'F12' },
+        { type: 'command', id: 'file-goto-implementation', label: labels.goImplementation, accelerator: 'CommandOrControl+F12' },
+        { type: 'command', id: 'file-goto-references', label: labels.goReferences, accelerator: 'Shift+F12' },
+        { type: 'command', id: 'file-show-hover', label: labels.goHover },
       ],
     },
     {

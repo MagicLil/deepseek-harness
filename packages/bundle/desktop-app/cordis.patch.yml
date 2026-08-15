@@ -82,6 +82,9 @@
     - id: marketplace
       name: '@deepseek-ai/dsh-host-marketplace'
 
+    - id: skill-manager
+      name: '@deepseek-ai/dsh-host-skill-manager'
+
     - id: lsp
       name: '@deepseek-ai/dsh-lsp'
 
@@ -231,6 +234,9 @@
 
     - id: ui-xmart-marketplace
       name: '@deepseek-ai/dsh-client-ui-xmart-marketplace'
+
+    - id: ui-xmart-skills
+      name: '@deepseek-ai/dsh-client-ui-xmart-skills'
 
 # ── the agent plane moves behind agent presets (same as web) ────────────────
 

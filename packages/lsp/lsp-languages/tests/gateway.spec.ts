@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import Lsp from '@deepseek-ai/dsh-lsp'
-import apply, { TsLspGateway, JavaLspGateway } from '../src/index.ts'
+import apply, { TsLspGateway, JavaLspGateway, toEditorHover, toEditorLocations } from '../src/index.ts'
 import type { PersistentLspPool } from '../src/pool.ts'
 
 const contexts: Context[] = []
@@ -16,11 +16,13 @@ function fakePool(): {
   open: ReturnType<typeof vi.fn>
   change: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
+  warmup: ReturnType<typeof vi.fn>
   query: ReturnType<typeof vi.fn>
 } {
   const open = vi.fn(async () => {})
   const change = vi.fn(async () => {})
   const close = vi.fn(async () => {})
+  const warmup = vi.fn(async () => {})
   const query = vi.fn(async () => ({ kind: 'hover', hover: { contents: 'h' } }))
   const pool = {
     id: 'typescript',
@@ -28,6 +30,7 @@ function fakePool(): {
     open,
     change,
     close,
+    warmup,
     complete: vi.fn(async () => [{ label: 'A' }]),
     diagnostics: vi.fn(async () => [{
       message: 'm',
@@ -38,10 +41,29 @@ function fakePool(): {
       endCharacter: 1,
     }]),
     query,
+    navigate: vi.fn(async (operation: string) => {
+      if (operation === 'hover') {
+        return {
+          kind: 'hover',
+          hover: {
+            contents: 'doc',
+            range: { start: { line: 0, character: 1 }, end: { line: 0, character: 4 } },
+          },
+        }
+      }
+      return {
+        kind: 'locations',
+        locations: [{
+          uri: 'file:///ws/a.ts',
+          range: { start: { line: 2, character: 0 }, end: { line: 2, character: 3 } },
+        }],
+        resolvedWorkspaceUri: 'file:///ws',
+      }
+    }),
     disposeAll: vi.fn(async () => {}),
     asProvider: vi.fn(),
   } as unknown as PersistentLspPool
-  return { pool, open, change, close, query }
+  return { pool, open, change, close, warmup, query }
 }
 
 async function harness(which: 'ts' | 'java'): Promise<{
@@ -52,6 +74,7 @@ async function harness(which: 'ts' | 'java'): Promise<{
   change: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
   query: ReturnType<typeof vi.fn>
+  warmup: ReturnType<typeof vi.fn>
 }> {
   const ctx = new Context()
   contexts.push(ctx)
@@ -70,13 +93,16 @@ describe('TsLspGateway', () => {
     const { gw } = await harness('ts')
     expect(gw.typertRemote).toMatchObject({ serviceKey: 'tsLsp', namespace: 'tsLsp' })
     expect(remoteMethods(gw).map(item => item.method)).toEqual([
-      'open', 'change', 'close', 'complete', 'diagnostics',
+      'open', 'change', 'close', 'complete', 'diagnostics', 'definition', 'hover', 'references', 'implementation',
+      'warmup',
     ])
   })
 
   it('forwards editor remotes to the pool', async () => {
-    const { gw, open, change, close } = await harness('ts')
+    const { gw, open, change, close, warmup } = await harness('ts')
     const signal = new AbortController().signal
+    await gw.warmup({ workspaceRoot: '/ws' }, signal)
+    expect(warmup).toHaveBeenCalledWith('/ws', signal)
     await gw.open({ workspaceRoot: '/ws', path: 'a.ts', text: 'const x = 1' }, signal)
     await gw.change({ workspaceRoot: '/ws', path: 'a.ts', text: 'const x = 2' }, signal)
     await gw.close({ workspaceRoot: '/ws', path: 'a.ts' }, signal)
@@ -96,6 +122,42 @@ describe('TsLspGateway', () => {
     expect(open).toHaveBeenCalled()
     expect(change).toHaveBeenCalled()
     expect(close).toHaveBeenCalled()
+    expect(await gw.definition({
+      workspaceRoot: '/ws', path: 'a.ts', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.hover({
+      workspaceRoot: '/ws', path: 'a.ts', line: 0, character: 1,
+    }, signal)).toEqual({
+      contents: 'doc', startLine: 0, startCharacter: 1, endLine: 0, endCharacter: 4,
+    })
+    expect(await gw.references({
+      workspaceRoot: '/ws', path: 'a.ts', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.implementation({
+      workspaceRoot: '/ws', path: 'a.ts', line: 0, character: 1,
+    }, signal)).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+  })
+
+  it('maps a mismatched navigate kind to an empty editor result', () => {
+    expect(toEditorLocations({ kind: 'hover', hover: { contents: 'x' } })).toEqual({ items: [] })
+    expect(toEditorHover({ kind: 'locations', locations: [], resolvedWorkspaceUri: 'file:///ws' })).toEqual({})
+    expect(toEditorHover({ kind: 'hover', hover: null })).toEqual({})
+    expect(toEditorHover({ kind: 'hover', hover: { contents: 'only' } })).toEqual({ contents: 'only' })
   })
 
   it('lazily creates the default pool', async () => {
@@ -130,8 +192,10 @@ describe('TsLspGateway', () => {
 
 describe('JavaLspGateway', () => {
   it('publishes the javaLsp remotes and forwards to the pool', async () => {
-    const { gw, open } = await harness('java')
+    const { gw, open, warmup } = await harness('java')
     expect(gw.typertRemote).toMatchObject({ serviceKey: 'javaLsp', namespace: 'javaLsp' })
+    await gw.warmup({ workspaceRoot: '/ws' })
+    expect(warmup).toHaveBeenCalledWith('/ws', undefined)
     await gw.open({ workspaceRoot: '/ws', path: 'Foo.java', text: 'class Foo {}' })
     expect(open).toHaveBeenCalled()
     expect(await gw.complete({
@@ -142,6 +206,35 @@ describe('JavaLspGateway', () => {
     })
     await gw.change({ workspaceRoot: '/ws', path: 'Foo.java', text: 'class Bar {}' })
     await gw.close({ workspaceRoot: '/ws', path: 'Foo.java' })
+    expect(await gw.definition({
+      workspaceRoot: '/ws', path: 'Foo.java', line: 0, character: 1,
+    })).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.hover({
+      workspaceRoot: '/ws', path: 'Foo.java', line: 0, character: 1,
+    })).toEqual({
+      contents: 'doc', startLine: 0, startCharacter: 1, endLine: 0, endCharacter: 4,
+    })
+    expect(await gw.references({
+      workspaceRoot: '/ws', path: 'Foo.java', line: 0, character: 1,
+    })).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
+    expect(await gw.implementation({
+      workspaceRoot: '/ws', path: 'Foo.java', line: 0, character: 1,
+    })).toEqual({
+      items: [{
+        uri: 'file:///ws/a.ts',
+        startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 3,
+      }],
+    })
   })
 
   it('lazily creates the default Java pool', async () => {

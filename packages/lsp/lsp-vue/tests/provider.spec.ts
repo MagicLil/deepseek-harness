@@ -41,6 +41,12 @@ function makePool(env: Record<string, string> = {}): VueLspPool {
 }
 
 describe('VueLspPool', () => {
+  it('warms a session without opening a buffer', async () => {
+    const created = makePool()
+    await created.warmup(ws)
+    expect(await created.diagnostics(ws, 'App.vue')).toEqual([])
+  })
+
   it('opens a buffer, returns diagnostics and completions, then queries hover', async () => {
     const created = makePool({
       LSP_FAKE_DIAGNOSTICS: JSON.stringify([{
@@ -62,6 +68,9 @@ describe('VueLspPool', () => {
       languageId: 'vue',
     })
     expect(hover).toEqual({ kind: 'hover', hover: { contents: 'hi' } })
+    expect(await created.navigate('hover', ws, 'App.vue', 0, 1)).toEqual({
+      kind: 'hover', hover: { contents: 'hi' },
+    })
     await created.close(ws, 'App.vue')
   })
 

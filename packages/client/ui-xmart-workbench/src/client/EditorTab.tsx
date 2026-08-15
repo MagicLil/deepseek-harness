@@ -10,7 +10,10 @@ import type { WorkbenchFilesStore } from './files-store.ts'
 import { MonacoHost } from './MonacoHost.tsx'
 import { MarkdownPreview } from './MarkdownPreview.tsx'
 import { isMarkdownPath } from './language-from-path.ts'
-import { languageClientFor, type EditorLspRemote, type EditorLspRemotes } from './editor-lsp.ts'
+import {
+  editorLspOffKey, languageClientFor, missingLanguageRemote,
+  type EditorLspRemote, type EditorLspRemotes,
+} from './editor-lsp.ts'
 import { WORKBENCH_SAVE_EVENT } from './app-menu-dispatch.ts'
 import css from './EditorTab.module.css'
 
@@ -39,10 +42,29 @@ export type EditorTabProps = TabBodyProps & {
   vueLsp?: EditorLspRemote
   tsLsp?: EditorLspRemote
   javaLsp?: EditorLspRemote
+  /** Live workspace root; preferred over the snapshot `workspaceRoot`. */
+  getWorkspaceRoot?: () => string | undefined
+  /** Re-read cwd / remotes when the session or workspace list changes. */
+  watchWorkspace?: (fn: () => void) => () => void
+  /** Live Host namespaces (`remote.javaLsp` may appear after first paint). */
+  getRemotes?: () => EditorLspRemotes
+  /** Open another path when go-to-definition lands outside this buffer. */
+  openFile?: (path: string) => void
+}
+
+function staticRemotes(vueLsp?: EditorLspRemote, tsLsp?: EditorLspRemote, javaLsp?: EditorLspRemote): EditorLspRemotes {
+  return {
+    ...(vueLsp === undefined ? {} : { vueLsp }),
+    ...(tsLsp === undefined ? {} : { tsLsp }),
+    ...(javaLsp === undefined ? {} : { javaLsp }),
+  }
 }
 
 /** Editor tab body (see module doc). */
-export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, vueLsp, tsLsp, javaLsp }: EditorTabProps) {
+export function EditorTab({
+  tab, t, readFile, writeFile, files, workspaceRoot, vueLsp, tsLsp, javaLsp,
+  getWorkspaceRoot, watchWorkspace, getRemotes, openFile,
+}: EditorTabProps) {
   const path = tab.path
   const [open, setOpen] = useState<OpenState>({ phase: 'idle' })
   const [dirty, setDirty] = useState(false)
@@ -51,6 +73,8 @@ export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, v
   const [previewText, setPreviewText] = useState('')
   const [banner, setBanner] = useState(false)
   const [reloadSeen, setReloadSeen] = useState(() => tokenOf(files, path))
+  const [root, setRoot] = useState(() => getWorkspaceRoot?.() ?? workspaceRoot)
+  const [remotes, setRemotes] = useState(() => getRemotes?.() ?? staticRemotes(vueLsp, tsLsp, javaLsp))
   const contentRef = useRef('')
   const baselineRef = useRef('')
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -60,6 +84,32 @@ export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, v
     if (path === undefined) return
     if (tokenOf(files, path) !== reloadSeen) setBanner(true)
   }), [files, path, reloadSeen])
+
+  useEffect(() => {
+    const refresh = (): void => {
+      setRoot(getWorkspaceRoot?.() ?? workspaceRoot)
+      setRemotes(getRemotes?.() ?? staticRemotes(vueLsp, tsLsp, javaLsp))
+    }
+    refresh()
+    const off = watchWorkspace?.(refresh)
+    const pending = (): boolean => {
+      const remotesOf = getRemotes
+      return remotesOf !== undefined && path !== undefined && missingLanguageRemote(remotesOf(), path)
+    }
+    if (getRemotes === undefined || !pending()) {
+      return () => { off?.() }
+    }
+    const id = window.setInterval(() => {
+      refresh()
+      if (!pending()) window.clearInterval(id)
+    }, 400)
+    const stop = window.setTimeout(() => { window.clearInterval(id) }, 20_000)
+    return () => {
+      off?.()
+      window.clearInterval(id)
+      window.clearTimeout(stop)
+    }
+  }, [getRemotes, getWorkspaceRoot, javaLsp, path, tsLsp, vueLsp, watchWorkspace, workspaceRoot])
 
   useEffect(() => () => {
     if (draftTimer.current !== null) clearTimeout(draftTimer.current)
@@ -193,11 +243,8 @@ export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, v
   const markdown = isMarkdownPath(path)
   const showEditor = previewMode !== 'preview'
   const showPreview = markdown && previewMode !== 'edit'
-  const languageClient = languageClientFor(
-    { vueLsp, tsLsp, javaLsp } as EditorLspRemotes,
-    workspaceRoot,
-    path,
-  )
+  const languageClient = languageClientFor(remotes, root, path)
+  const offKey = editorLspOffKey(remotes, root, path)
 
   return (
     <div className={css.root} data-testid="xmart-workbench-editor">
@@ -206,6 +253,9 @@ export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, v
         <span className={saveState === 'error' ? css.error : dirty ? css.dirty : css.status}>
           {saveLabel(saveState, dirty, t)}
         </span>
+        {offKey !== undefined && (
+          <span className={css.status} data-testid="xmart-workbench-lsp-off">{t(offKey)}</span>
+        )}
         <button type="button" className={css.tool} onClick={() => { handleSave() }}>{t('editor.save')}</button>
         {markdown && (
           <>
@@ -234,13 +284,20 @@ export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, v
             />
             <MonacoBoundary fallback={null}>
               <MonacoHost
-                key={open.path}
+                key={`${open.path}:${languageClient === undefined ? 'off' : 'on'}`}
                 initialValue={open.initial}
                 filePath={open.path}
-                labels={{ loading: t('editor.engineLoading'), error: t('editor.engineError') }}
+                labels={{
+                  loading: t('editor.engineLoading'),
+                  error: t('editor.engineError'),
+                  noSource: t('editor.noSource'),
+                  lspStarting: t('editor.lspStarting'),
+                  lspFailed: t('editor.lspFailed'),
+                }}
                 onChange={handleChange}
                 onSave={handleSave}
                 {...(languageClient === undefined ? {} : { languageClient })}
+                {...(openFile === undefined ? {} : { onOpenFile: openFile })}
               />
             </MonacoBoundary>
           </>

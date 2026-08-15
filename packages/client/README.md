@@ -22,6 +22,7 @@ The browser side of the dsh web GUI: shell boot, browser-host communication, sha
 | [`ui-layout/`](ui-layout/README.md) | Arranges the main application regions. |
 | [`ui-xmart-workbench/`](ui-xmart-workbench/README.md) | Provides the Cursor-style activity bar, left sidebar (Explorer/Git/Tasks), center editor, bottom terminal seat, and Workbench settings page. |
 | [`ui-xmart-marketplace/`](ui-xmart-marketplace/README.md) | Provides the activity-bar Plugins and Extensions sidebars. |
+| [`ui-xmart-skills/`](ui-xmart-skills/README.md) | Provides the Settings page for personal, project, and imported skills. |
 | [`ui-sidebar/`](ui-sidebar/README.md) | Presents workspace and session navigation. |
 | [`ui-workspace/`](ui-workspace/README.md) | Provides workspace selection and creation surfaces. |
 | [`ui-conversation/`](ui-conversation/README.md) | Presents the active conversation and its input surface. |

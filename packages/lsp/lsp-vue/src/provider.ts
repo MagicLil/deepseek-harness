@@ -6,7 +6,7 @@
 
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import { LspError, LspProviderId } from '@deepseek-ai/dsh-lsp'
-import type { LspProvider, LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
+import type { LspOperation, LspProvider, LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
 import { canonicalizeWorkspace, readHostSource } from '@deepseek-ai/dsh-lsp-stdio'
 import { VueLspSession } from './session.ts'
 import type { VueSessionSpec } from './session.ts'
@@ -64,6 +64,16 @@ export class VueLspPool {
     await session.open(workspaceRoot, filePath, text, this.querySignal(signal))
   }
 
+  /**
+   * Launch (or reuse) the workspace session and wait for `initialize`.
+   * @param workspaceRoot - folder the server indexes.
+   * @param signal - abort.
+   */
+  async warmup(workspaceRoot: string, signal?: AbortSignal): Promise<void> {
+    const session = await this.sessionFor(workspaceRoot, signal)
+    await session.whenReady(this.querySignal(signal))
+  }
+
   async change(workspaceRoot: string, filePath: string, text: string, signal?: AbortSignal): Promise<void> {
     const session = await this.sessionFor(workspaceRoot, signal)
     await session.change(workspaceRoot, filePath, text, this.querySignal(signal))
@@ -88,6 +98,18 @@ export class VueLspPool {
   async diagnostics(workspaceRoot: string, filePath: string, signal?: AbortSignal): Promise<readonly VueLspDiagnostic[]> {
     const session = await this.sessionFor(workspaceRoot, signal)
     return session.diagnosticsFor(workspaceRoot, filePath)
+  }
+
+  async navigate(
+    operation: LspOperation,
+    workspaceRoot: string,
+    filePath: string,
+    line: number,
+    character: number,
+    signal?: AbortSignal,
+  ): Promise<LspQueryResult> {
+    const session = await this.sessionFor(workspaceRoot, signal)
+    return session.navigate(operation, workspaceRoot, filePath, line, character, this.querySignal(signal))
   }
 
   async query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult> {

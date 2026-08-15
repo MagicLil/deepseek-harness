@@ -8,12 +8,16 @@ import type {
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ComponentType } from 'react'
+import type { FileListing } from '@deepseek-ai/dsh-client-runtime/client'
 import type { createWorkbenchStore } from './stores.ts'
 import type { WorkbenchKey } from './locales.ts'
 import type { AppMenuCommand } from './app-menu-dispatch.ts'
 import type {
   ActivityId, TabBodyProps, WorkbenchRegistrySnapshot, WorkbenchView,
 } from './types.ts'
+import type { ExplorerRoot } from './explorer-roots.ts'
+import type { EditorLspRemotes } from './editor-lsp.ts'
+import type { WorkbenchFilesStore } from './files-store.ts'
 
 /** Activity-bar icon component (primitives or a plugin SVG). */
 export type ActivityIcon = ComponentType<{ size?: number }>
@@ -41,6 +45,36 @@ export interface WorkbenchColumnInjected {
    * @returns the body component, or undefined when the type is not registered.
    */
   resolveBody: (type: string) => ComponentType<TabBodyProps> | undefined
+  /**
+   * List one directory for Ctrl+P quick open.
+   * @param path - absolute directory.
+   * @param signal - abort when the palette closes.
+   */
+  listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
+  /** Explorer roots for the bound session (Ctrl+P walk). */
+  getRoots?: () => readonly ExplorerRoot[]
+  /**
+   * Open a file tab from the quick-open palette.
+   * @param path - absolute file path.
+   */
+  openFile?: (path: string) => void
+  /** Live editor-LSP namespaces for every open file tab. */
+  getRemotes?: () => EditorLspRemotes
+  /**
+   * Workspace root for one open path (cwd, explorer, or a guess from the file).
+   * @param filePath - the editor path being bound.
+   */
+  getWorkspaceRoot?: (filePath?: string) => string | undefined
+  /** Re-bind language documents when the session cwd or workspace list changes. */
+  watchWorkspace?: (fn: () => void) => () => void
+  /**
+   * Read one file so a background tab can didOpen without mounting Monaco.
+   * @param path - absolute file path.
+   * @param signal - abort when the tab set changes.
+   */
+  readFile?: (path: string, signal?: AbortSignal) => Promise<string>
+  /** Draft buffers, preferred over disk when the tab is dirty. */
+  files?: WorkbenchFilesStore
   hooks: {
     /** Per-session tabs, focus, and derived + menu. */
     workbenchSession: HostObservable<WorkbenchView>
