@@ -67,7 +67,6 @@ export function GitTab({
     const controller = new AbortController()
     setPhase('loading')
     const apply = (next: GitStatus, rows: GitLogEntry[], roots?: string[]) => {
-      if (controller.signal.aborted) return
       setStatus(next)
       setLog(rows)
       setRepos(current => roots ?? (current.length > 0 ? current : [next.root]))
@@ -75,7 +74,6 @@ export function GitTab({
       setPhase('ready')
     }
     const fail = (unavailable: boolean, text: string | undefined) => {
-      if (controller.signal.aborted) return
       setStatus(undefined)
       setDetail(text)
       setPhase(unavailable ? 'missing' : 'error')
@@ -100,14 +98,12 @@ export function GitTab({
         return
       }
       const found = await probeGitRoots(children, gitStatus, controller.signal)
-      if (controller.signal.aborted) return
       const pick = found[0]
       if (pick === undefined) {
         fail(true, first.message)
         return
       }
       const nested = await readGitSnapshot(pick, gitStatus, gitLog, controller.signal)
-      if (controller.signal.aborted) return
       if (!nested.ok) {
         fail(nested.unavailable, nested.message)
         return
