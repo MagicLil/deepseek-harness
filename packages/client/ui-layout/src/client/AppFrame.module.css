@@ -12,9 +12,11 @@
 }
 
 /* Dragging writes widths at pointer cadence; easing them would detach the
-   column from the handle. */
+   column from the handle. user-select:none stops the editor from flashing
+   a text-selection layer under the pointer. */
 .frame[data-dragging] {
   transition: none;
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -64,13 +66,17 @@
   /* Same flex seat as .primaryCol. The workbench slot wrapper is
      display:contents; without a positioned flex column and min-height:0
      the editor chrome (tab strip + empty copy) computes to height 0
-     and the 1fr track paints as an empty black pane. */
+     and the 1fr track paints as an empty black pane. Opaque fill +
+     isolation keep Monaco's canvas-clear during track resize from
+     flashing the window behind the column. */
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  isolation: isolate;
+  background: var(--dsw-alias-bg-base);
 }
 
 .bottomCol {
@@ -156,6 +162,17 @@
 .frame[data-dragging] .handle,
 .frame[data-dragging] .handleRow {
   transition: none;
+}
+
+/* Descendants must not steal the pointer or run hover paints while the
+   track widths are moving. The editor keeps painting (Cursor-style). */
+.frame[data-dragging] .editorCol,
+.frame[data-dragging] .conversationCol,
+.frame[data-dragging] .primaryCol,
+.frame[data-dragging] .detailsCol,
+.frame[data-dragging] .sidebarCol,
+.frame[data-dragging] .bottomCol {
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

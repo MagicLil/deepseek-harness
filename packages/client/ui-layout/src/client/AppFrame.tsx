@@ -14,6 +14,7 @@ import {
   chromeMenuBarVisible, computeBottom, computeColumns, MENU_BAR_HEIGHT, SIDEBAR_AUTO_COLLAPSE,
   SIDEBAR_DEFAULT,
 } from './columns.ts'
+import { applyFrameGeometry, solveFramePaint, type FramePaintPrefs } from './frame-geometry.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -80,6 +81,9 @@ function DragHandle(props: {
     e.currentTarget.setPointerCapture(e.pointerId)
     origin.current = axis === 'x' ? e.clientX : e.clientY
     latest.current = origin.current
+    // Arm the frame's [data-dragging] before the first width write so the
+    // grid-template transition cannot interpolate the opening delta.
+    e.currentTarget.parentElement?.setAttribute('data-dragging', '')
     callbacks.current.onStart()
     setDragging(true)
   }, [axis])
@@ -131,6 +135,7 @@ export function AppFrame({
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
+  const draggingRef = useRef(false)
   const [viewport, setViewport] = useState(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -155,7 +160,7 @@ export function AppFrame({
       raf ??= requestAnimationFrame(() => {
         raf = null
         const box = el.getBoundingClientRect()
-        if (box.width > 0) setViewport({ width: box.width, height: box.height })
+        if (box.width > 0 && !draggingRef.current) setViewport({ width: box.width, height: box.height })
       })
     })
     observer.observe(el)
@@ -200,28 +205,112 @@ export function AppFrame({
   const detailsBase = useRef(0)
   const sidebarBase = useRef(0)
   const bottomBase = useRef(0)
-  const [dragging, setDragging] = useState(false)
-  const onDragEnd = useCallback(() => { setDragging(false) }, [])
-  const onPrimaryStart = useCallback(() => { primaryBase.current = colsRef.current.primary; setDragging(true) }, [])
-  const onConversationStart = useCallback(() => { conversationBase.current = colsRef.current.conversation; setDragging(true) }, [])
-  const onDetailsStart = useCallback(() => { detailsBase.current = colsRef.current.details; setDragging(true) }, [])
-  const onSidebarStart = useCallback(() => { sidebarBase.current = colsRef.current.sidebar; setDragging(true) }, [])
-  const onBottomStart = useCallback(() => { bottomBase.current = bottomRef.current; setDragging(true) }, [])
+  const live = useRef<Partial<{
+    workbench: number
+    conversation: number
+    details: number
+    sidebar: number
+    bottom: number
+  }>>({})
+  const prefsRef = useRef<FramePaintPrefs>({
+    viewport,
+    sidebar: sidebarPreference,
+    details: panels.details,
+    workbench: panels.workbench,
+    conversation: panels.conversation,
+    bottom: panels.bottom,
+    workbenchPanels,
+    detailsOn: detailsSession !== undefined,
+    menuBarPx,
+  })
+  prefsRef.current = {
+    viewport,
+    sidebar: sidebarPreference,
+    details: panels.details,
+    workbench: panels.workbench,
+    conversation: panels.conversation,
+    bottom: panels.bottom,
+    workbenchPanels,
+    detailsOn: detailsSession !== undefined,
+    menuBarPx,
+  }
+
+  const paintLive = useCallback(() => {
+    const el = frameRef.current
+    if (el === null) return
+    const p = prefsRef.current
+    const l = live.current
+    const solved = solveFramePaint({
+      ...p,
+      sidebar: l.sidebar ?? p.sidebar,
+      details: l.details ?? p.details,
+      workbench: l.workbench ?? p.workbench,
+      conversation: l.conversation ?? p.conversation,
+      bottom: l.bottom ?? p.bottom,
+    })
+    applyFrameGeometry(el, solved, p.viewport, p.menuBarPx)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (draggingRef.current) paintLive()
+  })
+
+  const onDragEnd = useCallback(() => {
+    const l = live.current
+    if (l.workbench !== undefined) actions.setWorkbench(l.workbench)
+    if (l.conversation !== undefined) actions.setConversation(l.conversation)
+    if (l.details !== undefined) actions.setDetails(l.details)
+    if (l.sidebar !== undefined) actions.setSidebar(l.sidebar)
+    if (l.bottom !== undefined) actions.setBottom(l.bottom)
+    live.current = {}
+    draggingRef.current = false
+    frameRef.current?.removeAttribute('data-dragging')
+  }, [actions])
+  const onPrimaryStart = useCallback(() => {
+    primaryBase.current = colsRef.current.primary
+    live.current = { workbench: primaryBase.current }
+    draggingRef.current = true
+  }, [])
+  const onConversationStart = useCallback(() => {
+    conversationBase.current = colsRef.current.conversation
+    live.current = { conversation: conversationBase.current }
+    draggingRef.current = true
+  }, [])
+  const onDetailsStart = useCallback(() => {
+    detailsBase.current = colsRef.current.details
+    live.current = { details: detailsBase.current }
+    draggingRef.current = true
+  }, [])
+  const onSidebarStart = useCallback(() => {
+    sidebarBase.current = colsRef.current.sidebar
+    live.current = { sidebar: sidebarBase.current }
+    draggingRef.current = true
+  }, [])
+  const onBottomStart = useCallback(() => {
+    bottomBase.current = bottomRef.current
+    live.current = { bottom: bottomBase.current }
+    draggingRef.current = true
+  }, [])
   const onPrimaryDrag = useCallback((dx: number) => {
-    actions.setWorkbench(primaryBase.current + dx)
-  }, [actions])
+    live.current = { workbench: primaryBase.current + dx }
+    paintLive()
+  }, [paintLive])
   const onConversationDrag = useCallback((dx: number) => {
-    actions.setConversation(conversationBase.current - dx)
-  }, [actions])
+    live.current = { conversation: conversationBase.current - dx }
+    paintLive()
+  }, [paintLive])
   const onDetailsDrag = useCallback((dx: number) => {
-    actions.setDetails(detailsBase.current - dx)
-  }, [actions])
+    live.current = { details: detailsBase.current - dx }
+    paintLive()
+  }, [paintLive])
   const onSidebarDrag = useCallback((dx: number) => {
-    actions.setSidebar(sidebarBase.current - dx)
-  }, [actions])
+    live.current = { sidebar: sidebarBase.current - dx }
+    paintLive()
+  }, [paintLive])
   const onBottomDrag = useCallback((dy: number) => {
-    actions.setBottom(bottomBase.current - dy)
-  }, [actions])
+    live.current = { bottom: bottomBase.current - dy }
+    paintLive()
+  }, [paintLive])
 
   const primaryLeft = cols.activity + cols.primary
   const conversationLeft = primaryLeft + cols.editor
@@ -242,7 +331,6 @@ export function AppFrame({
       data-primary-collapsed={cols.primary === 0 || undefined}
       data-conversation-collapsed={cols.conversation === 0 || undefined}
       data-bottom-collapsed={bottom === 0 || undefined}
-      data-dragging={dragging || undefined}
     >
       {chromeMenu
         ? <div className={css.menuBar}>{renderSlot('menuBar', {})}</div>

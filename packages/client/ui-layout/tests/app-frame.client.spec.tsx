@@ -297,6 +297,58 @@ describe('AppFrame', () => {
     expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT + 60)
   })
 
+  it('paints conversation drag on the DOM without rewriting the store until pointerup', () => {
+    const { frame, instance, slotCalls, rerenderFrame } = mountFrame()
+    const before = instance.getSnapshot().conversation
+    const workbenchCalls = () => slotCalls.filter(c => c.key === 'workbench').length
+    const startCalls = workbenchCalls()
+    const editor = 1920 - ACTIVITY_WIDTH - WORKBENCH_DEFAULT - CONVERSATION_DEFAULT - SIDEBAR_DEFAULT
+    const left = ACTIVITY_WIDTH + WORKBENCH_DEFAULT + editor
+    const handle = handleOf(frame, 'conversation')
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        pointerId: 1, clientX: left, bubbles: true,
+      }))
+    })
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointermove', {
+        pointerId: 1, clientX: left - 60, bubbles: true,
+      }))
+      vi.advanceTimersByTime(20)
+    })
+    expect(instance.getSnapshot().conversation).toBe(before)
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT + 60)
+    expect(workbenchCalls()).toBe(startCalls)
+    act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
+    expect(instance.getSnapshot().conversation).toBe(before)
+    act(() => { rerenderFrame() })
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT + 60)
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointerup', {
+        pointerId: 1, clientX: left - 60, bubbles: true,
+      }))
+    })
+    expect(instance.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT + 60)
+  })
+
+  it('pointerdown arms data-dragging on the frame before the first move', () => {
+    const { frame } = mountFrame()
+    const handle = handleOf(frame, 'conversation')
+    expect(frame.hasAttribute('data-dragging')).toBe(false)
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        pointerId: 1, clientX: 800, bubbles: true,
+      }))
+    })
+    expect(frame.hasAttribute('data-dragging')).toBe(true)
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointerup', {
+        pointerId: 1, clientX: 800, bubbles: true,
+      }))
+    })
+    expect(frame.hasAttribute('data-dragging')).toBe(false)
+  })
+
   it('details drag widens leftward (negative dx grows the panel)', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openDetails() })

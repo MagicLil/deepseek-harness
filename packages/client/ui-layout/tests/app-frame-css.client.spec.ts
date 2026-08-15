@@ -26,5 +26,14 @@ describe('AppFrame column layout contract', () => {
       expect(rule).toMatch(/min-width:\s*0/)
       expect(rule).toMatch(/overflow:\s*hidden/)
     }
+    expect(editor).toMatch(/isolation:\s*isolate/)
+    expect(editor).toMatch(/background:\s*var\(--dsw-alias-bg-base\)/)
+  })
+
+  it('disables grid easing and descendant pointer events while dragging', () => {
+    expect(css).toMatch(/\.frame\[data-dragging\] \{[\s\S]*transition:\s*none/)
+    expect(css).toMatch(/\.frame\[data-dragging\] \{[\s\S]*user-select:\s*none/)
+    expect(css).toMatch(/\.frame\[data-dragging\] \.editorCol/)
+    expect(css).toMatch(/pointer-events:\s*none/)
   })
 })

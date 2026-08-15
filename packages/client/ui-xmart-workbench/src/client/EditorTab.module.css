@@ -77,7 +77,9 @@
 }
 
 .plain {
-  flex: 1;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -85,10 +87,17 @@
   border: none;
   resize: none;
   padding: 12px 14px;
-  background: transparent;
+  background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
   font: 13px/20px Cascadia Code, JetBrains Mono, Consolas, monospace;
   outline: none;
+}
+
+/* Monaco is the in-flow seat. Keep this fallback painted-over but out of
+   hit-testing; do not skip its box or the pane can collapse. */
+.pane:has([data-ready]) .plain {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .note {
