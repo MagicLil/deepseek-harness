@@ -66,6 +66,18 @@ export const BOTTOM_MIN = 120
 export const BOTTOM_MAX = 400
 /** Bottom-panel height before any user drag. */
 export const BOTTOM_DEFAULT = 200
+/** Top menu-bar track; never dragged and never conceded. */
+export const MENU_BAR_HEIGHT = 28
+
+/**
+ * The in-frame HTML menu bar is web-only. Desktop already has a native
+ * File / Edit / View row; Terminal lives there, so a second strip must not
+ * appear underneath it.
+ * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
+ */
+export function chromeMenuBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {
+  return protocol !== 'dsh:'
+}
 /** Editor column vertical floor above the bottom panel. */
 export const EDITOR_MIN_HEIGHT = 160
 

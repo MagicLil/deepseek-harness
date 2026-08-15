@@ -12,6 +12,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 const DSH_FETCH_CHANNEL = 'dsh:fetch'
 const DSH_LOAD_BUNDLE_CHANNEL = 'dsh:load-bundle'
 const DSH_FETCH_ABORT_CHANNEL = 'dsh:fetch-abort'
+const DSH_APP_MENU_CHANNEL = 'dsh:app-menu'
 const CHUNK_CHANNEL = 'dsh:fetch-chunk'
 const END_CHANNEL = 'dsh:fetch-end'
 
@@ -42,5 +43,10 @@ contextBridge.exposeInMainWorld('__DSH_IPC__', {
     el.text = source
     document.head.append(el)
     el.remove()
+  },
+  onAppMenu(listener) {
+    const handler = (_event, command) => { listener(command) }
+    ipcRenderer.on(DSH_APP_MENU_CHANNEL, handler)
+    return () => { ipcRenderer.removeListener(DSH_APP_MENU_CHANNEL, handler) }
   },
 })

@@ -11,7 +11,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  computeBottom, computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT,
+  chromeMenuBarVisible, computeBottom, computeColumns, MENU_BAR_HEIGHT, SIDEBAR_AUTO_COLLAPSE,
+  SIDEBAR_DEFAULT,
 } from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -20,7 +21,7 @@ import css from './AppFrame.module.css'
 export type AppFrameProps =
   & PropsRuntime<'root'>
   & PropsRenderSlots<
-    | 'activityBar' | 'primarySidebar' | 'workbench' | 'bottomPanel'
+    | 'menuBar' | 'activityBar' | 'primarySidebar' | 'workbench' | 'bottomPanel'
     | 'conversation' | 'details' | 'sidebar' | 'shell.overlay'
   >
   & PropsStore<ReturnType<typeof createLayoutStore>>
@@ -124,6 +125,7 @@ export function AppFrame({
   renderSlot,
 }: AppFrameProps) {
   const panels = useStore(s => s)
+  const currentSession = useSessions(s => s.current)
   const detailsSession = useSessions((s) => {
     const current = s.current
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
@@ -173,17 +175,21 @@ export function AppFrame({
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const sessionPanels = detailsSession !== undefined
+  const workbenchPanels = currentSession !== undefined
   // Conversation has no close action (setConversation clamps to CONVERSATION_MIN);
   // concession in computeColumns is what visually collapses it.
   const cols = computeColumns(
     viewport.width,
     sidebarPreference,
-    sessionPanels ? panels.details : 0,
-    sessionPanels ? panels.workbench : 0,
+    detailsSession !== undefined ? panels.details : 0,
+    workbenchPanels ? panels.workbench : 0,
     panels.conversation,
   )
-  const bottom = sessionPanels ? computeBottom(viewport.height, panels.bottom) : 0
+  const chromeMenu = chromeMenuBarVisible()
+  const menuBarPx = chromeMenu ? MENU_BAR_HEIGHT : 0
+  const bottom = workbenchPanels
+    ? computeBottom(Math.max(0, viewport.height - menuBarPx), panels.bottom)
+    : 0
   const colsRef = useRef(cols)
   colsRef.current = cols
   const bottomRef = useRef(bottom)
@@ -228,8 +234,9 @@ export function AppFrame({
       className={css.frame}
       style={{
         gridTemplateColumns: `${cols.activity}px ${cols.primary}px minmax(0, 1fr) ${cols.conversation}px ${cols.details}px ${cols.sidebar}px`,
-        gridTemplateRows: `minmax(0, 1fr) ${bottom}px`,
+        gridTemplateRows: `${String(menuBarPx)}px minmax(0, 1fr) ${bottom}px`,
       }}
+      data-chrome-menu={chromeMenu || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-primary-collapsed={cols.primary === 0 || undefined}
@@ -237,6 +244,9 @@ export function AppFrame({
       data-bottom-collapsed={bottom === 0 || undefined}
       data-dragging={dragging || undefined}
     >
+      {chromeMenu
+        ? <div className={css.menuBar}>{renderSlot('menuBar', {})}</div>
+        : null}
       <div className={css.activityCol}>
         {renderSlot('activityBar', {
           primaryOpen: cols.primary > 0,
@@ -244,7 +254,7 @@ export function AppFrame({
         })}
       </div>
       <PrimaryColumn>
-        {renderSlot('primarySidebar', { width: sessionPanels ? cols.primary : 0 })}
+        {renderSlot('primarySidebar', { width: workbenchPanels ? cols.primary : 0 })}
       </PrimaryColumn>
       <EditorColumn>{renderSlot('workbench', { width: cols.editor })}</EditorColumn>
       <BottomColumn>{renderSlot('bottomPanel', { height: bottom })}</BottomColumn>

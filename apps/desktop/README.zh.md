@@ -8,7 +8,7 @@
 
 - `dsh desktop` / `dsh --profile desktop` — CLI 发现当前不是 Electron 进程后调用 [`relaunch`](src/relaunch.ts)。
 - 随后 Electron 运行 **已编译的** [`lib/electron-main.js`](lib/electron-main.js)（由 `pnpm run build:lib` 构建）。Electron 不能使用 `tsx` —— 其 Node ABI 无法加载 tsx 的原生 esbuild 二进制。
-- [`shell`](src/shell.ts) 在 `apiProxy` 与 `clientModules` 就绪后打开窗口。
+- [`shell`](src/shell.ts) 在 `apiProxy` 与 `clientModules` 就绪后打开窗口，并安装应用菜单（系统自带的 File / Edit / View / Window / Help，外加「终端」）。
 - 再次运行 `dsh desktop` 会聚焦已有窗口（单实例锁）。窗口位置与尺寸保存在 `$DSH_HOME/desktop-window.json`。点关闭会藏到托盘（托盘菜单「退出」才真正退出）。第一次隐藏会弹一次提示，标记写在 `$DSH_HOME/desktop-prefs.json`。
 
 ## 更新
@@ -17,7 +17,7 @@
 
 ## Preload
 
-[`preload.mjs`](preload.mjs) 以 CommonJS（`require('electron')`）入库，这样沙箱渲染进程无需先做 TypeScript 构建即可加载。在该沙箱里写 ESM `import` 会抛 `Cannot use import statement outside a module`，`window.__DSH_IPC__` 也就不会出现。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
+[`preload.mjs`](preload.mjs) 以 CommonJS（`require('electron')`）入库，这样沙箱渲染进程无需先做 TypeScript 构建即可加载。在该沙箱里写 ESM `import` 会抛 `Cannot use import statement outside a module`，`window.__DSH_IPC__` 也就不会出现。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
 
 关闭窗口（或取消流式 `Response`）会在移除 IPC handler 之前中止进行中的 Host fetch。
 

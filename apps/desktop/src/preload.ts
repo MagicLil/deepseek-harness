@@ -9,11 +9,13 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import {
+  DSH_APP_MENU_CHANNEL,
   DSH_FETCH_ABORT_CHANNEL,
   DSH_FETCH_CHANNEL,
   DSH_FETCH_CHUNK_CHANNEL,
   DSH_FETCH_END_CHANNEL,
   DSH_LOAD_BUNDLE_CHANNEL,
+  type AppMenuCommand,
   type DshIpcBridge,
   type IpcFetchChunk,
   type IpcFetchEnd,
@@ -49,6 +51,13 @@ const bridge: DshIpcBridge = {
     el.text = source
     document.head.append(el)
     el.remove()
+  },
+  onAppMenu(listener) {
+    const handler = (_event: Electron.IpcRendererEvent, command: AppMenuCommand): void => {
+      listener(command)
+    }
+    ipcRenderer.on(DSH_APP_MENU_CHANNEL, handler)
+    return () => { ipcRenderer.removeListener(DSH_APP_MENU_CHANNEL, handler) }
   },
 }
 

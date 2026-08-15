@@ -8,7 +8,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BrowserWindow, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
+import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
+import { desktopAppMenuLabels, desktopAppMenuSpec, type AppMenuCommand } from './app-menu.ts'
 import { checkDesktopUpdatesNow, showCloseToTrayHint, startDesktopAutoUpdate } from './auto-update.ts'
 import { consumeCloseToTrayHint } from './desktop-prefs.ts'
 import { desktopIconFilePath, ensureDesktopIconFile } from './icon.ts'
@@ -19,6 +20,7 @@ import { injectBootManifest, type WebBootGraph } from '@deepseek-ai/dsh-client-m
 import type { FetchHandler } from '@deepseek-ai/dsh-client-connection'
 import { toFetchHandler } from '@deepseek-ai/dsh-host-apiproxy'
 import {
+  DSH_APP_MENU_CHANNEL,
   DSH_FETCH_ABORT_CHANNEL,
   DSH_FETCH_CHANNEL,
   DSH_LOAD_BUNDLE_CHANNEL,
@@ -208,6 +210,41 @@ function isHttpUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Install the 万物智汇 application menu and forward renderer-bound clicks.
+ * @param win - the desktop renderer that owns the workbench.
+ */
+function installDesktopAppMenu(win: BrowserWindow): void {
+  const send = (command: AppMenuCommand): void => {
+    if (win.isDestroyed()) return
+    win.webContents.send(DSH_APP_MENU_CHANNEL, command)
+  }
+  const showAbout = (): void => {
+    const zh = app.getLocale().toLowerCase().startsWith('zh')
+    void dialog.showMessageBox(win, {
+      type: 'info',
+      title: zh ? '关于万物智汇' : 'About Xmart',
+      message: zh ? '万物智汇' : 'Xmart',
+      detail: `xmart ${app.getVersion()}`,
+    })
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate(
+    desktopAppMenuSpec(desktopAppMenuLabels(app.getLocale())).map(row => ({
+      label: row.label,
+      submenu: row.submenu.map((item) => {
+        if (item.type === 'separator') return { type: 'separator' as const }
+        if (item.type === 'role') return { role: item.role }
+        if (item.type === 'about') return { label: item.label, click: showAbout }
+        return {
+          label: item.label,
+          ...item.accelerator === undefined ? {} : { accelerator: item.accelerator },
+          click: () => { send(item.id) },
+        }
+      }),
+    })),
+  ))
 }
 
 /**
@@ -403,6 +440,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   }
   const win = new BrowserWindow(windowOptions)
   if (restored?.isMaximized === true) win.maximize()
+  installDesktopAppMenu(win)
 
   const persistBounds = (): void => {
     if (win.isDestroyed()) return

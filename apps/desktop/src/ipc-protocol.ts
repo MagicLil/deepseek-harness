@@ -18,6 +18,24 @@ export const DSH_FETCH_END_CHANNEL = 'dsh:fetch-end' as const
 /** Renderer → main: abort one in-flight IPC fetch (unary or stream). */
 export const DSH_FETCH_ABORT_CHANNEL = 'dsh:fetch-abort' as const
 
+/** Main → renderer: a click on the native application menu. */
+export const DSH_APP_MENU_CHANNEL = 'dsh:app-menu' as const
+
+/** Commands the native application menu can send to the renderer. */
+export type AppMenuCommand =
+  | 'session-new'
+  | 'workspace-open'
+  | 'file-save'
+  | 'file-close'
+  | 'settings-open'
+  | 'activity-explorer'
+  | 'activity-git'
+  | 'activity-tasks'
+  | 'sidebar-primary'
+  | 'sidebar-sessions'
+  | 'terminal-new'
+  | 'terminal-toggle'
+
 /** Serializable RequestInit subset the preload sends to main. */
 export interface IpcFetchRequest {
   /** Absolute or origin-relative URL (may use the http://dsh.internal fake authority). */
@@ -78,4 +96,10 @@ export interface DshIpcBridge {
   /** Abort the main-process fetch identified by `requestId`. */
   abortFetch(requestId: string): void
   loadBundle(url: string): Promise<void>
+  /**
+   * Subscribe to native application-menu commands.
+   * @param listener - one command per menu click / accelerator.
+   * @returns disposer that drops the listener.
+   */
+  onAppMenu(listener: (command: AppMenuCommand) => void): () => void
 }

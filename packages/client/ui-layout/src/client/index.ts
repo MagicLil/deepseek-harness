@@ -77,6 +77,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'workbench': { kind: 'single'; scope: 'session'; owner: WorkbenchOwnerProps }
     /**
+     * Full-width top menu bar (web only). OCCUPIED by ui-xmart-workbench.
+     * Desktop hides this row — Terminal sits on the Electron File menu.
+     */
+    'menuBar': { kind: 'single'; scope: 'session'; owner: MenuBarOwnerProps }
+    /**
      * Far-left activity bar (icon rail). OCCUPIED by ui-xmart-workbench.
      * Always visible at ACTIVITY_WIDTH. The occupant receives whether the
      * primary sidebar and bottom panel are open so icons can stay in sync.
@@ -134,6 +139,9 @@ export interface WorkbenchOwnerProps {
   width: number
 }
 
+/** Top menu-bar owner share: empty — sessionId arrives as a framework-standard prop. */
+export interface MenuBarOwnerProps {}
+
 /** Activity-bar owner share: live open flags from the concession solve. */
 export interface ActivityBarOwnerProps {
   /** True when the primary sidebar track is greater than 0. */
@@ -170,6 +178,7 @@ export function apply(ctx: ClientContext): void {
     const disposeRegistration = ctx.slots.register({
       name: 'root',
       children: {
+        'menuBar': { kind: 'single', scope: 'session' },
         'activityBar': { kind: 'single', scope: 'session' },
         'primarySidebar': { kind: 'single', scope: 'session' },
         'workbench': { kind: 'single', scope: 'session' },

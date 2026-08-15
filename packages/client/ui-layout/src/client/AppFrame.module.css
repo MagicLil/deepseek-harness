@@ -23,9 +23,19 @@
   }
 }
 
+.menuBar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsw-specific-sidebar-fill);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
 .activityCol {
   grid-column: 1;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -37,7 +47,7 @@
 
 .primaryCol {
   grid-column: 2;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -50,16 +60,22 @@
 
 .editorCol {
   grid-column: 3;
-  grid-row: 1;
-  min-width: 0;
+  grid-row: 2;
+  /* Same flex seat as .primaryCol. The workbench slot wrapper is
+     display:contents; without a positioned flex column and min-height:0
+     the editor chrome (tab strip + empty copy) computes to height 0
+     and the 1fr track paints as an empty black pane. */
+  position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
 .bottomCol {
   grid-column: 3;
-  grid-row: 2;
+  grid-row: 3;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -68,7 +84,7 @@
 
 .conversationCol {
   grid-column: 4;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -78,7 +94,7 @@
 
 .detailsCol {
   grid-column: 5;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
@@ -86,7 +102,7 @@
 
 .sidebarCol {
   grid-column: 6;
-  grid-row: 1 / -1;
+  grid-row: 2 / -1;
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
@@ -121,6 +137,10 @@
   z-index: 2;
   touch-action: none;
   transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-chrome-menu] .handle {
+  top: 28px;
 }
 
 .handleRow {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACTIVITY_WIDTH, BOTTOM_DEFAULT, BOTTOM_MIN, clampWidth, computeBottom, computeColumns,
+  ACTIVITY_WIDTH, BOTTOM_DEFAULT, BOTTOM_MIN, chromeMenuBarVisible, clampWidth, computeBottom, computeColumns,
   CONVERSATION_DEFAULT, CONVERSATION_MIN, DETAILS_DEFAULT, EDITOR_MIN,
   EDITOR_MIN_HEIGHT, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
   WORKBENCH_DEFAULT, WORKBENCH_MIN,
@@ -212,6 +212,15 @@ describe('computeColumns — conversation and primary concession', () => {
     )
     expect(cols.conversation).toBe(CONVERSATION_MIN)
     expect(cols.editor).toBe(EDITOR_MIN)
+  })
+})
+
+describe('chromeMenuBarVisible', () => {
+  it('hides the HTML strip on the desktop dsh: renderer', () => {
+    expect(chromeMenuBarVisible('dsh:')).toBe(false)
+    expect(chromeMenuBarVisible('http:')).toBe(true)
+    expect(chromeMenuBarVisible('https:')).toBe(true)
+    expect(chromeMenuBarVisible('')).toBe(true)
   })
 })
 

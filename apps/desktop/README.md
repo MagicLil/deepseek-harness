@@ -8,7 +8,7 @@ Electron main/preload shell for the desktop profile: `dsh://` static serving, IP
 
 - `dsh desktop` / `dsh --profile desktop` — CLI detects a non-Electron process and calls [`relaunch`](src/relaunch.ts).
 - Electron then runs the **compiled** [`lib/electron-main.js`](lib/electron-main.js) (built by `pnpm run build:lib`). Electron cannot use `tsx` — its Node ABI does not load tsx's native esbuild binary.
-- [`shell`](src/shell.ts) opens the window once `apiProxy` and `clientModules` are live.
+- [`shell`](src/shell.ts) opens the window once `apiProxy` and `clientModules` are live, and installs the application menu (stock File / Edit / View / Window / Help plus Terminal).
 - A second `dsh desktop` focuses the existing window (single-instance lock). Window bounds persist under `$DSH_HOME/desktop-window.json`. Closing the window hides to the tray (Quit from the tray menu exits). The first hide shows a one-time toast; that flag lives in `$DSH_HOME/desktop-prefs.json`.
 
 ## Updates
@@ -17,7 +17,7 @@ Auto-update runs only on a **packaged NSIS install**. `pnpm dsh desktop` and the
 
 ## Preload
 
-[`preload.mjs`](preload.mjs) is checked in as CommonJS (`require('electron')`) so the sandboxed renderer can load it without a prior TypeScript build. ESM `import` throws `Cannot use import statement outside a module` in that sandbox and leaves `window.__DSH_IPC__` missing. It exposes `window.__DSH_IPC__` (`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle`). The page rebuilds `Response` objects itself — `contextBridge` cannot deliver them.
+[`preload.mjs`](preload.mjs) is checked in as CommonJS (`require('electron')`) so the sandboxed renderer can load it without a prior TypeScript build. ESM `import` throws `Cannot use import statement outside a module` in that sandbox and leaves `window.__DSH_IPC__` missing. It exposes `window.__DSH_IPC__` (`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu`). The page rebuilds `Response` objects itself — `contextBridge` cannot deliver them.
 
 Closing the window (or cancelling a streamed `Response`) aborts in-flight Host fetches before IPC handlers are removed.
 

@@ -54,6 +54,7 @@ function mountFrame() {
     if (key === 'conversation') return <div data-testid="center-content" />
     if (key === 'details') return <div data-testid="details-content" />
     if (key === 'workbench') return <div data-testid="workbench-content" />
+    if (key === 'menuBar') return <div data-testid="menu-content" />
     if (key === 'activityBar') return <div data-testid="activity-content" />
     if (key === 'primarySidebar') return <div data-testid="primary-content" />
     if (key === 'bottomPanel') return <div data-testid="bottom-content" />
@@ -98,7 +99,7 @@ function tracks(frame: HTMLElement): number[] {
 }
 
 function row(frame: HTMLElement): number {
-  const m = /^minmax\(0, 1fr\) (\d+)px$/.exec(frame.style.gridTemplateRows)
+  const m = /^28px minmax\(0, 1fr\) (\d+)px$/.exec(frame.style.gridTemplateRows)
   if (m === null) throw new Error(`unexpected rows: ${frame.style.gridTemplateRows}`)
   return Number(m[1])
 }
@@ -168,6 +169,7 @@ describe('AppFrame', () => {
     expect(getByTestId('center-content')).toBeTruthy()
     expect(getByTestId('details-content')).toBeTruthy()
     expect(getByTestId('workbench-content')).toBeTruthy()
+    expect(getByTestId('menu-content')).toBeTruthy()
     expect(getByTestId('activity-content')).toBeTruthy()
     expect(getByTestId('primary-content')).toBeTruthy()
     expect(getByTestId('bottom-content')).toBeTruthy()
@@ -175,6 +177,7 @@ describe('AppFrame', () => {
     expect(keys).toContain('conversation')
     expect(keys).toContain('details')
     expect(keys).toContain('workbench')
+    expect(keys).toContain('menuBar')
     expect(keys).toContain('activityBar')
     expect(keys).toContain('primarySidebar')
     expect(keys).toContain('bottomPanel')
@@ -188,12 +191,38 @@ describe('AppFrame', () => {
     expect(slotCalls.find(c => c.key === 'bottomPanel')!.props).toEqual({ height: 0 })
   })
 
+  it('hides the HTML menu bar on the desktop dsh: renderer', () => {
+    const previous = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('dsh://app/'),
+    })
+    try {
+      const { queryByTestId, slotCalls, frame } = mountFrame()
+      expect(queryByTestId('menu-content')).toBeNull()
+      expect(slotCalls.map(c => c.key)).not.toContain('menuBar')
+      expect(frame.getAttribute('data-chrome-menu')).toBeNull()
+      expect(frame.style.gridTemplateRows.startsWith('0px ')).toBe(true)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: previous })
+    }
+  })
+
   it('keeps the conversation slot mounted while no session is current', () => {
     selectedSession.current = undefined
     const { slotCalls, getByTestId, frame } = mountFrame()
     expect(getByTestId('center-content')).toBeTruthy()
     expect(slotCalls.map(c => c.key)).toContain('conversation')
     expect(tracks(frame)).toEqual([ACTIVITY_WIDTH, 0, CONVERSATION_DEFAULT, 0, SIDEBAR_DEFAULT])
+  })
+
+  it('keeps the primary sidebar open for a blank New Session', () => {
+    selectedSession.current = 's-blank' as SessionId
+    selectedSessionBlank.current = true
+    const { frame, slotCalls } = mountFrame()
+    expect(tracks(frame)[1]).toBe(WORKBENCH_DEFAULT)
+    expect(slotCalls.find(c => c.key === 'primarySidebar')!.props).toEqual({ width: WORKBENCH_DEFAULT })
+    expect(tracks(frame)[3]).toBe(0)
   })
 
   it('renders both column occupants before baselines settle (no loading gate)', () => {
