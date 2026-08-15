@@ -51,8 +51,8 @@ export const DETAILS_MAX = 520
 export const DETAILS_DEFAULT = 360
 /** Primary-sidebar (Explorer/Git/Tasks) drag clamp floor. `workbench` store field. */
 export const WORKBENCH_MIN = 200
-/** Primary-sidebar drag clamp ceiling. */
-export const WORKBENCH_MAX = 420
+/** Primary-sidebar drag clamp ceiling (Cursor-like; git graph needs more than 420). */
+export const WORKBENCH_MAX = 800
 /** Primary-sidebar width before any user drag. */
 export const WORKBENCH_DEFAULT = 260
 /** Conversation-column drag clamp floor. */

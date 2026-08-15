@@ -131,8 +131,10 @@
   border-top: none;
 }
 
-/* Drag handles are frame children (columns clip overflow): an 8px hit strip
-   centered on the column border via inline left, above column content. */
+/* Drag handles are frame children (columns clip overflow): an 8px hit
+   strip centered on the column border. Cursor-style sash — hover/drag
+   paints a 2px accent line the full length, not a mid-column pill.
+   z-index sits above shell.overlay (20) so the strip stays hittable. */
 .handle {
   position: absolute;
   top: 0;
@@ -140,7 +142,7 @@
   width: 8px;
   margin-left: -4px;
   cursor: col-resize;
-  z-index: 2;
+  z-index: 21;
   touch-action: none;
   transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
@@ -154,7 +156,7 @@
   height: 8px;
   margin-top: -4px;
   cursor: row-resize;
-  z-index: 2;
+  z-index: 21;
   touch-action: none;
   transition: top var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
@@ -182,46 +184,37 @@
   }
 }
 
-.handle[data-side='details']::after,
-.handle[data-side='primary']::after,
-.handle[data-side='conversation']::after {
+.handle::after,
+.handleRow::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 12px;
-  height: 32px;
-  border-radius: 10px;
-  box-sizing: border-box;
-  background: var(--dsw-alias-button-floating-fill);
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
+  background: var(--dsw-alias-state-business-primary);
   opacity: 0;
-  transition:
-    opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
-    background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  pointer-events: none;
+  transition: opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-.primaryCol:hover ~ .handle[data-side='primary']::after,
-.handle[data-side='primary']:hover::after,
-.handle[data-side='primary'][data-dragging='true']::after,
-.conversationCol:hover ~ .handle[data-side='conversation']::after,
-.handle[data-side='conversation']:hover::after,
-.handle[data-side='conversation'][data-dragging='true']::after,
-.detailsCol:hover ~ .handle[data-side='details']::after,
-.handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after {
+.handle::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+.handleRow::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.handle:hover::after,
+.handle[data-dragging='true']::after,
+.handleRow:hover::after,
+.handleRow[data-dragging='true']::after {
   opacity: 1;
-}
-
-.handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after,
-.handle[data-side='primary']:hover::after,
-.handle[data-side='primary'][data-dragging='true']::after,
-.handle[data-side='conversation']:hover::after,
-.handle[data-side='conversation'][data-dragging='true']::after {
-  background: var(--dsw-alias-button-floating-hover);
-  border-color: var(--dsw-alias-border-l3);
 }
 
 .overlayLayer {
