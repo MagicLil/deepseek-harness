@@ -56,6 +56,8 @@ afterEach(() => {
   contentFns.length = 0
   document.body.removeAttribute('data-ds-dark-theme')
   monaco.editor.getModel.mockReturnValue(null)
+  monaco.editor.create.mockReset()
+  monaco.editor.create.mockImplementation(() => editor)
   loadImpl.current = () => Promise.resolve(monaco)
 })
 
@@ -165,6 +167,24 @@ describe('MonacoHost', () => {
     await act(async () => { fail(new Error('late')); await Promise.resolve() })
   })
 
+  it('stays off the ready face when editor.create throws', async () => {
+    monaco.editor.create.mockImplementationOnce(() => {
+      throw new Error('create')
+    })
+    render(
+      <MonacoHost
+        initialValue="hello"
+        filePath="/f.ts"
+        labels={{ loading: '加载内核', error: '内核失败' }}
+        onChange={() => {}}
+        onSave={() => {}}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('xmart-workbench-monaco').getAttribute('data-ready')).toBeNull()
+    expect(screen.getByText('内核失败')).toBeTruthy()
+  })
+
   it('opens a Vue buffer, paints diagnostics, and completes', async () => {
     vi.useFakeTimers()
     const languageClient = {
@@ -224,9 +244,11 @@ describe('MonacoHost', () => {
     contentFns[1]?.()
     await act(async () => { vi.advanceTimersByTime(300); await Promise.resolve(); await Promise.resolve() })
     expect(languageClient.change).toHaveBeenCalled()
-    const provide = monaco.languages.registerCompletionItemProvider.mock.calls[0]?.[1] as {
-      provideCompletionItems: (model: unknown, position: { lineNumber: number; column: number }) => Promise<{ suggestions: unknown[] }>
-    }
+    const firstCall = monaco.languages.registerCompletionItemProvider.mock.calls[0] as unknown as [
+      string,
+      { provideCompletionItems: (model: unknown, position: { lineNumber: number; column: number }) => Promise<{ suggestions: unknown[] }> },
+    ]
+    const provide = firstCall[1]
     const suggestions = await provide.provideCompletionItems({}, { lineNumber: 1, column: 2 })
     expect(suggestions.suggestions).toHaveLength(2)
     languageClient.complete.mockRejectedValueOnce(new Error('nope'))

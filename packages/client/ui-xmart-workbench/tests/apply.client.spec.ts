@@ -231,7 +231,9 @@ describe('ui-xmart-workbench apply', () => {
 
   it('uses the current session folder as the only explorer root when cwd is missing', async () => {
     const b = await bench()
-    delete b.sessionById.s1.cwd
+    const session = b.sessionById.s1
+    expect(session).toBeDefined()
+    delete session!.cwd
     b.workspaceState.items = [
       { workspaceId: 'w1', path: 'D:\\hmdp', title: 'hmdp', sessionIds: ['s1'] },
       { workspaceId: 'w2', path: 'D:\\tool', title: 'tool', sessionIds: [] },
@@ -248,9 +250,13 @@ describe('ui-xmart-workbench apply', () => {
     const Explorer = column.resolveBody('explorer')
     expect(Explorer).toBeTypeOf('function')
     if (typeof Explorer !== 'function') return
-    const explorerEl = Explorer({
+    const explorerEl = (Explorer as (props: {
+      tab: { id: string; type: string; title: string }
+      visible: boolean
+      sessionId: string
+    }) => { props: { getRoots: (id: string) => { path: string; title: string }[] } })({
       tab: { id: 'e', type: 'explorer', title: '资源管理器' }, visible: true, sessionId: 's1',
-    }) as { props: { getRoots: (id: string) => { path: string; title: string }[] } }
+    })
     expect(explorerEl.props.getRoots('s1')).toEqual([
       { path: 'D:\\hmdp', title: 'hmdp' },
     ])
@@ -628,10 +634,12 @@ describe('ui-xmart-workbench apply', () => {
       listener?.('activity-git')
       listener?.('sidebar-primary')
       listener?.('sidebar-sessions')
-      expect(b.ctx.get('workspaces').startSession).toHaveBeenCalledOnce()
-      expect(b.ctx.get('workspaces').pickDirectory).toHaveBeenCalledOnce()
+      const workspaces = b.ctx.get('workspaces')
+      expect(workspaces).toBeDefined()
+      expect(workspaces!.startSession).toHaveBeenCalledOnce()
+      expect(workspaces!.pickDirectory).toHaveBeenCalledOnce()
       await Promise.resolve()
-      expect(b.ctx.get('workspaces').create).toHaveBeenCalledWith({ path: '/ws/picked' })
+      expect(workspaces!.create).toHaveBeenCalledWith({ path: '/ws/picked' })
       expect(dispatched).toEqual(['dsh:workbench-save', 'dsh:open-settings'])
       expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.path === '/ws/a.ts')).toBe(false)
       expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
@@ -656,7 +664,7 @@ describe('ui-xmart-workbench apply', () => {
     const menu = (
       b.slots.entries('menuBar')[0]!.inject as unknown as (id: string) => MenuBarInjected
     )('s1')
-    const workspaces = b.ctx.get('workspaces') as {
+    const workspaces = b.ctx.get('workspaces') as unknown as {
       pickDirectory: ReturnType<typeof vi.fn>
       create: ReturnType<typeof vi.fn>
     }
@@ -679,8 +687,12 @@ describe('ui-xmart-workbench apply', () => {
     await Promise.resolve()
     expect(warn).toHaveBeenCalled()
     menu.run('file-close')
+    const previousDispatch = (globalThis as { dispatchEvent?: unknown }).dispatchEvent
+    delete (globalThis as { dispatchEvent?: unknown }).dispatchEvent
     menu.run('file-save')
     menu.run('settings-open')
+    if (previousDispatch === undefined) delete (globalThis as { dispatchEvent?: unknown }).dispatchEvent
+    else (globalThis as { dispatchEvent: typeof previousDispatch }).dispatchEvent = previousDispatch
     warn.mockRestore()
   })
 
@@ -694,7 +706,7 @@ describe('ui-xmart-workbench apply', () => {
     }
     try {
       const b = await bench()
-      b.sessions.list.getSnapshot = () => ({ current: undefined, byId: {} })
+      b.sessions.list.getSnapshot = () => ({ current: undefined, byId: {} }) as never
       declare(b.slots)
       await b.ctx.plugin({ inject: [...inject], apply }).await()
       listener?.('terminal-new')
@@ -704,6 +716,42 @@ describe('ui-xmart-workbench apply', () => {
     } finally {
       delete (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
     }
+  })
+
+  it('still builds the editor tab when cwd or a language Remote throws', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const column = (
+      b.slots.entries('workbench')[0]!.inject as unknown as (id: string) => WorkbenchColumnInjected
+    )('s1')
+    const Editor = column.resolveBody('editor')
+    expect(Editor).toBeTypeOf('function')
+    if (typeof Editor !== 'function') return
+    const renderEditor = Editor as (props: {
+      tab: { id: string; type: string; title: string; path?: string }
+      visible: boolean
+      sessionId: string
+    }) => unknown
+    const snap = b.sessions.list.getSnapshot
+    b.sessions.list.getSnapshot = () => {
+      throw new Error('snap')
+    }
+    expect(() => renderEditor({
+      tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/F.java' },
+      visible: true,
+      sessionId: 's1',
+    })).not.toThrow()
+    b.sessions.list.getSnapshot = snap
+    Object.defineProperty(b.ctx.get('remote') as object, 'javaLsp', {
+      configurable: true,
+      get() { throw new Error('jdt down') },
+    })
+    expect(() => renderEditor({
+      tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/F.java' },
+      visible: true,
+      sessionId: 's1',
+    })).not.toThrow()
   })
 
   it('unregisters slot entries on teardown', async () => {

@@ -16,6 +16,7 @@ import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { activeEditorPath } from '../src/client/active-file.ts'
 import { zh } from '../src/client/locales.ts'
 import type { TabBodyProps } from '../src/client/types.ts'
+import type { WorkbenchColumnProps } from '../src/client/contract.ts'
 
 beforeEach(() => { localStorage.clear() })
 afterEach(() => {
@@ -81,18 +82,20 @@ describe('click-to-open in the editor column', () => {
             watchWorkbench={fn => service.subscribe(fn)}
           />
           <WorkbenchColumn
-            width={400}
-            sessionId={'s1' as SessionId}
-            useSession={(() => null) as never}
-            useSessions={(() => null) as never}
-            useWorkspaces={(() => null) as never}
-            openTab={() => {}}
-            closeTab={() => {}}
-            activateTab={() => {}}
-            resolveBody={type => service.getTab(type)?.component}
-            useWorkbenchSession={sel => sel(view)}
-            useWorkbenchRegistry={sel => sel({ tabs: [], viewers: [], activities: [] })}
-            t={t}
+            {...({
+              width: 400,
+              sessionId: 's1' as SessionId,
+              useSession: (() => null) as never,
+              useSessions: (() => null) as never,
+              useWorkspaces: (() => null) as never,
+              openTab: () => {},
+              closeTab: () => {},
+              activateTab: () => {},
+              resolveBody: type => service.getTab(type)?.component,
+              useWorkbenchSession: sel => sel(view),
+              useWorkbenchRegistry: sel => sel({ tabs: [], viewers: [], activities: [] }),
+              t,
+            } as WorkbenchColumnProps)}
           />
         </>
       )

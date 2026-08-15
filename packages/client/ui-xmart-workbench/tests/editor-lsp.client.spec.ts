@@ -11,11 +11,11 @@ import {
 
 function remote(): EditorLspRemote {
   return {
-    open: vi.fn(async () => ({ ok: true, value: undefined })),
-    change: vi.fn(async () => ({ ok: true, value: undefined })),
-    close: vi.fn(async () => ({ ok: true, value: undefined })),
-    complete: vi.fn(async () => ({ ok: true, value: { items: [{ label: 'a' }] } })),
-    diagnostics: vi.fn(async () => ({ ok: true, value: { items: [] } })),
+    open: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    change: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    close: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    complete: vi.fn(async () => ({ ok: true as const, value: { items: [{ label: 'a' }] } })),
+    diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
   }
 }
 
@@ -43,22 +43,26 @@ describe('bindEditorLsp', () => {
     await client.close('/ws/a.ts')
     expect(await client.complete('/ws/a.ts', 0, 1)).toEqual([{ label: 'a' }])
     expect(await client.diagnostics('/ws/a.ts')).toEqual([])
-    host.open = vi.fn(async () => ({ ok: false, error: { code: 'x', message: 'no' } }))
+    host.open = vi.fn(async () => ({ ok: false as const, error: { code: 'x', message: 'no' } }))
     await expect(client.open('/ws/a.ts', 'x')).rejects.toThrow(/tsLsp.open failed/)
   })
 })
 
 describe('peekRemote', () => {
-  it('returns a face that has open, and ignores missing or throwing accessors', () => {
-    expect(peekRemote(undefined, 'tsLsp')).toBeUndefined()
+  it('returns a live Remote and swallows a throwing getter', () => {
+    const host = remote()
+    expect(peekRemote(undefined, 'javaLsp')).toBeUndefined()
     expect(peekRemote(null, 'tsLsp')).toBeUndefined()
-    expect(peekRemote({ tsLsp: remote() }, 'tsLsp')).toBeDefined()
-    expect(peekRemote({ tsLsp: {} }, 'tsLsp')).toBeUndefined()
+    expect(peekRemote('x', 'vueLsp')).toBeUndefined()
+    expect(peekRemote({}, 'javaLsp')).toBeUndefined()
+    expect(peekRemote({ javaLsp: 1 }, 'javaLsp')).toBeUndefined()
+    expect(peekRemote({ javaLsp: null }, 'javaLsp')).toBeUndefined()
+    expect(peekRemote({ javaLsp: {} }, 'javaLsp')).toBeUndefined()
+    expect(peekRemote({ javaLsp: host }, 'javaLsp')).toBe(host)
+    expect(peekRemote({ tsLsp: host }, 'tsLsp')).toBe(host)
     expect(peekRemote({
-      get tsLsp(): EditorLspRemote {
-        throw new Error('not ready')
-      },
-    }, 'tsLsp')).toBeUndefined()
+      get javaLsp() { throw new Error('down') },
+    }, 'javaLsp')).toBeUndefined()
   })
 })
 

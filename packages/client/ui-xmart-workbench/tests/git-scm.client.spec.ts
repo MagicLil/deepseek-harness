@@ -55,7 +55,7 @@ describe('isGitBranchName / gitActionMessage / runGitSyncSequence', () => {
   })
 
   it('fetches, pulls when behind, then pushes when ahead', async () => {
-    const gitSync = vi.fn(async () => {})
+    const gitSync = vi.fn(async (_path: string, _mode: 'fetch' | 'pull' | 'push') => {})
     const gitStatus = vi.fn()
       .mockResolvedValueOnce({ ahead: 1, behind: 1 })
       .mockResolvedValueOnce({ ahead: 1, behind: 0 })
@@ -64,7 +64,7 @@ describe('isGitBranchName / gitActionMessage / runGitSyncSequence', () => {
   })
 
   it('pushes when only ahead', async () => {
-    const gitSync = vi.fn(async () => {})
+    const gitSync = vi.fn(async (_path: string, _mode: 'fetch' | 'pull' | 'push') => {})
     await runGitSyncSequence('/ws', {
       gitSync,
       gitStatus: async () => ({ ahead: 2, behind: 0 }),
@@ -73,7 +73,7 @@ describe('isGitBranchName / gitActionMessage / runGitSyncSequence', () => {
   })
 
   it('skips pull and push when the tree is even', async () => {
-    const gitSync = vi.fn(async () => {})
+    const gitSync = vi.fn(async (_path: string, _mode: 'fetch' | 'pull' | 'push') => {})
     await runGitSyncSequence('/ws', {
       gitSync,
       gitStatus: async () => ({ ahead: 0, behind: 0 }),

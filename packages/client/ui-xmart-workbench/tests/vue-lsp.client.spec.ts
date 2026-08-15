@@ -15,11 +15,11 @@ describe('isVuePath', () => {
 describe('bindVueLsp', () => {
   it('unwraps successful remotes and throws on a wire error', async () => {
     const remote: VueLspRemote = {
-      open: vi.fn(async () => ({ ok: true, value: undefined })),
-      change: vi.fn(async () => ({ ok: true, value: undefined })),
-      close: vi.fn(async () => ({ ok: true, value: undefined })),
-      complete: vi.fn(async () => ({ ok: true, value: { items: [{ label: 'a' }] } })),
-      diagnostics: vi.fn(async () => ({ ok: true, value: { items: [] } })),
+      open: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      change: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      close: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      complete: vi.fn(async () => ({ ok: true as const, value: { items: [{ label: 'a' }] } })),
+      diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
     }
     const client = bindVueLsp(remote, '/ws')
     await client.open('/ws/A.vue', '<template />')
@@ -27,7 +27,7 @@ describe('bindVueLsp', () => {
     await client.close('/ws/A.vue')
     expect(await client.complete('/ws/A.vue', 0, 1)).toEqual([{ label: 'a' }])
     expect(await client.diagnostics('/ws/A.vue')).toEqual([])
-    remote.open = vi.fn(async () => ({ ok: false, error: { code: 'x', message: 'no' } }))
+    remote.open = vi.fn(async () => ({ ok: false as const, error: { code: 'x', message: 'no' } }))
     await expect(client.open('/ws/A.vue', 'x')).rejects.toThrow(/vueLsp.open failed/)
   })
 })
