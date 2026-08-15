@@ -33,26 +33,27 @@ declare module '@deepseek-ai/cordis' {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     // The 'root' entry itself is the runtime's built-in slot (declared
-    // there); these five are the frame's children, declared by the same
+    // there); these are the frame's children, declared by the same
     // register() call that contributes AppFrame. Session owners never pass
     // sessionId: the framework injects it as a standard prop.
     /**
-     * The whole left column. OCCUPIED by ui-sidebar's SidebarRoot, which
-     * declares the workspace and settings seats inside it — registering here
-     * replaces the navigation column outright rather than adding to it, and
-     * the seats it declares disappear with it. To add something to the
-     * sidebar, register into one of those inner seats instead.
+     * Far-right session / workspace column. OCCUPIED by ui-sidebar's
+     * SidebarRoot, which declares the workspace and settings seats inside it
+     * — registering here replaces the navigation column outright rather than
+     * adding to it, and the seats it declares disappear with it. To add
+     * something to the sidebar, register into one of those inner seats
+     * instead.
      *
      * The occupant receives the frame's live column state (collapsed, width)
      * and is expected to render the compact control rail while collapsed.
      */
     'sidebar': { kind: 'single'; scope: 'root'; owner: SidebarOwnerProps }
     /**
-     * The whole center column, across both the no-session hero and a live
-     * conversation. OCCUPIED by ui-conversation's ConversationRoot, which
-     * declares the session body, composer, and input seats inside it —
-     * registering here replaces the entire conversation surface (and removes
-     * every seat it declares) rather than adding to it.
+     * Chat column to the right of the editor, across both the no-session
+     * hero and a live conversation. OCCUPIED by ui-conversation's
+     * ConversationRoot, which declares the session body, composer, and input
+     * seats inside it — registering here replaces the entire conversation
+     * surface (and removes every seat it declares) rather than adding to it.
      *
      * Current-session-optional: the occupant owns both states without
      * changing its React identity, so it keeps its own state across a session
@@ -61,25 +62,38 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'conversation': { kind: 'single'; scope: 'session-maybe'; owner: ConvOwnerProps }
     /**
-     * The right details column, shown when the layout opens it. OCCUPIED by
-     * ui-conversation's DetailsPanel, which declares the tool-details seat
-     * inside it — registering here replaces the column and takes that seat
-     * with it. Absent an occupant the column renders nothing.
+     * Tool-details column between conversation and the session sidebar,
+     * shown when the layout opens it. OCCUPIED by ui-conversation's
+     * DetailsPanel. Absent an occupant the column renders nothing.
      *
      * No owner props: the framework injects the session id and hooks for the
      * `session` scope, and `ctx.layout` owns whether the column is open.
      */
     'details': { kind: 'single'; scope: 'session'; owner: DetailsOwnerProps }
     /**
-     * The rightmost workbench column, shown when the layout opens it.
-     * OCCUPIED by ui-xmart-workbench. Registering here replaces the column.
-     * Absent an occupant the column renders nothing. The occupant receives
-     * the stored width preference (0 = closed); the grid track is the
-     * concession-resolved width and may be zero while the preference stays
-     * open. `ctx.layout` owns the current preference; session-scoped persist
-     * of that preference belongs to the occupant.
+     * Center editor column (file tabs). OCCUPIED by ui-xmart-workbench.
+     * Always visible — the occupant receives the concession-resolved editor
+     * width. Registering here replaces the column.
      */
     'workbench': { kind: 'single'; scope: 'session'; owner: WorkbenchOwnerProps }
+    /**
+     * Far-left activity bar (icon rail). OCCUPIED by ui-xmart-workbench.
+     * Always visible at ACTIVITY_WIDTH. The occupant receives whether the
+     * primary sidebar and bottom panel are open so icons can stay in sync.
+     */
+    'activityBar': { kind: 'single'; scope: 'session'; owner: ActivityBarOwnerProps }
+    /**
+     * Left primary sidebar (Explorer / Git / Tasks). OCCUPIED by
+     * ui-xmart-workbench. Width 0 means closed (no rail — the activity bar
+     * is the rail). `ctx.layout` openWorkbench/closeWorkbench drive this
+     * track.
+     */
+    'primarySidebar': { kind: 'single'; scope: 'session'; owner: PrimarySidebarOwnerProps }
+    /**
+     * Bottom panel stacked under the editor track only. OCCUPIED by
+     * ui-xmart-workbench. Height 0 means closed; the subtree stays mounted.
+     */
+    'bottomPanel': { kind: 'single'; scope: 'session'; owner: BottomPanelOwnerProps }
     /**
      * Frame-wide floating layer, above every column and outside their scroll
      * containers. Deliberately generic and unowned by any feature: a badge, a
@@ -114,10 +128,30 @@ export interface ConvOwnerProps {}
 /** Details owner share: empty — sessionId arrives as a framework-standard prop. */
 export interface DetailsOwnerProps {}
 
-/** Workbench owner share: the stored width preference (0 = closed). */
+/** Workbench (editor) owner share: the concession-resolved editor width. */
 export interface WorkbenchOwnerProps {
-  /** Stored workbench width preference in px; 0 means the panel is closed. */
+  /** Rendered editor-track width in px (the center 1fr solve). */
   width: number
+}
+
+/** Activity-bar owner share: live open flags from the concession solve. */
+export interface ActivityBarOwnerProps {
+  /** True when the primary sidebar track is greater than 0. */
+  primaryOpen: boolean
+  /** True when the bottom-panel track is greater than 0. */
+  bottomOpen: boolean
+}
+
+/** Primary-sidebar owner share: live track width (0 = closed). */
+export interface PrimarySidebarOwnerProps {
+  /** Rendered primary-sidebar width in px; 0 means closed. */
+  width: number
+}
+
+/** Bottom-panel owner share: live track height (0 = closed). */
+export interface BottomPanelOwnerProps {
+  /** Rendered bottom-panel height in px; 0 means closed. */
+  height: number
 }
 
 /** Required services (cordis fiber inject — the loader passes all module exports as an object plugin). */
@@ -136,10 +170,13 @@ export function apply(ctx: ClientContext): void {
     const disposeRegistration = ctx.slots.register({
       name: 'root',
       children: {
-        'sidebar': { kind: 'single', scope: 'root' },
+        'activityBar': { kind: 'single', scope: 'session' },
+        'primarySidebar': { kind: 'single', scope: 'session' },
+        'workbench': { kind: 'single', scope: 'session' },
+        'bottomPanel': { kind: 'single', scope: 'session' },
         'conversation': { kind: 'single', scope: 'session-maybe' },
         'details': { kind: 'single', scope: 'session' },
-        'workbench': { kind: 'single', scope: 'session' },
+        'sidebar': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
       },
       // Exclusive store: the factory itself — the framework instantiates per

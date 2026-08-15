@@ -36,4 +36,4 @@ Status: implemented
 
 ## 后果
 
-Web 与桌面端都会渲染一个可开关、可拖宽、按会话记忆宽度的空工作台列。让步可以在窄视口隐藏仍为打开的偏好，并在窗口变宽时恢复。工作台关闭时，活跃会话会显示浮层重新打开控件。后续阶段在本包和既有 host 接缝内加入 tab、文件、Git 与终端；不再重开「新列还是详情栏」或「HTTP 还是 IPC」的选择。`conversation.view` 与 `agent-loop` 保持不动。
+本笔记里的列位置已被 [Cursor 式整壳](2026-08-15-xmart-cursor-shell.md) 取代：`workbench` 是中间编辑器轨道，资源管理器 / Git / 任务在 `primarySidebar`。本笔记中的 host 接缝选择仍然成立。让步可以在窄视口隐藏仍为打开的左侧偏好，并在窗口变宽时恢复。后续阶段在本包和既有 host 接缝内加入文件、Git 与终端；不再重开「HTTP 还是 IPC」的选择。`conversation.view` 与 `agent-loop` 保持不动。

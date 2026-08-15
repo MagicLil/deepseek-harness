@@ -1,31 +1,38 @@
 /**
- * Four-column shell frame, registered into the built-in 'root' slot (the web
- * shell renders only 'root'). Owns the grid tracks (sidebar | center |
- * details | workbench), the drag handles (pointer capture + rAF throttle),
- * the concession chain (columns.ts), and the child-slot render decisions: the
- * sidebar slot renders HERE with live parameters from the concession solve,
- * and the session-aware occupants render in fixed column positions; strict
- * entries gate themselves on current-session availability while session-maybe
- * entries retain identity. Pure component: everything arrives
- * through the three framework shares — zero cordis or framework imports,
- * zero self-made hooks.
+ * Cursor-style shell frame, registered into the built-in 'root' slot.
+ * Owns the grid tracks (activity | primary | editor | conversation |
+ * details | sidebar, plus a bottom row under the editor), the drag
+ * handles (pointer capture + rAF throttle), the concession chain
+ * (columns.ts), and the child-slot render decisions. Pure component:
+ * everything arrives through the three framework shares — zero cordis
+ * or framework imports, zero self-made hooks.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import {
+  computeBottom, computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT,
+} from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'workbench' | 'shell.overlay'>
+  & PropsRenderSlots<
+    | 'activityBar' | 'primarySidebar' | 'workbench' | 'bottomPanel'
+    | 'conversation' | 'details' | 'sidebar' | 'shell.overlay'
+  >
   & PropsStore<ReturnType<typeof createLayoutStore>>
 
-/** Center column grid item (session-body building block). */
-function CenterColumn(props: { children?: ReactNode }) {
-  return <div className={css.centerCol}>{props.children}</div>
+/** Editor column grid item (session-body building block). */
+function EditorColumn(props: { children?: ReactNode }) {
+  return <div className={css.editorCol}>{props.children}</div>
+}
+
+/** Conversation column grid item. */
+function ConversationColumn(props: { children?: ReactNode }) {
+  return <div className={css.conversationCol}>{props.children}</div>
 }
 
 /** Details column grid item; width 0 keeps the subtree mounted (never unmount on close). */
@@ -33,39 +40,56 @@ function DetailsColumn(props: { children?: ReactNode }) {
   return <div className={css.detailsCol}>{props.children}</div>
 }
 
-/** Workbench column grid item; width 0 keeps the subtree mounted (never unmount on close). */
-function WorkbenchColumn(props: { children?: ReactNode }) {
-  return <div className={css.workbenchCol}>{props.children}</div>
+/** Primary-sidebar grid item; width 0 keeps the subtree mounted. */
+function PrimaryColumn(props: { children?: ReactNode }) {
+  return <div className={css.primaryCol}>{props.children}</div>
 }
 
+/** Bottom-panel grid item; height 0 keeps the subtree mounted. */
+function BottomColumn(props: { children?: ReactNode }) {
+  return <div className={css.bottomCol}>{props.children}</div>
+}
+
+type HandleSide = 'primary' | 'conversation' | 'details' | 'sidebar' | 'bottom'
+
 /**
- * One drag handle: pointer capture, rAF-throttled dx reports against the drag-start origin.
- * `side` keys the hover-reveal CSS to the owning column.
+ * One drag handle: pointer capture, rAF-throttled delta reports against the
+ * drag-start origin. `side` keys the hover-reveal CSS to the owning column.
  */
-function DragHandle(props: { side: 'sidebar' | 'details' | 'workbench'; left: number; onStart: () => void; onDrag: (dx: number) => void; onEnd: () => void }) {
+function DragHandle(props: {
+  side: HandleSide
+  left?: number
+  top?: number
+  width?: number
+  axis?: 'x' | 'y'
+  onStart: () => void
+  onDrag: (delta: number) => void
+  onEnd: () => void
+}) {
   const [dragging, setDragging] = useState(false)
   const origin = useRef(0)
   const latest = useRef(0)
   const frame = useRef<number | null>(null)
+  const axis = props.axis ?? 'x'
   const callbacks = useRef({ onStart: props.onStart, onDrag: props.onDrag, onEnd: props.onEnd })
   callbacks.current = { onStart: props.onStart, onDrag: props.onDrag, onEnd: props.onEnd }
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
-    origin.current = e.clientX
-    latest.current = e.clientX
+    origin.current = axis === 'x' ? e.clientX : e.clientY
+    latest.current = origin.current
     callbacks.current.onStart()
     setDragging(true)
-  }, [])
+  }, [axis])
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-    latest.current = e.clientX
+    latest.current = axis === 'x' ? e.clientX : e.clientY
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
       callbacks.current.onDrag(latest.current - origin.current)
     })
-  }, [])
+  }, [axis])
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
     e.currentTarget.releasePointerCapture(e.pointerId)
@@ -77,8 +101,12 @@ function DragHandle(props: { side: 'sidebar' | 'details' | 'workbench'; left: nu
 
   return (
     <div
-      className={css.handle}
-      style={{ left: props.left }}
+      className={axis === 'y' ? css.handleRow : css.handle}
+      style={{
+        left: props.left,
+        top: props.top,
+        width: props.width,
+      }}
       data-side={props.side}
       data-dragging={dragging || undefined}
       onPointerDown={onPointerDown}
@@ -88,7 +116,7 @@ function DragHandle(props: { side: 'sidebar' | 'details' | 'workbench'; left: nu
   )
 }
 
-/** The four-column frame (see module doc). */
+/** The Cursor-style frame (see module doc). */
 export function AppFrame({
   useStore,
   useSessions,
@@ -101,7 +129,10 @@ export function AppFrame({
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
-  const [viewport, setViewport] = useState(() => window.innerWidth)
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
 
   const lastSession = useRef(detailsSession)
   useLayoutEffect(() => {
@@ -121,8 +152,8 @@ export function AppFrame({
     const observer = new ResizeObserver(() => {
       raf ??= requestAnimationFrame(() => {
         raf = null
-        const width = el.getBoundingClientRect().width
-        if (width > 0) setViewport(width)
+        const box = el.getBoundingClientRect()
+        if (box.width > 0) setViewport({ width: box.width, height: box.height })
       })
     })
     observer.observe(el)
@@ -132,102 +163,147 @@ export function AppFrame({
     }
   }, [])
 
-  // Narrow viewports auto-collapse the sidebar; the store mirror keeps
-  // toggleSidebar's semantics right (narrow toggles flip the manual
+  // Narrow viewports auto-collapse the session sidebar; the store mirror
+  // keeps toggleSidebar's semantics right (narrow toggles flip the manual
   // re-expand override, stores.ts). Collapsed is decided here, so the
-  // solver stays breakpoint-free: a narrow re-expand passes the preference
-  // (or the default when the wide preference is closed) and the center
-  // absorbs the squeeze.
-  const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
+  // solver stays breakpoint-free.
+  const narrow = viewport.width < SIDEBAR_AUTO_COLLAPSE
   useEffect(() => { actions.setNarrow(narrow) }, [actions, narrow])
   const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
   const sessionPanels = detailsSession !== undefined
+  // Conversation has no close action (setConversation clamps to CONVERSATION_MIN);
+  // concession in computeColumns is what visually collapses it.
   const cols = computeColumns(
-    viewport,
+    viewport.width,
     sidebarPreference,
     sessionPanels ? panels.details : 0,
     sessionPanels ? panels.workbench : 0,
+    panels.conversation,
   )
+  const bottom = sessionPanels ? computeBottom(viewport.height, panels.bottom) : 0
   const colsRef = useRef(cols)
   colsRef.current = cols
+  const bottomRef = useRef(bottom)
+  bottomRef.current = bottom
 
-  // The drag base is the rendered width captured at drag start (grabbing a
-  // concession-clamped panel must not jump back to the stored preference);
-  // it stays frozen for the whole gesture so dx deltas do not compound.
-  const sidebarBase = useRef(0)
+  const primaryBase = useRef(0)
+  const conversationBase = useRef(0)
   const detailsBase = useRef(0)
-  const workbenchBase = useRef(0)
-  // Track-level transitions pause for the whole gesture: eased tracks would
-  // detach the column edge from the pointer (AppFrame.module.css).
+  const sidebarBase = useRef(0)
+  const bottomBase = useRef(0)
   const [dragging, setDragging] = useState(false)
   const onDragEnd = useCallback(() => { setDragging(false) }, [])
-  const onSidebarStart = useCallback(() => { sidebarBase.current = colsRef.current.sidebar; setDragging(true) }, [])
+  const onPrimaryStart = useCallback(() => { primaryBase.current = colsRef.current.primary; setDragging(true) }, [])
+  const onConversationStart = useCallback(() => { conversationBase.current = colsRef.current.conversation; setDragging(true) }, [])
   const onDetailsStart = useCallback(() => { detailsBase.current = colsRef.current.details; setDragging(true) }, [])
-  const onWorkbenchStart = useCallback(() => { workbenchBase.current = colsRef.current.workbench; setDragging(true) }, [])
-  const onSidebarDrag = useCallback((dx: number) => {
-    actions.setSidebar(sidebarBase.current + dx)
+  const onSidebarStart = useCallback(() => { sidebarBase.current = colsRef.current.sidebar; setDragging(true) }, [])
+  const onBottomStart = useCallback(() => { bottomBase.current = bottomRef.current; setDragging(true) }, [])
+  const onPrimaryDrag = useCallback((dx: number) => {
+    actions.setWorkbench(primaryBase.current + dx)
+  }, [actions])
+  const onConversationDrag = useCallback((dx: number) => {
+    actions.setConversation(conversationBase.current - dx)
   }, [actions])
   const onDetailsDrag = useCallback((dx: number) => {
     actions.setDetails(detailsBase.current - dx)
   }, [actions])
-  const onWorkbenchDrag = useCallback((dx: number) => {
-    actions.setWorkbench(workbenchBase.current - dx)
+  const onSidebarDrag = useCallback((dx: number) => {
+    actions.setSidebar(sidebarBase.current - dx)
   }, [actions])
+  const onBottomDrag = useCallback((dy: number) => {
+    actions.setBottom(bottomBase.current - dy)
+  }, [actions])
+
+  const primaryLeft = cols.activity + cols.primary
+  const conversationLeft = primaryLeft + cols.editor
+  const detailsLeft = conversationLeft + cols.conversation
+  const sidebarLeft = viewport.width - cols.sidebar
 
   return (
     <div
       ref={frameRef}
       className={css.frame}
-      style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px ${cols.workbench}px` }}
+      style={{
+        gridTemplateColumns: `${cols.activity}px ${cols.primary}px minmax(0, 1fr) ${cols.conversation}px ${cols.details}px ${cols.sidebar}px`,
+        gridTemplateRows: `minmax(0, 1fr) ${bottom}px`,
+      }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
-      data-workbench-collapsed={cols.workbench === 0 || undefined}
+      data-primary-collapsed={cols.primary === 0 || undefined}
+      data-conversation-collapsed={cols.conversation === 0 || undefined}
+      data-bottom-collapsed={bottom === 0 || undefined}
       data-dragging={dragging || undefined}
     >
+      <div className={css.activityCol}>
+        {renderSlot('activityBar', {
+          primaryOpen: cols.primary > 0,
+          bottomOpen: bottom > 0,
+        })}
+      </div>
+      <PrimaryColumn>
+        {renderSlot('primarySidebar', { width: sessionPanels ? cols.primary : 0 })}
+      </PrimaryColumn>
+      <EditorColumn>{renderSlot('workbench', { width: cols.editor })}</EditorColumn>
+      <BottomColumn>{renderSlot('bottomPanel', { height: bottom })}</BottomColumn>
+      <ConversationColumn>{renderSlot('conversation', {})}</ConversationColumn>
+      <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
       <div className={css.sidebarCol}>
-        {/* Render-site slot call with live concession output: a closed
-            sidebar keeps the mounted slot at the compact-rail width, and the
-            component sees its rendered state as owner params decided here
-            (collapsed follows the resolved rail, so a derived auto-collapse
-            renders the rail UI too). */}
         {renderSlot('sidebar', {
           collapsed: sidebarCollapsed,
           width: cols.sidebar,
         })}
       </div>
-      <>
-        {/* Column occupants stay at fixed tree positions from first
-            paint — no loading gate: a bare status line reads worse than
-            the shell's own pending rendering. The conversation
-            is session-maybe; the strict details and workbench entries
-            naturally render empty while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
-        <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
-        <WorkbenchColumn>{renderSlot('workbench', { width: sessionPanels ? panels.workbench : 0 })}</WorkbenchColumn>
-      </>
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {cols.primary > 0 && (
+        <DragHandle
+          side="primary"
+          left={primaryLeft}
+          onStart={onPrimaryStart}
+          onDrag={onPrimaryDrag}
+          onEnd={onDragEnd}
+        />
+      )}
+      {cols.conversation > 0 && (
+        <DragHandle
+          side="conversation"
+          left={conversationLeft}
+          onStart={onConversationStart}
+          onDrag={onConversationDrag}
+          onEnd={onDragEnd}
+        />
+      )}
       {cols.details > 0 && (
         <DragHandle
           side="details"
-          left={viewport - cols.details - cols.workbench}
+          left={detailsLeft}
           onStart={onDetailsStart}
           onDrag={onDetailsDrag}
           onEnd={onDragEnd}
         />
       )}
-      {cols.workbench > 0 && (
+      {!sidebarCollapsed && (
         <DragHandle
-          side="workbench"
-          left={viewport - cols.workbench}
-          onStart={onWorkbenchStart}
-          onDrag={onWorkbenchDrag}
+          side="sidebar"
+          left={sidebarLeft}
+          onStart={onSidebarStart}
+          onDrag={onSidebarDrag}
+          onEnd={onDragEnd}
+        />
+      )}
+      {bottom > 0 && (
+        <DragHandle
+          side="bottom"
+          axis="y"
+          left={primaryLeft}
+          top={viewport.height - bottom}
+          width={cols.editor}
+          onStart={onBottomStart}
+          onDrag={onBottomDrag}
           onEnd={onDragEnd}
         />
       )}

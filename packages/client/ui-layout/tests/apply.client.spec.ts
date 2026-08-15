@@ -52,6 +52,9 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
     expect(slots.spec('details')).toEqual({ kind: 'single', scope: 'session' })
     expect(slots.spec('workbench')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('activityBar')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('primarySidebar')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('bottomPanel')).toEqual({ kind: 'single', scope: 'session' })
   })
 
   it('injects no business face and attaches the layout actions', async () => {
@@ -60,8 +63,10 @@ describe('ui-layout client apply', () => {
     await fiber.await()
     const actions = {
       setSidebar: vi.fn(), setDetails: vi.fn(), setWorkbench: vi.fn(),
+      setConversation: vi.fn(), setBottom: vi.fn(),
       toggleSidebar: vi.fn(), openDetails: vi.fn(), closeDetails: vi.fn(),
       openWorkbench: vi.fn(), closeWorkbench: vi.fn(), toggleWorkbench: vi.fn(),
+      openBottom: vi.fn(), closeBottom: vi.fn(), toggleBottom: vi.fn(),
     }
     const injected = (slots.entries('root')[0]!.inject as (actions: never) => object)(actions as never)
     expect(injected).toEqual({})

@@ -1,13 +1,14 @@
 .frame {
   position: relative; /* anchors the drag handles, which straddle column borders */
   display: grid;
-  grid-template-rows: 100%;
   height: 100%;
   overflow: hidden;
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
-  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition:
+    grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    grid-template-rows var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
 /* Dragging writes widths at pointer cadence; easing them would detach the
@@ -22,46 +23,94 @@
   }
 }
 
-.sidebarCol {
+.activityCol {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
   border-right: 1px solid var(--dsw-alias-border-l1);
 }
 
-.centerCol {
+.primaryCol {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsw-specific-sidebar-fill);
+  border-right: 1px solid var(--dsw-alias-border-l2);
+}
+
+.editorCol {
+  grid-column: 3;
+  grid-row: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+.bottomCol {
+  grid-column: 3;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.conversationCol {
+  grid-column: 4;
+  grid-row: 1 / -1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
 .detailsCol {
+  grid-column: 5;
+  grid-row: 1 / -1;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
 }
 
-.workbenchCol {
+.sidebarCol {
+  grid-column: 6;
+  grid-row: 1 / -1;
   min-width: 0;
   overflow: hidden;
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-specific-sidebar-fill);
+  border-left: 1px solid var(--dsw-alias-border-l1);
 }
 
-/* The details/workbench subtrees stay mounted at zero width, so their borders
-   must not paint a 1px seam. The collapsed sidebar instead retains a bordered
-   compact rail. */
+.frame[data-primary-collapsed] .primaryCol {
+  border-right: none;
+}
+
 .frame[data-details-collapsed] .detailsCol {
   border-left: none;
 }
 
-.frame[data-workbench-collapsed] .workbenchCol {
+.frame[data-conversation-collapsed] .conversationCol {
   border-left: none;
 }
 
+.frame[data-bottom-collapsed] .bottomCol {
+  border-top: none;
+}
+
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
-   centered on the column border via inline left, above column content. Details
-   adds a visible 12x32 pill at vertical center; sidebar keeps only the hit strip. */
+   centered on the column border via inline left, above column content. */
 .handle {
   position: absolute;
   top: 0;
@@ -71,23 +120,34 @@
   cursor: col-resize;
   z-index: 2;
   touch-action: none;
-  /* Rides the same curve as the tracks so the pill stays on the moving
-     border during collapse/expand; paused while dragging (frame rule). */
   transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-.frame[data-dragging] .handle {
+.handleRow {
+  position: absolute;
+  height: 8px;
+  margin-top: -4px;
+  cursor: row-resize;
+  z-index: 2;
+  touch-action: none;
+  transition: top var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-dragging] .handle,
+.frame[data-dragging] .handleRow {
   transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .handle {
+  .handle,
+  .handleRow {
     transition: none;
   }
 }
 
 .handle[data-side='details']::after,
-.handle[data-side='workbench']::after {
+.handle[data-side='primary']::after,
+.handle[data-side='conversation']::after {
   content: '';
   position: absolute;
   top: 50%;
@@ -99,27 +159,30 @@
   box-sizing: border-box;
   background: var(--dsw-alias-button-floating-fill);
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  /* Hover affordance: the pill hides until the pointer is over its
-     column, the strip itself, or a drag. */
   opacity: 0;
   transition:
     opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
     background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+.primaryCol:hover ~ .handle[data-side='primary']::after,
+.handle[data-side='primary']:hover::after,
+.handle[data-side='primary'][data-dragging='true']::after,
+.conversationCol:hover ~ .handle[data-side='conversation']::after,
+.handle[data-side='conversation']:hover::after,
+.handle[data-side='conversation'][data-dragging='true']::after,
 .detailsCol:hover ~ .handle[data-side='details']::after,
 .handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after,
-.workbenchCol:hover ~ .handle[data-side='workbench']::after,
-.handle[data-side='workbench']:hover::after,
-.handle[data-side='workbench'][data-dragging='true']::after {
+.handle[data-side='details'][data-dragging='true']::after {
   opacity: 1;
 }
 
 .handle[data-side='details']:hover::after,
 .handle[data-side='details'][data-dragging='true']::after,
-.handle[data-side='workbench']:hover::after,
-.handle[data-side='workbench'][data-dragging='true']::after {
+.handle[data-side='primary']:hover::after,
+.handle[data-side='primary'][data-dragging='true']::after,
+.handle[data-side='conversation']:hover::after,
+.handle[data-side='conversation'][data-dragging='true']::after {
   background: var(--dsw-alias-button-floating-hover);
   border-color: var(--dsw-alias-border-l3);
 }

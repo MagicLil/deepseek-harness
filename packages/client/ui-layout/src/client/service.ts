@@ -5,9 +5,13 @@
  * the per-session active view dissolved into ui-conversation's session store
  * (its only consumer). What remains here is the contract other plugins'
  * apply worlds reach for panel transitions (sidebar toggle from ui-sidebar,
- * details open/close from ui-conversation, workbench open/close from
+ * details open/close from ui-conversation, primary-sidebar open/close from
  * ui-xmart-workbench) — writes stay inside the store's
  * declared action set, delivered as the registration's bound actions.
+ *
+ * `openWorkbench` / `closeWorkbench` / `toggleWorkbench` / `setWorkbench`
+ * drive the left primary sidebar (Explorer/Git/Tasks), not the editor
+ * center — the editor track is always visible.
  */
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createLayoutStore } from './stores.ts'
@@ -22,23 +26,39 @@ export type PanelActions = BoundActions<ReturnType<typeof createLayoutStore>>
  * only).
  */
 export interface ILayout {
-  /** Toggle the sidebar panel (closed ⟷ contract default width). */
+  /** Toggle the far-right session sidebar (closed ⟷ contract default width). */
   toggleSidebar(): void
   /** Open the details panel (no-op when already open). */
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
-  /** Open the workbench panel (no-op when already open). */
+  /** Open the primary sidebar (no-op when already open). */
   openWorkbench(): void
-  /** Close the workbench panel. */
+  /** Close the primary sidebar. */
   closeWorkbench(): void
-  /** Toggle the workbench panel (closed ⟷ contract default width). */
+  /** Toggle the primary sidebar (closed ⟷ contract default width). */
   toggleWorkbench(): void
   /**
-   * Write the workbench width preference (clamped to the contract range).
+   * Write the primary-sidebar width preference (clamped to the contract range).
    * @param px - requested width in px; closing uses {@link closeWorkbench} instead.
    */
   setWorkbench(px: number): void
+  /**
+   * Write the primary-sidebar width preference. Alias of {@link setWorkbench}.
+   * @param px - requested width in px.
+   */
+  setPrimarySidebar(px: number): void
+  /** Open the editor bottom panel (no-op when already open). */
+  openBottom(): void
+  /** Close the editor bottom panel. */
+  closeBottom(): void
+  /** Toggle the editor bottom panel (closed ⟷ contract default height). */
+  toggleBottom(): void
+  /**
+   * Write the bottom-panel height preference (clamped to the contract range).
+   * @param px - requested height in px; closing uses {@link closeBottom} instead.
+   */
+  setBottomHeight(px: number): void
 }
 
 /** Cross-plugin panel-action face (ctx.layout). */
@@ -56,7 +76,7 @@ export class LayoutController implements ILayout {
     this.#panels = actions
   }
 
-  /** Toggle the sidebar panel (closed ⟷ contract default width). */
+  /** Toggle the far-right session sidebar (closed ⟷ contract default width). */
   toggleSidebar(): void {
     this.#require().toggleSidebar()
   }
@@ -71,27 +91,58 @@ export class LayoutController implements ILayout {
     this.#require().closeDetails()
   }
 
-  /** Open the workbench panel (no-op when already open). */
+  /** Open the primary sidebar (no-op when already open). */
   openWorkbench(): void {
     this.#require().openWorkbench()
   }
 
-  /** Close the workbench panel. */
+  /** Close the primary sidebar. */
   closeWorkbench(): void {
     this.#require().closeWorkbench()
   }
 
-  /** Toggle the workbench panel (closed ⟷ contract default width). */
+  /** Toggle the primary sidebar (closed ⟷ contract default width). */
   toggleWorkbench(): void {
     this.#require().toggleWorkbench()
   }
 
   /**
-   * Write the workbench width preference (clamped to the contract range).
+   * Write the primary-sidebar width preference (clamped to the contract range).
    * @param px - requested width in px; closing uses {@link closeWorkbench} instead.
    */
   setWorkbench(px: number): void {
     this.#require().setWorkbench(px)
+  }
+
+  /**
+   * Write the primary-sidebar width preference. Alias of {@link setWorkbench}.
+   * @param px - requested width in px.
+   */
+  setPrimarySidebar(px: number): void {
+    this.#require().setWorkbench(px)
+  }
+
+  /** Open the editor bottom panel (no-op when already open). */
+  openBottom(): void {
+    this.#require().openBottom()
+  }
+
+  /** Close the editor bottom panel. */
+  closeBottom(): void {
+    this.#require().closeBottom()
+  }
+
+  /** Toggle the editor bottom panel (closed ⟷ contract default height). */
+  toggleBottom(): void {
+    this.#require().toggleBottom()
+  }
+
+  /**
+   * Write the bottom-panel height preference (clamped to the contract range).
+   * @param px - requested height in px; closing uses {@link closeBottom} instead.
+   */
+  setBottomHeight(px: number): void {
+    this.#require().setBottom(px)
   }
 
   #require(): PanelActions {

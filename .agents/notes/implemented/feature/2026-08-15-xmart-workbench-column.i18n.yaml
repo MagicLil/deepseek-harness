@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-xmart-workbench-column.md
-2026-08-15-xmart-workbench-column.md: d72d2543bff5cdd009c784dca43cb5056e96d76f
-2026-08-15-xmart-workbench-column.zh.md: 2bc635ac72655d782bef80f0e5aec2a86381b4f3
+2026-08-15-xmart-workbench-column.md: d6db98df58af19070af0de5afacdbfa7436f935e
+2026-08-15-xmart-workbench-column.zh.md: 1fafb0b984839303539d1dad7131f8bda5a21deb

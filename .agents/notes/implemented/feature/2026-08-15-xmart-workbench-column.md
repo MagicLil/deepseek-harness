@@ -36,4 +36,4 @@ The shipped in-app editor occupies one tab in the conversation `conversation.vie
 
 ## Consequences
 
-Web and desktop both render an empty, toggleable, resizable workbench column whose width memory is per session. Concession can hide an open preference on a narrow viewport and restore it when the window widens. A live session with the workbench closed shows the overlay reopen control. Later phases add tabs, files, Git, and terminals inside this package and the existing host seams; they do not reopen the column-versus-details or HTTP-versus-IPC choices. `conversation.view` and `agent-loop` stay untouched.
+The column placement in this note is superseded by the [Cursor-style shell](2026-08-15-xmart-cursor-shell.md): `workbench` is the center editor track, and Explorer / Git / Tasks live on `primarySidebar`. Host-seam choices in this note still hold. Concession can hide an open primary preference on a narrow viewport and restore it when the window widens. Later phases add files, Git, and terminals inside this package and the existing host seams; they do not reopen the HTTP-versus-IPC choice. `conversation.view` and `agent-loop` stay untouched.
