@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { IconPlusOutline16, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkbenchKey } from './locales.ts'
 import type { WorkbenchMenuItem, WorkbenchTab } from './types.ts'
+import { FileIcon } from './FileIcon.tsx'
 import css from './WorkbenchColumn.module.css'
 
 /** Tab-bar callbacks and labels. */
@@ -48,6 +49,7 @@ export function TabBar({
                 aria-selected={selected}
                 onClick={() => { onActivate(tab.id) }}
               >
+                <FileIcon path={tab.path ?? tab.title} kind="file" size={14} />
                 {tab.title}
               </button>
               <button

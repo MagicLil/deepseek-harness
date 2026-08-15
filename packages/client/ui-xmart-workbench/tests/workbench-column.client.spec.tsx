@@ -114,6 +114,7 @@ describe('WorkbenchColumn', () => {
       nextSeq: 2,
     }), () => Boom)
     expect(screen.getByRole('tab', { name: 'B.java' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'B.java' }).querySelector('[data-file-icon="java"]')).toBeTruthy()
     expect(screen.getByTestId('xmart-workbench-crashed').textContent).toContain('这个文件打不开。关掉标签再点一次，或换一个文件。')
     expect(screen.getByTestId('xmart-workbench-crashed-detail').textContent).toBe('boom')
     cleanup()

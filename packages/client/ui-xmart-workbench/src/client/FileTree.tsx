@@ -7,6 +7,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import type { FileEntry, FileListing, GitFileStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { letter, markKind } from './git-marks.ts'
 import { isUnder } from './route-file.ts'
+import { FileIcon } from './FileIcon.tsx'
 import css from './FileTree.module.css'
 
 /** One directory level's load state. */
@@ -134,6 +135,7 @@ export function FileTree({
                 <span className={expanded[entry.path] === true ? `${css.chevron} ${css.chevronOpen}` : css.chevron} aria-hidden>
                   ›
                 </span>
+                <FileIcon path={entry.name} kind="directory" expanded={expanded[entry.path] === true} />
                 <span className={css.name}>{entry.name}</span>
                 <GitLetter status={gitByPath[entry.path]} />
               </button>
@@ -152,6 +154,8 @@ export function FileTree({
               onClick={() => { onOpenFile(entry) }}
               onContextMenu={(event) => { onContextMenu?.(entry, event) }}
             >
+              <span className={css.chevronSpacer} aria-hidden />
+              <FileIcon path={entry.name} kind="file" />
               <span className={nameClass(gitByPath[entry.path])}>{entry.name}</span>
               <GitLetter status={gitByPath[entry.path]} />
               {dirtyPaths[entry.path] !== undefined && <span className={css.dirtyDot} aria-hidden />}

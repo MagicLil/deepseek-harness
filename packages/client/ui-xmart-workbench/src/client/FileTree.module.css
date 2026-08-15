@@ -25,7 +25,13 @@
 }
 
 .fileRow {
-  padding-left: 24px;
+  padding-left: 8px;
+}
+
+.chevronSpacer {
+  display: inline-flex;
+  width: 12px;
+  flex: none;
 }
 
 .active {
