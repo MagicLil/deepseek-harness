@@ -6,7 +6,7 @@ X-Mart 的第一方 Vue 语言服务器主机。一个插件实例为每个工�
 
 它**不会**激活 VS Code 扩展、替换 Monaco，也不会改 `ctx.lsp` 的四个操作。`.ts` / `.tsx` / `.js` 由 [`dsh-lsp-languages`](../lsp-languages/README.md) 认领。
 
-默认导出插件（`VueLspGateway`）。它注入 `lsp`、`fs` 和 `subprocess`，注册 `vue` 提供方，并发布 `vueLsp` Remote 命名空间（`open` / `change` / `close` / `complete` / `diagnostics`）。Client 包通过 [`api-remotes`](../../api/remotes/README.md) 组合消费这些 Remote。不新增 HTTP 路由或 WebSocket。
+默认导出插件（`VueLspGateway`）。它注入 `lsp`、`fs` 和 `subprocess`，注册 `vue` 提供方，并发布 `vueLsp` Remote 命名空间（`open` / `change` / `close` / `complete` / `diagnostics` / `definition` / `hover` / `references` / `implementation` / `warmup`）。Client 包通过 [`api-remotes`](../../api/remotes/README.md) 组合消费这些 Remote。不新增 HTTP 路由或 WebSocket。
 
 ## 功能
 
@@ -27,6 +27,6 @@ X-Mart 的第一方 Vue 语言服务器主机。一个插件实例为每个工�
 ## 已知限制与暂缓事项
 
 - **没有 Vue `tsconfig` 时结果会变弱** —— 这是语言服务器的限制，不是主机的 bug。
-- **编辑器 hover、F12 和重命名不在 v1 范围** —— Agent 的 `lsp` 工具已经覆盖导航。
+- **编辑器重命名仍不做** —— hover、F12 和查找引用已接到编辑器 Remote；重命名没有。
 - **这里没有 `.ts` / `.tsx` 语言服务** —— 那些键属于 [`dsh-lsp-languages`](../lsp-languages/README.md)。
 - **任意 VS Code 扩展仍然不会运行。**

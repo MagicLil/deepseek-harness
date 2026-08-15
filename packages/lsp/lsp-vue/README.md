@@ -6,7 +6,7 @@ First-party Vue language-server host for X-Mart. One plugin instance spawns **on
 
 It does **not** activate VS Code extensions, replace Monaco, or change `ctx.lsp`'s four operations. `.ts` / `.tsx` / `.js` are owned by [`dsh-lsp-languages`](../lsp-languages/README.md).
 
-Default-export plugin (`VueLspGateway`). It injects `lsp`, `fs`, and `subprocess`, registers the `vue` provider, and publishes the `vueLsp` Remote namespace (`open` / `change` / `close` / `complete` / `diagnostics`). Client packages consume the remotes through the [`api-remotes`](../../api/remotes/README.md) assembly. There are no new HTTP routes or WebSockets.
+Default-export plugin (`VueLspGateway`). It injects `lsp`, `fs`, and `subprocess`, registers the `vue` provider, and publishes the `vueLsp` Remote namespace (`open` / `change` / `close` / `complete` / `diagnostics` / `definition` / `hover` / `references` / `implementation` / `warmup`). Client packages consume the remotes through the [`api-remotes`](../../api/remotes/README.md) assembly. There are no new HTTP routes or WebSockets.
 
 ## What it does
 
@@ -27,6 +27,6 @@ None from the editor path. Agent results follow `dsh-tool-lsp`.
 ## Known Limitations and Deferred Work
 
 - **Weak results without a Vue `tsconfig`** — that is a language-server limitation, not a host bug.
-- **Editor hover, F12, and rename are out of scope for v1** — the agent `lsp` tool already covers navigation.
+- **Editor rename is out of scope** — hover, F12, and find-references are on the editor remotes; rename is not.
 - **No `.ts` / `.tsx` language service here** — those keys belong to [`dsh-lsp-languages`](../lsp-languages/README.md).
 - **Arbitrary VS Code extensions still do not run.**
