@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-15-electron-win32-folder-dialog.md
-2026-08-15-electron-win32-folder-dialog.md: 6fca3d8b7dd85f22cf490ecd553ea8e7f886e49d
-2026-08-15-electron-win32-folder-dialog.zh.md: ae313269c0e9e11cda8236cd90de853ba1296210
+2026-08-15-electron-win32-folder-dialog.md: 4d702c27d3c1825f495bec6570d360ca892cfef2
+2026-08-15-electron-win32-folder-dialog.zh.md: 1cc8b0383e1a018fcc84e5bb0da17e28bd48aaf1

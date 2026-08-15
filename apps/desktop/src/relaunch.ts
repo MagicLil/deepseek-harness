@@ -70,6 +70,10 @@ export async function relaunchDesktopUnderElectron(dshArgv: readonly string[]): 
   return await new Promise<number>((resolve, reject) => {
     const env: NodeJS.ProcessEnv = { ...process.env }
     delete env.ELECTRON_RUN_AS_NODE
+    // Remember the Node that launched `dsh desktop` so host plugins that
+    // spawn `process.execPath` (Win32 folder dialog worker) can use a
+    // real Node ABI instead of `electron.exe` + `ELECTRON_RUN_AS_NODE`.
+    env.DSH_NODE_EXEC_PATH = process.execPath
     const cleaned = sanitizeNodeOptions(env.NODE_OPTIONS)
     if (cleaned === undefined) delete env.NODE_OPTIONS
     else env.NODE_OPTIONS = cleaned

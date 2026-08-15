@@ -106,6 +106,11 @@ function installFakeKoffi(world: ComWorld): void {
             }
             case 'CoTaskMemFree': return (ptr: unknown) => { world.freed.push(ptr) }
             case 'GetCurrentThreadId': return () => 31337
+            case 'lstrlenW': return (ptr: unknown) => {
+              const text = (ptr as FakePtr).text
+              if (typeof text !== 'string') throw new Error('lstrlenW of non-string pointer')
+              return text.length
+            }
             case 'SetThreadDpiAwarenessContext': {
               if (!world.hasThreadDpi) throw new Error(`${dll}: SetThreadDpiAwarenessContext not found`)
               return (context: unknown) => {
@@ -128,8 +133,15 @@ function installFakeKoffi(world: ComWorld): void {
       pointer: (type: unknown) => type,
       sizeof: (type: string) => { void type; return FAKE_POINTER_SIZE },
       view: (value: unknown, len: number): ArrayBuffer => {
+        const text = (value as FakePtr).text
+        if (typeof text !== 'string') throw new Error('view of non-string pointer')
+        const needed = Buffer.byteLength(text, 'utf16le')
+        // Production used to ask for 32 KiB over a short CoTaskMem PWSTR;
+        // that over-read is a NAPI fatal under Electron. The fake refuses
+        // the same over-read so the suite goes red on that bug.
+        if (len > needed) throw new Error(`koffi.view over-read: asked ${len} bytes for a ${needed}-byte PWSTR`)
         const bytes = Buffer.alloc(len)
-        bytes.write((value as FakePtr).text as string, 'utf16le')
+        bytes.write(text, 'utf16le')
         return bytes.buffer
       },
       register: (fn: (hwnd: unknown, lparam: unknown) => number) => { world.registered += 1; return { fn } },
@@ -178,6 +190,15 @@ describe('loadWin32DialogBindings over the fake COM world', () => {
     expect(world.freed).toHaveLength(1)
     expect(world.released).toEqual(['item', 'dialog'])
     expect(world.uninitialized).toBe(1)
+  })
+
+  it('reads an empty display name without viewing past the allocation', async () => {
+    const world = comWorld({ path: '' })
+    installFakeKoffi(world)
+    const { loadWin32DialogBindings } = await loadBindingsModule()
+    const bindings = await loadWin32DialogBindings()
+    expect(runFolderDialog(bindings, 'Pick', vi.fn())).toBe('')
+    expect(world.freed).toHaveLength(1)
   })
 
   it('maps dismissal and the S_FALSE CoInitializeEx', async () => {

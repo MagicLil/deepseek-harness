@@ -7,9 +7,11 @@
  * surface instead.
  *
  * Desktop (`dsh desktop`) hosts this plugin inside Electron. `process.execPath`
- * is then `electron.exe`; spawning it without `ELECTRON_RUN_AS_NODE` starts a
- * second GUI process that exits before the IPC protocol, which surfaces as
- * "win32 folder dialog worker exited before reporting a result".
+ * is then `electron.exe`. Prefer the Node binary recorded in
+ * `DSH_NODE_EXEC_PATH` (set by the desktop relaunch) so koffi loads against
+ * the Node ABI it was built for. Packaged Electron has no such Node; those
+ * hosts fall back to the same `execPath` with `ELECTRON_RUN_AS_NODE=1`.
+ * Spawning `electron.exe` as a GUI child exits before the IPC protocol.
  */
 
 import { spawn, type StdioOptions } from 'node:child_process'
@@ -24,6 +26,11 @@ export interface DialogWorkerSpawnInternals {
   env?: NodeJS.ProcessEnv
   /** Replaces `process.versions.electron`; `undefined` means plain node. */
   electron?: string
+  /**
+   * Replaces `DSH_NODE_EXEC_PATH`: the real Node binary to spawn under
+   * Electron instead of `electron.exe` + `ELECTRON_RUN_AS_NODE`.
+   */
+  nodeExecPath?: string
   /** Replaces `import.meta.url` so tests can hit the built-output argv arm. */
   metaUrl?: string
   /** Replaces `child_process.spawn`. */
@@ -35,8 +42,9 @@ export interface DialogWorkerSpawnInternals {
  * entry next to this module under plain node; unbuilt (source) consumers
  * bootstrap tsx first, mirroring the dsh CLI's source launch. The dialog is
  * the child's first window, so Windows activates it without a foreground
- * call. Under Electron the child is forced into the Node personality so
- * the worker script actually runs.
+ * call. Under Electron the child prefers a real Node binary
+ * (`DSH_NODE_EXEC_PATH`) and otherwise runs `electron.exe` as Node via
+ * `ELECTRON_RUN_AS_NODE`.
  * @param data - the child payload (dialog title).
  * @param internals - process-fact overrides for deterministic tests.
  * @returns the spawned child process.
@@ -46,10 +54,15 @@ export function spawnDialogWorker(
   internals: DialogWorkerSpawnInternals = {},
 ): ReturnType<typeof spawn> {
   const env: NodeJS.ProcessEnv = { ...(internals.env ?? process.env), DSH_DIALOG_TITLE: data.title }
-  if ((internals.electron ?? process.versions.electron) !== undefined) {
+  const electron = internals.electron ?? process.versions.electron
+  const nodeExecPath = internals.nodeExecPath ?? env.DSH_NODE_EXEC_PATH
+  const preferNode = electron !== undefined && typeof nodeExecPath === 'string' && nodeExecPath !== ''
+  if (electron !== undefined && !preferNode) {
     env.ELECTRON_RUN_AS_NODE = '1'
   }
-  const execPath = internals.execPath ?? process.execPath
+  const execPath = preferNode && typeof nodeExecPath === 'string'
+    ? nodeExecPath
+    : internals.execPath ?? process.execPath
   const metaUrl = internals.metaUrl ?? import.meta.url
   const run = internals.spawn ?? spawn
   const stdio: StdioOptions = ['ignore', 'inherit', 'inherit', 'ipc']

@@ -1,7 +1,8 @@
 /**
- * spawnDialogWorker launch plan: Electron children must run as node, and
- * the source vs built argv arms stay distinct. `child_process.spawn` is
- * mocked so this file never opens a real dialog.
+ * spawnDialogWorker launch plan: Electron children prefer a recorded Node
+ * binary, otherwise run as node via ELECTRON_RUN_AS_NODE, and the source
+ * vs built argv arms stay distinct. `child_process.spawn` is mocked so
+ * this file never opens a real dialog.
  */
 
 const { spawnMock } = vi.hoisted(() => ({
@@ -61,7 +62,7 @@ describe('spawnDialogWorker', () => {
     expect(args).toEqual([fileURLToPath(new URL('./worker.cjs', metaUrl))])
   })
 
-  it('forces ELECTRON_RUN_AS_NODE when the host is Electron', () => {
+  it('forces ELECTRON_RUN_AS_NODE when the host is Electron without a Node path', () => {
     const run = vi.fn(() => fakeChild)
     spawnDialogWorker({ title: 'Pick' }, {
       execPath: '/electron',
@@ -70,9 +71,46 @@ describe('spawnDialogWorker', () => {
       metaUrl: import.meta.url,
       spawn: run as never,
     })
-    expect((run.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }])[2]).toMatchObject({
+    const [command, , options] = run.mock.calls[0] as unknown as [
+      string, string[], { env: NodeJS.ProcessEnv },
+    ]
+    expect(command).toBe('/electron')
+    expect(options).toMatchObject({
       env: { FOO: '1', DSH_DIALOG_TITLE: 'Pick', ELECTRON_RUN_AS_NODE: '1' },
     })
+  })
+
+  it('spawns the recorded Node binary under Electron and skips ELECTRON_RUN_AS_NODE', () => {
+    const run = vi.fn(() => fakeChild)
+    spawnDialogWorker({ title: 'Pick' }, {
+      execPath: '/electron',
+      env: { DSH_NODE_EXEC_PATH: '/real-node', FOO: '1' },
+      electron: '37.2.0',
+      metaUrl: import.meta.url,
+      spawn: run as never,
+    })
+    const [command, , options] = run.mock.calls[0] as unknown as [
+      string, string[], { env: NodeJS.ProcessEnv },
+    ]
+    expect(command).toBe('/real-node')
+    expect(options.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
+    expect(options.env).toMatchObject({
+      DSH_NODE_EXEC_PATH: '/real-node',
+      DSH_DIALOG_TITLE: 'Pick',
+      FOO: '1',
+    })
+  })
+
+  it('lets internals.nodeExecPath override the env Node path', () => {
+    const run = vi.fn(() => fakeChild)
+    spawnDialogWorker({ title: 'Pick' }, {
+      env: { DSH_NODE_EXEC_PATH: '/from-env' },
+      nodeExecPath: '/from-internals',
+      electron: '37.2.0',
+      metaUrl: import.meta.url,
+      spawn: run as never,
+    })
+    expect((run.mock.calls[0] as unknown as [string])[0]).toBe('/from-internals')
   })
 
   it('reads live process facts and the default spawn when internals are omitted', () => {
@@ -82,12 +120,16 @@ describe('spawnDialogWorker', () => {
     const [command, args, options] = spawnMock.mock.calls[0] as unknown as [
       string, string[], { env: NodeJS.ProcessEnv },
     ]
-    expect(command).toBe(process.execPath)
     expect(args[0]).toBe('--import')
     expect(options.env.DSH_DIALOG_TITLE).toBe('Live')
     if (process.versions.electron === undefined) {
+      expect(command).toBe(process.execPath)
+      expect(options.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
+    } else if (process.env.DSH_NODE_EXEC_PATH) {
+      expect(command).toBe(process.env.DSH_NODE_EXEC_PATH)
       expect(options.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
     } else {
+      expect(command).toBe(process.execPath)
       expect(options.env.ELECTRON_RUN_AS_NODE).toBe('1')
     }
   })

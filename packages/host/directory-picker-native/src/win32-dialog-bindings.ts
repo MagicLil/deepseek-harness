@@ -33,12 +33,18 @@ interface Koffi {
  * `_Out_ void **` out-params surface a raw address, and
  * `koffi.decode(addr, 'str16')` would dereference it as a pointer — crash
  * on real Windows — so view the memory directly instead.
+ *
+ * The view must be exactly the payload. A 32 KiB window over a short
+ * `CoTaskMem` PWSTR walks off the allocation; under Electron that is a
+ * NAPI fatal (`Error::New napi_get_last_error_info`) and the worker dies
+ * before any IPC result, which the parent reports as
+ * "win32 folder dialog worker exited before reporting a result".
  */
-function readUtf16(koffi: Koffi, address: unknown): string {
-  const bytes = Buffer.from(koffi.view(address, 32768))
-  let end = 0
-  while (end + 1 < bytes.length && bytes[end] !== 0) end += 2
-  return bytes.toString('utf16le', 0, end)
+function readUtf16(koffi: Koffi, address: unknown, strlenW: KoffiFunction): string {
+  const chars = strlenW(address) as number
+  if (chars <= 0) return ''
+  const bytes = Buffer.from(koffi.view(address, chars * 2))
+  return bytes.toString('utf16le')
 }
 
 const COINIT_APARTMENTTHREADED = 0x2
@@ -99,6 +105,7 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
   const coCreateInstance = ole32.func('__stdcall', 'CoCreateInstance', 'int32', ['void *', 'void *', 'uint32', 'void *', 'void *'])
   const coTaskMemFree = ole32.func('__stdcall', 'CoTaskMemFree', 'void', ['void *'])
   const getCurrentThreadId = kernel32.func('__stdcall', 'GetCurrentThreadId', 'uint32', [])
+  const lstrlenW = kernel32.func('__stdcall', 'lstrlenW', 'int', ['void *'])
 
   const protoShow = koffi.proto('int32 __stdcall DshDialogShow(void *self, void *owner)')
   const protoSetOptions = koffi.proto('int32 __stdcall DshDialogSetOptions(void *self, uint32 options)')
@@ -156,7 +163,7 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
             const nameOut: unknown[] = [null]
             const gotName = method(item, SLOT_GET_DISPLAY_NAME, protoGetDisplayName)(SIGDN_FILESYSPATH, nameOut)
             if (gotName < 0) return { hr: gotName }
-            const path = readUtf16(koffi, nameOut[0])
+            const path = readUtf16(koffi, nameOut[0], lstrlenW)
             coTaskMemFree(nameOut[0])
             return { hr: gotName, path }
           } finally {
