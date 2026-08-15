@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-first-party-vue-language-server.md
+2026-08-15-first-party-vue-language-server.md: 86d941912cfa12a4b8eaab3b0e50a1dc1fb53d8b
+2026-08-15-first-party-vue-language-server.zh.md: 26de91d03418caff14e629d52d55689b87016a22

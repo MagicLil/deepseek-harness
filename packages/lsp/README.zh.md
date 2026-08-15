@@ -8,6 +8,8 @@
 |---|---|---|
 | `lsp/` | Service Definition（按品牌化 id + 扩展名映射组织的提供方注册表、逐查询选择、词汇、`LspError`） | `ctx.lsp` |
 | `lsp-stdio/` | 基于 `ctx.fs` 与 `ctx.subprocess` 的通用多服务器 stdio 后端（JSON-RPC、查询时临时打开文档） | （在 `ctx.lsp` 上注册提供方） |
+| `lsp-vue/` | 第一方 Vue 语言服务器主机（常驻进程、编辑器 Remote + `ctx.lsp`） | `vueLsp` |
+| `lsp-languages/` | 第一方 TypeScript 与 Java 语言服务器主机（每种语言一个常驻进程、编辑器 Remote + `ctx.lsp`） | `tsLsp` / `javaLsp` |
 | `tool-lsp/` | 面向模型的 `lsp` 工具（四种操作、从 1 开始的 UTF-16 光标坐标） | （注册到 `ctx.tools`） |
 
 Service Definition 位于 `lsp/lsp/`。该 seam 恰好公开四种语义操作：`goToDefinition`、`findReferences`、`goToImplementation`、`hover`，且不提供通用 JSON-RPC 逃生口；因此，替换提供方不会改变模型请求导航的方式，也不会让协议载荷或未经评审的修改进入模型约定。提供方注册的是**能力**而非工具；`tool-lsp` 是面向模型的名称、schema、提示词指引和呈现的唯一 owner。
