@@ -49,7 +49,8 @@ export const internals: { resolveDistIndex: () => string } = { resolveDistIndex 
 
 /** Model-visible orientation for sessions created through `dsh desktop`. */
 function desktopSurfacePrompt(): string {
-  return 'You are interacting with the user through the DeepSeek Harness desktop application. '
+  return 'You are X-Mart (万物智汇), an industrial-software coding assistant. '
+    + 'You are talking with the user in the X-Mart desktop app, which is built on DeepSeek Harness (dsh). '
     + 'When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this desktop window. '
     + 'The desktop shell loads the same web UI over a local IPC bridge (not a browser URL). '
     + 'Do not start a replacement server unless the user asks.'
@@ -69,7 +70,7 @@ export function apply(ctx: Context, config: Config): void {
       addHarnessSourceSection(promptCtx, SOURCE_ROOT)
       promptCtx.systemPrompt.section({
         name: 'app:desktop-surface',
-        order: -98,
+        order: -101,
         text: () => desktopSurfacePrompt(),
       })
     })

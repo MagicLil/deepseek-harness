@@ -6,7 +6,7 @@ The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) stacks on
 
 ## Model experience
 
-When `surfaceContext` is true, the `app:desktop-surface` prompt section orients the model to the desktop window (IPC, not a browser URL).
+When `surfaceContext` is true, the `app:desktop-surface` prompt section names the agent as X-Mart (万物智汇) and orients it to the desktop window (IPC, not a browser URL). The desktop composition also sets `includeHarnessIdentity: false` so the fixed DeepSeek Harness opener does not outrank that identity.
 
 ## Known limitations
 

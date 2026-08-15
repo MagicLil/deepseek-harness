@@ -6,7 +6,7 @@ dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`d
 
 ## 模型体验
 
-当 `surfaceContext` 为 true 时，`app:desktop-surface` 提示词段落会向模型说明这是桌面窗口（IPC，而非浏览器 URL）。
+当 `surfaceContext` 为 true 时，`app:desktop-surface` 提示词段落会把智能体写成万物智汇（X-Mart），并向模型说明这是桌面窗口（IPC，而非浏览器 URL）。桌面组合包同时设置 `includeHarnessIdentity: false`，避免固定的 DeepSeek Harness 开场白压过这层身份。
 
 ## 已知限制
 
