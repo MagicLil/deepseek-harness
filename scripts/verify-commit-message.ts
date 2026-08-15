@@ -42,11 +42,17 @@ export function commitMessageErrors(raw: string): string[] {
   }
 
   const type = match.groups.type
+  const rawSubject = match.groups.subject
+  if (type === undefined || rawSubject === undefined) {
+    return [
+      '第一行须为 type(scope)?: 中文说明，例如 feat(desktop): 加上托盘',
+    ]
+  }
   if (!COMMIT_TYPES.includes(type as (typeof COMMIT_TYPES)[number])) {
     return [`type 须为 ${COMMIT_TYPES.join('|')} 之一，收到 ${type}`]
   }
 
-  const subject = match.groups.subject.trim()
+  const subject = rawSubject.trim()
   if (subject === '') return ['冒号后面要有说明']
   if (!HAN.test(subject)) {
     return ['说明须使用中文（feat、fix 等类型词和 scope 可用英文）']
