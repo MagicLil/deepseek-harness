@@ -84,6 +84,12 @@ function scriptedApi(overrides: {
       gitStatus: r => ok(r, {
         root: '/t', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
       }),
+      gitDiff: r => ok(r, { root: '/t', side: 'worktree' as const, text: '' }),
+      gitStage: r => ok(r, { root: '/t' }),
+      gitUnstage: r => ok(r, { root: '/t' }),
+      gitCommit: r => ok(r, { root: '/t', hash: 'deadbeef' }),
+      gitDiscard: r => ok(r, { root: '/t' }),
+      gitLog: r => ok(r, []),
       ...overrides.host,
     },
     workspace: {

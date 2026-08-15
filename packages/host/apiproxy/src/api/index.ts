@@ -47,7 +47,10 @@ export type {
   ModelReasoningEffort, ModelSelection, PromptContentPart, QueueAction, SessionModels,
   SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionsApi, SessionSummary,
 } from './sessions.ts'
-export type { DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitChange, GitFileStatus, GitStatus, HostApi } from './host.ts'
+export type {
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitChange, GitCommitResult,
+  GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitStatus, HostApi,
+} from './host.ts'
 export type {
   SubagentAddress, SubagentCatalog, SubagentInterruptReceipt, SubagentListEntry,
   SubagentPromptReceipt, SubagentsApi,

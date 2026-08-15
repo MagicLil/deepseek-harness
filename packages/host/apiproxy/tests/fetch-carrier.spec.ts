@@ -174,6 +174,24 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
           result: { ok: true, value: { root: '/w', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [] } },
         }
       },
+      async gitDiff(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w', side: 'worktree' as const, text: '' } } }
+      },
+      async gitStage(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w' } } }
+      },
+      async gitUnstage(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w' } } }
+      },
+      async gitCommit(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w', hash: 'deadbeef' } } }
+      },
+      async gitDiscard(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { root: '/w' } } }
+      },
+      async gitLog(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: [] } }
+      },
     },
     workspace: {
       async list(request) {
@@ -437,6 +455,22 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     const response = await client(api).host.openPath({ path: '/tmp/a.txt' })
     expect(opened).toBe('/tmp/a.txt')
     expect(response.result).toEqual({ ok: true, value: { opened: true } })
+  })
+
+  it('round-trips host.git* verbs through the wire form', async () => {
+    const c = client()
+    expect((await c.host.gitDiff({ path: '/w', side: 'worktree' })).result)
+      .toEqual({ ok: true, value: { root: '/w', side: 'worktree', text: '' } })
+    expect((await c.host.gitStage({ path: '/w', files: ['a.ts'] })).result)
+      .toEqual({ ok: true, value: { root: '/w' } })
+    expect((await c.host.gitUnstage({ path: '/w', files: ['a.ts'] })).result)
+      .toEqual({ ok: true, value: { root: '/w' } })
+    expect((await c.host.gitCommit({ path: '/w', message: 'm' })).result)
+      .toEqual({ ok: true, value: { root: '/w', hash: 'deadbeef' } })
+    expect((await c.host.gitDiscard({ path: '/w', files: ['a.ts'] })).result)
+      .toEqual({ ok: true, value: { root: '/w' } })
+    expect((await c.host.gitLog({ path: '/w', limit: 5 })).result)
+      .toEqual({ ok: true, value: [] })
   })
 
   it('round-trips skill.list through the wire form', async () => {

@@ -22,12 +22,9 @@ export type GitStatusResult =
  * @param signal - aborts both git child processes.
  */
 export async function collectGitStatus(path: string, signal?: AbortSignal): Promise<GitStatusResult> {
-  const toplevel = await runGit(['-C', path, 'rev-parse', '--show-toplevel'], signal)
+  const toplevel = await resolveGitRoot(path, signal)
   if (!toplevel.ok) return toplevel
-  const root = toplevel.stdout.trim()
-  if (root === '') {
-    return { ok: false, code: 'git-unavailable', message: `${path} is not inside a git work tree` }
-  }
+  const { root } = toplevel
   const porcelain = await runGit(['-C', root, 'status', '--porcelain=v1', '-b', '--untracked-files=normal'], signal)
   if (!porcelain.ok) return porcelain
   return { ok: true, value: parseGitPorcelain(root, porcelain.stdout) }
@@ -97,10 +94,35 @@ function collapseStatus(index: string, worktree: string): GitFileStatus {
   return 'modified'
 }
 
-async function runGit(args: string[], signal?: AbortSignal): Promise<
+/** Classified result of one `git` child process. */
+export type GitRunResult =
   | { ok: true; stdout: string }
   | { ok: false; code: 'git-unavailable' | 'git-failed'; message: string }
+
+/**
+ * Resolve the repository root that contains `path`.
+ * @param path - workspace directory or any file inside it.
+ * @param signal - aborts the git child process.
+ */
+export async function resolveGitRoot(path: string, signal?: AbortSignal): Promise<
+  | { ok: true; root: string }
+  | { ok: false; code: 'git-unavailable' | 'git-failed'; message: string }
 > {
+  const toplevel = await runGit(['-C', path, 'rev-parse', '--show-toplevel'], signal)
+  if (!toplevel.ok) return toplevel
+  const root = toplevel.stdout.trim()
+  if (root === '') {
+    return { ok: false, code: 'git-unavailable', message: `${path} is not inside a git work tree` }
+  }
+  return { ok: true, root }
+}
+
+/**
+ * Spawn `git` with the given args. Callers own the `-C` root.
+ * @param args - argv after `git`.
+ * @param signal - aborts the child process.
+ */
+export async function runGit(args: string[], signal?: AbortSignal): Promise<GitRunResult> {
   try {
     const { stdout } = await execFileAsync('git', args, {
       timeout: GIT_TIMEOUT_MS,
@@ -111,7 +133,7 @@ async function runGit(args: string[], signal?: AbortSignal): Promise<
     return { ok: true, stdout }
   } catch (error: unknown) {
     if (signal?.aborted) {
-      return { ok: false, code: 'git-failed', message: 'git status was aborted' }
+      return { ok: false, code: 'git-failed', message: 'git was aborted' }
     }
     const err = error as { code?: string | number; stderr?: string; message?: string }
     if (err.code === 'ENOENT') {

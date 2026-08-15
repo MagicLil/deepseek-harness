@@ -17,6 +17,10 @@ import {
 import {
   hostCreateDirectoryRequestSchema, hostCreateDirectoryValueSchema,
   hostDescribeRequestSchema, hostDescribeValueSchema,
+  hostGitCommitRequestSchema, hostGitCommitValueSchema,
+  hostGitDiffRequestSchema, hostGitDiffValueSchema,
+  hostGitDiscardRequestSchema, hostGitLogRequestSchema, hostGitLogValueSchema,
+  hostGitStageRequestSchema, hostGitUnstageRequestSchema, hostGitRootValueSchema,
   hostListDirectoryRequestSchema, hostListDirectoryValueSchema,
 } from '../src/api/host.schema.ts'
 import {
@@ -341,6 +345,35 @@ describe('host domain schemas', () => {
       expect(() => hostCreateDirectoryRequestSchema.parse({ path: '/x', name })).toThrow()
     }
     expect(hostCreateDirectoryValueSchema.parse({ path: '/x/new' })).toEqual({ path: '/x/new' })
+  })
+
+  it('validates git ops payloads and rejects unsafe relative paths', () => {
+    expect(hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree' })).toEqual({
+      path: '/ws', side: 'worktree',
+    })
+    expect(hostGitDiffRequestSchema.parse({ path: '/ws', side: 'staged', file: 'a.ts' }).file).toBe('a.ts')
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'staged', file: '/abs' })).toThrow()
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', file: '\\abs' })).toThrow()
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', file: '..\\x' })).toThrow()
+    expect(() => hostGitDiffRequestSchema.parse({ path: '/ws', side: 'worktree', file: 'a/../b' })).toThrow()
+    expect(hostGitDiffValueSchema.parse({
+      root: '/ws', side: 'worktree', text: '',
+    })).toEqual({ root: '/ws', side: 'worktree', text: '' })
+    expect(hostGitStageRequestSchema.parse({ path: '/ws', files: ['a.ts'] }).files).toEqual(['a.ts'])
+    expect(() => hostGitStageRequestSchema.parse({ path: '/ws', files: [] })).toThrow()
+    expect(hostGitUnstageRequestSchema.parse({ path: '/ws', files: ['a.ts'] }).path).toBe('/ws')
+    expect(hostGitDiscardRequestSchema.parse({ path: '/ws', files: ['a.ts'] }).files[0]).toBe('a.ts')
+    expect(hostGitRootValueSchema.parse({ root: '/ws' })).toEqual({ root: '/ws' })
+    expect(hostGitCommitRequestSchema.parse({ path: '/ws', message: '  m  ' }).message).toBe('m')
+    expect(() => hostGitCommitRequestSchema.parse({ path: '/ws', message: '   ' })).toThrow()
+    expect(hostGitCommitValueSchema.parse({ root: '/ws', hash: 'abc' }).hash).toBe('abc')
+    expect(hostGitLogRequestSchema.parse({ path: '/ws' })).toEqual({ path: '/ws' })
+    expect(hostGitLogRequestSchema.parse({ path: '/ws', limit: 20 }).limit).toBe(20)
+    expect(() => hostGitLogRequestSchema.parse({ path: '/ws', limit: 0 })).toThrow()
+    expect(() => hostGitLogRequestSchema.parse({ path: '/ws', limit: 101 })).toThrow()
+    expect(hostGitLogValueSchema.parse([{
+      hash: 'abc', subject: 's', author: 'a', timestamp: 1,
+    }])).toEqual([{ hash: 'abc', subject: 's', author: 'a', timestamp: 1 }])
   })
 })
 

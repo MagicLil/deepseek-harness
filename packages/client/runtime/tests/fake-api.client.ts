@@ -209,6 +209,16 @@ export class FakeApiClient implements IApiClient {
     readFile: (payload: unknown) => this.record('host.readFile', payload, this.onReadFile(payload)),
     writeFile: (payload: unknown) => this.record('host.writeFile', payload, this.onWriteFile(payload)),
     gitStatus: (payload: unknown) => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
+    gitDiff: (payload: unknown) => this.record('host.gitDiff', payload, Promise.resolve(ok({
+      root: '/home/fake', side: 'worktree' as const, text: '',
+    }))),
+    gitStage: (payload: unknown) => this.record('host.gitStage', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitUnstage: (payload: unknown) => this.record('host.gitUnstage', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitCommit: (payload: unknown) => this.record('host.gitCommit', payload, Promise.resolve(ok({
+      root: '/home/fake', hash: 'deadbeef',
+    }))),
+    gitDiscard: (payload: unknown) => this.record('host.gitDiscard', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitLog: (payload: unknown) => this.record('host.gitLog', payload, Promise.resolve(ok([]))),
   }
 
   // The archive-set field defaults at the binding below so list stubs keep

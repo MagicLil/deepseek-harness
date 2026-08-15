@@ -175,6 +175,16 @@ export class FakeApiClient implements IApiClient {
     readFile: payload => this.record('host.readFile', payload, this.onReadFile(payload)),
     writeFile: payload => this.record('host.writeFile', payload, this.onWriteFile(payload)),
     gitStatus: payload => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
+    gitDiff: payload => this.record('host.gitDiff', payload, Promise.resolve(ok({
+      root: '/home/fake', side: 'worktree' as const, text: '',
+    }))),
+    gitStage: payload => this.record('host.gitStage', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitUnstage: payload => this.record('host.gitUnstage', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitCommit: payload => this.record('host.gitCommit', payload, Promise.resolve(ok({
+      root: '/home/fake', hash: 'deadbeef',
+    }))),
+    gitDiscard: payload => this.record('host.gitDiscard', payload, Promise.resolve(ok({ root: '/home/fake' }))),
+    gitLog: payload => this.record('host.gitLog', payload, Promise.resolve(ok([]))),
   }
 
   readonly workspace: IApiClient['workspace'] = {

@@ -142,3 +142,68 @@ export const hostGitStatusValueSchema = z.object({
   detached: z.boolean(),
   changes: z.array(gitChangeSchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.gitStatus'>>>
+
+const gitRelPath = z.string().min(1).refine(
+  value => !value.startsWith('/') && !value.startsWith('\\') && !value.includes('..'),
+  { message: 'git path must be repository-relative without ..' },
+)
+
+const gitFilesPayload = z.object({
+  path: z.string().min(1),
+  files: z.array(gitRelPath).min(1),
+})
+
+/** host.gitDiff request payload. */
+export const hostGitDiffRequestSchema = z.object({
+  path: z.string().min(1),
+  side: z.union([z.literal('worktree'), z.literal('staged')]),
+  file: gitRelPath.optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitDiff'>>>
+
+/** host.gitDiff response value. */
+export const hostGitDiffValueSchema = z.object({
+  root: z.string(),
+  side: z.union([z.literal('worktree'), z.literal('staged')]),
+  path: z.string().optional(),
+  text: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitDiff'>>>
+
+/** host.gitStage request payload. */
+export const hostGitStageRequestSchema = gitFilesPayload satisfies z.ZodType<Wire<RequestPayload<'host.gitStage'>>>
+
+/** host.gitStage / gitUnstage / gitDiscard response value. */
+export const hostGitRootValueSchema = z.object({
+  root: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitStage'>>>
+
+/** host.gitUnstage request payload. */
+export const hostGitUnstageRequestSchema = gitFilesPayload satisfies z.ZodType<Wire<RequestPayload<'host.gitUnstage'>>>
+
+/** host.gitDiscard request payload. */
+export const hostGitDiscardRequestSchema = gitFilesPayload satisfies z.ZodType<Wire<RequestPayload<'host.gitDiscard'>>>
+
+/** host.gitCommit request payload. */
+export const hostGitCommitRequestSchema = z.object({
+  path: z.string().min(1),
+  message: z.string().trim().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitCommit'>>>
+
+/** host.gitCommit response value. */
+export const hostGitCommitValueSchema = z.object({
+  root: z.string(),
+  hash: z.string().min(1),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitCommit'>>>
+
+/** host.gitLog request payload. */
+export const hostGitLogRequestSchema = z.object({
+  path: z.string().min(1),
+  limit: z.number().int().positive().max(100).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitLog'>>>
+
+/** host.gitLog response value. */
+export const hostGitLogValueSchema = z.array(z.object({
+  hash: z.string(),
+  subject: z.string(),
+  author: z.string(),
+  timestamp: z.number(),
+})) satisfies z.ZodType<Wire<ResponseValue<'host.gitLog'>>>

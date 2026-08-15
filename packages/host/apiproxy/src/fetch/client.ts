@@ -15,7 +15,8 @@ import { rpcReceiptSchema, serverRequestSchema, serverResponseSchema } from '../
 import { hostFrameSchema, muxFrameSchema } from '../api/events.schema.ts'
 import {
   hostCreateDirectoryValueSchema, hostDescribeValueSchema,
-  hostGitStatusValueSchema,
+  hostGitCommitValueSchema, hostGitDiffValueSchema, hostGitLogValueSchema,
+  hostGitRootValueSchema, hostGitStatusValueSchema,
   hostListDirectoryValueSchema, hostListEntriesValueSchema,
   hostOpenPathValueSchema, hostPickDirectoryValueSchema,
   hostReadFileValueSchema, hostWriteFileValueSchema,
@@ -118,6 +119,12 @@ export interface IApiClient {
     readFile(payload: RequestPayload<'host.readFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.readFile'>>>
     writeFile(payload: RequestPayload<'host.writeFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.writeFile'>>>
     gitStatus(payload: RequestPayload<'host.gitStatus'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitStatus'>>>
+    gitDiff(payload: RequestPayload<'host.gitDiff'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitDiff'>>>
+    gitStage(payload: RequestPayload<'host.gitStage'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitStage'>>>
+    gitUnstage(payload: RequestPayload<'host.gitUnstage'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitUnstage'>>>
+    gitCommit(payload: RequestPayload<'host.gitCommit'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitCommit'>>>
+    gitDiscard(payload: RequestPayload<'host.gitDiscard'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitDiscard'>>>
+    gitLog(payload: RequestPayload<'host.gitLog'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitLog'>>>
   }
   workspace: {
     list(payload: RequestPayload<'workspace.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'workspace.list'>>>
@@ -202,6 +209,12 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'host.readFile': hostReadFileValueSchema,
   'host.writeFile': hostWriteFileValueSchema,
   'host.gitStatus': hostGitStatusValueSchema,
+  'host.gitDiff': hostGitDiffValueSchema,
+  'host.gitStage': hostGitRootValueSchema,
+  'host.gitUnstage': hostGitRootValueSchema,
+  'host.gitCommit': hostGitCommitValueSchema,
+  'host.gitDiscard': hostGitRootValueSchema,
+  'host.gitLog': hostGitLogValueSchema,
   'workspace.list': workspaceListValueSchema,
   'workspace.create': workspaceCreateValueSchema,
   'workspace.rename': workspaceRenameValueSchema,
@@ -456,6 +469,12 @@ export abstract class AbstractApiClient implements IApiClient {
     readFile: (payload, signal) => this.callUnary('host.readFile', payload, signal),
     writeFile: (payload, signal) => this.callUnary('host.writeFile', payload, signal),
     gitStatus: (payload, signal) => this.callUnary('host.gitStatus', payload, signal),
+    gitDiff: (payload, signal) => this.callUnary('host.gitDiff', payload, signal),
+    gitStage: (payload, signal) => this.callUnary('host.gitStage', payload, signal),
+    gitUnstage: (payload, signal) => this.callUnary('host.gitUnstage', payload, signal),
+    gitCommit: (payload, signal) => this.callUnary('host.gitCommit', payload, signal),
+    gitDiscard: (payload, signal) => this.callUnary('host.gitDiscard', payload, signal),
+    gitLog: (payload, signal) => this.callUnary('host.gitLog', payload, signal),
   }
 
   readonly workspace: IApiClient['workspace'] = {

@@ -6,7 +6,10 @@
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
-import type { DirectoryListing, FileListing, GitStatus, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  SessionId, WorkspaceId, WorkspaceView,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
 
@@ -85,6 +88,52 @@ export interface IWorkspaces {
    * @returns the git status snapshot.
    */
   gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus>
+  /**
+   * Unified diff for one path (or the whole tree).
+   * @param path - absolute workspace path or any file inside it.
+   * @param side - `worktree` (unstaged) or `staged` (index).
+   * @param file - optional repository-relative path.
+   * @param signal - aborts the wire request.
+   * @returns the unified diff snapshot.
+   */
+  gitDiff(path: string, side: GitDiffSide, file?: string, signal?: AbortSignal): Promise<GitDiff>
+  /**
+   * Stage repository-relative paths (`git add`).
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  gitStage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void>
+  /**
+   * Unstage repository-relative paths (`git restore --staged`).
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  gitUnstage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void>
+  /**
+   * Commit staged changes. Never writes git identity.
+   * @param path - absolute workspace path or any file inside it.
+   * @param message - commit message.
+   * @param signal - aborts the wire request.
+   * @returns the new HEAD hash.
+   */
+  gitCommit(path: string, message: string, signal?: AbortSignal): Promise<GitCommitResult>
+  /**
+   * Discard worktree changes for the given paths.
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  gitDiscard(path: string, files: readonly string[], signal?: AbortSignal): Promise<void>
+  /**
+   * Recent commits (`git log -n`).
+   * @param path - absolute workspace path or any file inside it.
+   * @param limit - max rows (host caps at 100).
+   * @param signal - aborts the wire request.
+   * @returns log rows newest first.
+   */
+  gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]>
   /**
    * Rename a Workspace.
    * @param workspaceId - target workspace.

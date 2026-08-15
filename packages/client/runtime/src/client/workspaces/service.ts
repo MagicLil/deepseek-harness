@@ -2,8 +2,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, FileListing, GitStatus, IApiClient, RpcError,
-  SessionId, WorkspaceId, WorkspaceView,
+  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
@@ -306,6 +306,85 @@ export class WorkspaceRuntime implements IWorkspaces {
    */
   async gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus> {
     const response = await this.api.host.gitStatus({ path }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Unified diff for one path (or the whole tree).
+   * @param path - absolute workspace path or any file inside it.
+   * @param side - `worktree` or `staged`.
+   * @param file - optional repository-relative path.
+   * @param signal - aborts the wire request.
+   * @returns the unified diff snapshot.
+   */
+  async gitDiff(path: string, side: GitDiffSide, file?: string, signal?: AbortSignal): Promise<GitDiff> {
+    const response = await this.api.host.gitDiff(
+      file === undefined ? { path, side } : { path, side, file },
+      signal,
+    )
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Stage repository-relative paths.
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  async gitStage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitStage({ path, files: [...files] }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Unstage repository-relative paths.
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  async gitUnstage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitUnstage({ path, files: [...files] }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Commit staged changes without writing git identity.
+   * @param path - absolute workspace path or any file inside it.
+   * @param message - commit message.
+   * @param signal - aborts the wire request.
+   * @returns the new HEAD hash.
+   */
+  async gitCommit(path: string, message: string, signal?: AbortSignal): Promise<GitCommitResult> {
+    const response = await this.api.host.gitCommit({ path, message }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Discard worktree changes for the given paths.
+   * @param path - absolute workspace path or any file inside it.
+   * @param files - repository-relative paths.
+   * @param signal - aborts the wire request.
+   */
+  async gitDiscard(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    const response = await this.api.host.gitDiscard({ path, files: [...files] }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+  }
+
+  /**
+   * Recent commits.
+   * @param path - absolute workspace path or any file inside it.
+   * @param limit - max rows.
+   * @param signal - aborts the wire request.
+   * @returns log rows newest first.
+   */
+  async gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]> {
+    const response = await this.api.host.gitLog(
+      limit === undefined ? { path } : { path, limit },
+      signal,
+    )
     if (!response.result.ok) throw new GitAccessError(response.result.error)
     return response.result.value
   }

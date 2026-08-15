@@ -65,6 +65,41 @@ export interface GitChange {
   status: GitFileStatus
 }
 
+/** Which tree a workbench diff compares. */
+export type GitDiffSide = 'worktree' | 'staged'
+
+/** host.gitDiff response: unified text for one path or the whole tree. */
+export interface GitDiff {
+  /** Absolute repository root. */
+  root: string
+  /** Compared side. */
+  side: GitDiffSide
+  /** Repository-relative path, or undefined for the whole tree. */
+  path?: string
+  /** Unified diff text (empty when the side is clean). */
+  text: string
+}
+
+/** One `git log` row. */
+export interface GitLogEntry {
+  /** Full commit hash. */
+  hash: string
+  /** First line of the commit message. */
+  subject: string
+  /** Author name from the commit (not a configured identity write). */
+  author: string
+  /** Author timestamp as unix seconds. */
+  timestamp: number
+}
+
+/** host.gitCommit response. */
+export interface GitCommitResult {
+  /** Absolute repository root. */
+  root: string
+  /** New HEAD hash. */
+  hash: string
+}
+
 /** host.gitStatus response: branch + working-tree changes for one workspace. */
 export interface GitStatus {
   /** Absolute path of the repository root (`git rev-parse --show-toplevel`). */
@@ -184,4 +219,53 @@ export interface HostApi {
     request: RpcRequest<{ path: string }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<GitStatus>>
+
+  /**
+   * Unified diff for one path (or the whole tree). `side: worktree` is
+   * unstaged (`git diff`); `side: staged` is the index (`git diff --cached`).
+   */
+  gitDiff(
+    request: RpcRequest<{ path: string; side: GitDiffSide; file?: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<GitDiff>>
+
+  /**
+   * `git add` the given repository-relative paths. Never sets identity.
+   */
+  gitStage(
+    request: RpcRequest<{ path: string; files: string[] }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string }>>
+
+  /**
+   * `git restore --staged` the given repository-relative paths.
+   */
+  gitUnstage(
+    request: RpcRequest<{ path: string; files: string[] }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string }>>
+
+  /**
+   * `git commit --no-gpg-sign -m`. Never writes `user.name` / `user.email`.
+   */
+  gitCommit(
+    request: RpcRequest<{ path: string; message: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<GitCommitResult>>
+
+  /**
+   * Discard worktree changes for the given paths (restore tracked, clean untracked).
+   */
+  gitDiscard(
+    request: RpcRequest<{ path: string; files: string[] }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ root: string }>>
+
+  /**
+   * Recent commits (`git log -n`). `limit` defaults to 20 and is capped at 100.
+   */
+  gitLog(
+    request: RpcRequest<{ path: string; limit?: number }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<GitLogEntry[]>>
 }

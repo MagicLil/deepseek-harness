@@ -1,7 +1,8 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, FileListing, GitStatus, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
+  DirectoryListing, FileListing, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry, GitStatus,
+  IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { workspaceListState } from './fixtures.ts'
 import type { Stabilizer } from './fixtures.ts'
@@ -199,6 +200,84 @@ export class TestWorkspaces implements IWorkspaces {
     const stub = this.stubs.get('gitStatus')
     if (stub !== undefined) return await (stub(path, signal) as Promise<GitStatus>)
     return { root: path, branch: 'main', ahead: 0, behind: 0, detached: false, changes: [] }
+  }
+
+  /**
+   * Unified diff (recorded). Default empty worktree diff.
+   * @param path - workspace path.
+   * @param side - compared side.
+   * @param file - optional repository-relative path.
+   * @param signal - forwarded abort.
+   * @returns the stub diff.
+   */
+  async gitDiff(path: string, side: GitDiffSide, file?: string, signal?: AbortSignal): Promise<GitDiff> {
+    this.calls.push({ method: 'gitDiff', args: [path, side, file, signal] })
+    const stub = this.stubs.get('gitDiff')
+    if (stub !== undefined) return await (stub(path, side, file, signal) as Promise<GitDiff>)
+    return file === undefined
+      ? { root: path, side, text: '' }
+      : { root: path, side, path: file, text: '' }
+  }
+
+  /**
+   * Stage paths (recorded; default no-op).
+   * @param path - workspace path.
+   * @param files - repository-relative paths.
+   * @param signal - forwarded abort.
+   */
+  async gitStage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitStage', args: [path, files, signal] })
+    await (this.stubs.get('gitStage')?.(path, files, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Unstage paths (recorded; default no-op).
+   * @param path - workspace path.
+   * @param files - repository-relative paths.
+   * @param signal - forwarded abort.
+   */
+  async gitUnstage(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitUnstage', args: [path, files, signal] })
+    await (this.stubs.get('gitUnstage')?.(path, files, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Commit (recorded). Default hash `deadbeef`.
+   * @param path - workspace path.
+   * @param message - commit message.
+   * @param signal - forwarded abort.
+   * @returns the stub commit result.
+   */
+  async gitCommit(path: string, message: string, signal?: AbortSignal): Promise<GitCommitResult> {
+    this.calls.push({ method: 'gitCommit', args: [path, message, signal] })
+    const stub = this.stubs.get('gitCommit')
+    if (stub !== undefined) return await (stub(path, message, signal) as Promise<GitCommitResult>)
+    return { root: path, hash: 'deadbeef' }
+  }
+
+  /**
+   * Discard paths (recorded; default no-op).
+   * @param path - workspace path.
+   * @param files - repository-relative paths.
+   * @param signal - forwarded abort.
+   */
+  async gitDiscard(path: string, files: readonly string[], signal?: AbortSignal): Promise<void> {
+    this.calls.push({ method: 'gitDiscard', args: [path, files, signal] })
+    await (this.stubs.get('gitDiscard')?.(path, files, signal) as Promise<void> | undefined)
+  }
+
+  /**
+   * Recent commits (recorded). Default empty list.
+   * @param path - workspace path.
+   * @param limit - max rows.
+   * @param signal - forwarded abort.
+   * @returns stub log rows.
+   */
+  async gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]> {
+    this.calls.push({ method: 'gitLog', args: [path, limit, signal] })
+    const stub = this.stubs.get('gitLog')
+    if (stub !== undefined) return await (stub(path, limit, signal) as Promise<GitLogEntry[]>)
+    return []
   }
 
   /**

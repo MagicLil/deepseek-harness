@@ -2613,6 +2613,17 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         detached: false,
         changes: [],
       }),
+      gitDiff: request => ok(request, {
+        root: request.payload.path,
+        side: request.payload.side,
+        ...request.payload.file === undefined ? {} : { path: request.payload.file },
+        text: '',
+      }),
+      gitStage: request => ok(request, { root: request.payload.path }),
+      gitUnstage: request => ok(request, { root: request.payload.path }),
+      gitCommit: request => ok(request, { root: request.payload.path, hash: 'deadbeef' }),
+      gitDiscard: request => ok(request, { root: request.payload.path }),
+      gitLog: request => ok(request, []),
     },
     workspace: {
       list: request => ok(request, {
@@ -3153,6 +3164,12 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
       case 'host.writeFile': return this.api.host.writeFile(request)
       case 'host.gitStatus': return this.api.host.gitStatus(request, new AbortController().signal)
+      case 'host.gitDiff': return this.api.host.gitDiff(request, new AbortController().signal)
+      case 'host.gitStage': return this.api.host.gitStage(request, new AbortController().signal)
+      case 'host.gitUnstage': return this.api.host.gitUnstage(request, new AbortController().signal)
+      case 'host.gitCommit': return this.api.host.gitCommit(request, new AbortController().signal)
+      case 'host.gitDiscard': return this.api.host.gitDiscard(request, new AbortController().signal)
+      case 'host.gitLog': return this.api.host.gitLog(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)
       case 'workspace.rename': return this.api.workspace.rename(request)

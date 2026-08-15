@@ -31,7 +31,9 @@ import {
 } from '../api/sessions.schema.ts'
 import {
   hostCreateDirectoryRequestSchema, hostDescribeRequestSchema,
-  hostGitStatusRequestSchema,
+  hostGitCommitRequestSchema, hostGitDiffRequestSchema, hostGitDiscardRequestSchema,
+  hostGitLogRequestSchema, hostGitStageRequestSchema, hostGitStatusRequestSchema,
+  hostGitUnstageRequestSchema,
   hostListDirectoryRequestSchema, hostListEntriesRequestSchema,
   hostOpenPathRequestSchema, hostPickDirectoryRequestSchema,
   hostReadFileRequestSchema, hostWriteFileRequestSchema,
@@ -115,6 +117,12 @@ const UNARY_ROUTES: UnaryRoutes = {
   'host.readFile': { schema: hostReadFileRequestSchema, invoke: (api, r, signal) => api.host.readFile(r, signal) },
   'host.writeFile': { schema: hostWriteFileRequestSchema, invoke: (api, r) => api.host.writeFile(r) },
   'host.gitStatus': { schema: hostGitStatusRequestSchema, invoke: (api, r, signal) => api.host.gitStatus(r, signal) },
+  'host.gitDiff': { schema: hostGitDiffRequestSchema, invoke: (api, r, signal) => api.host.gitDiff(r, signal) },
+  'host.gitStage': { schema: hostGitStageRequestSchema, invoke: (api, r, signal) => api.host.gitStage(r, signal) },
+  'host.gitUnstage': { schema: hostGitUnstageRequestSchema, invoke: (api, r, signal) => api.host.gitUnstage(r, signal) },
+  'host.gitCommit': { schema: hostGitCommitRequestSchema, invoke: (api, r, signal) => api.host.gitCommit(r, signal) },
+  'host.gitDiscard': { schema: hostGitDiscardRequestSchema, invoke: (api, r, signal) => api.host.gitDiscard(r, signal) },
+  'host.gitLog': { schema: hostGitLogRequestSchema, invoke: (api, r, signal) => api.host.gitLog(r, signal) },
   'workspace.list': { schema: workspaceListRequestSchema, invoke: (api, r) => api.workspace.list(r) },
   'workspace.create': { schema: workspaceCreateRequestSchema, invoke: (api, r) => api.workspace.create(r) },
   'workspace.rename': { schema: workspaceRenameRequestSchema, invoke: (api, r) => api.workspace.rename(r) },

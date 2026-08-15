@@ -95,6 +95,10 @@ import { questionResponsePayloadSchema } from './api/questions.schema.ts'
 import type { ClientResponse, RpcError, RpcReceipt, RpcRequest, RpcResponse } from './api/rpc.ts'
 import type { FileEntry } from './api/host.ts'
 import { collectGitStatus } from './git-status.ts'
+import {
+  collectGitCommit, collectGitDiff, collectGitDiscard, collectGitLog,
+  collectGitStage, collectGitUnstage,
+} from './git-ops.ts'
 import { RpcId } from './api/rpc.ts'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
@@ -3129,6 +3133,78 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             message: result.message,
             details: { path },
           })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitDiff(request, signal) {
+        const { path, side, file } = request.payload
+        const result = await collectGitDiff(path, side, file, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitStage(request, signal) {
+        const { path, files } = request.payload
+        const result = await collectGitStage(path, files, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitUnstage(request, signal) {
+        const { path, files } = request.payload
+        const result = await collectGitUnstage(path, files, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitCommit(request, signal) {
+        const { path, message } = request.payload
+        const result = await collectGitCommit(path, message, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitDiscard(request, signal) {
+        const { path, files } = request.payload
+        const result = await collectGitDiscard(path, files, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
+      },
+
+      async gitLog(request, signal) {
+        const { path, limit } = request.payload
+        const result = await collectGitLog(path, limit ?? 20, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
         }
         return ok(request, result.value)
       },
