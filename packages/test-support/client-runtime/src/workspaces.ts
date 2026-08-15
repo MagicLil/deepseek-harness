@@ -290,12 +290,18 @@ export class TestWorkspaces implements IWorkspaces {
    * @param path - workspace path.
    * @param limit - max rows.
    * @param signal - forwarded abort.
+   * @param skip - older-page offset.
    * @returns stub log rows.
    */
-  async gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]> {
-    this.calls.push({ method: 'gitLog', args: [path, limit, signal] })
+  async gitLog(
+    path: string,
+    limit?: number,
+    signal?: AbortSignal,
+    skip?: number,
+  ): Promise<GitLogEntry[]> {
+    this.calls.push({ method: 'gitLog', args: [path, limit, signal, skip] })
     const stub = this.stubs.get('gitLog')
-    if (stub !== undefined) return await (stub(path, limit, signal) as Promise<GitLogEntry[]>)
+    if (stub !== undefined) return await (stub(path, limit, signal, skip) as Promise<GitLogEntry[]>)
     return []
   }
 

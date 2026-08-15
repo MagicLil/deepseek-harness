@@ -102,6 +102,16 @@ export interface GitLogEntry {
   parents?: string[]
   /** Refs that currently point at this commit. Omitted when none do. */
   refs?: GitRef[]
+  /** Remainder of the commit message after the subject. Omitted when empty. */
+  body?: string
+  /** Paths touched by the first-parent patch (`git log --shortstat`). */
+  files?: number
+  /** Lines added in that patch. */
+  insertions?: number
+  /** Lines removed in that patch. */
+  deletions?: number
+  /** `origin` remote URL, copied onto every row when one exists. */
+  originUrl?: string
 }
 
 /** Kind of a decorated git ref on a log row. */
@@ -360,9 +370,10 @@ export interface HostApi {
 
   /**
    * Recent commits (`git log -n`). `limit` defaults to 20 and is capped at 100.
+   * `skip` pages older rows (`git log --skip`).
    */
   gitLog(
-    request: RpcRequest<{ path: string; limit?: number }>,
+    request: RpcRequest<{ path: string; limit?: number; skip?: number }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<GitLogEntry[]>>
 

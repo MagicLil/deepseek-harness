@@ -200,6 +200,7 @@ export const hostGitCommitValueSchema = z.object({
 export const hostGitLogRequestSchema = z.object({
   path: z.string().min(1),
   limit: z.number().int().positive().max(100).optional(),
+  skip: z.number().int().nonnegative().max(100_000).optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'host.gitLog'>>>
 
 /** host.gitLog response value. */
@@ -215,6 +216,11 @@ export const hostGitLogValueSchema = z.array(z.object({
     ]),
     name: z.string(),
   })).optional(),
+  body: z.string().optional(),
+  files: z.number().int().nonnegative().optional(),
+  insertions: z.number().int().nonnegative().optional(),
+  deletions: z.number().int().nonnegative().optional(),
+  originUrl: z.string().optional(),
 })) satisfies z.ZodType<Wire<ResponseValue<'host.gitLog'>>>
 
 const gitBranchName = z.string().min(1).max(200).refine(

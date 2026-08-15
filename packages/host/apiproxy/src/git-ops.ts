@@ -16,8 +16,9 @@ export type GitOpsResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: 'git-unavailable' | 'git-failed'; message: string }
 
-const LOG_FORMAT = '%H%x1f%s%x1f%an%x1f%at%x1f%P'
+const LOG_FORMAT = '%x1e%H%x1f%s%x1f%an%x1f%at%x1f%P%x1f%b'
 const DEFAULT_LOG_LIMIT = 20
+const SHORTSTAT = /\n[ \t]*(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?[ \t]*\r?$/
 
 /**
  * Unified diff for one path (or the whole tree) against the index, HEAD,
@@ -121,20 +122,27 @@ export async function collectGitDiscard(
 }
 
 /**
- * Recent commits (`git log -n`).
+ * Recent commits (`git log --all -n`). `--all` is the SCM graph walk
+ * (every local/remote/tag tip), not the current branch spine.
  * @param path - any path inside the work tree.
  * @param limit - max rows (caller-clamped).
  * @param signal - aborts the git child process.
+ * @param skip - older-page offset (`git log --skip`).
  */
 export async function collectGitLog(
   path: string,
   limit: number,
   signal?: AbortSignal,
+  skip = 0,
 ): Promise<GitOpsResult<GitLogEntry[]>> {
   const root = await resolveGitRoot(path, signal)
   if (!root.ok) return root
   const n = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : DEFAULT_LOG_LIMIT
-  const ran = await runGit(['-C', root.root, 'log', `-n${n}`, `--format=${LOG_FORMAT}`], signal)
+  const offset = Number.isFinite(skip) && skip > 0 ? Math.min(Math.floor(skip), 100_000) : 0
+  const args = ['-C', root.root, 'log', '--all', `-n${n}`]
+  if (offset > 0) args.push(`--skip=${offset}`)
+  args.push(`--format=${LOG_FORMAT}`, '--shortstat')
+  const ran = await runGit(args, signal)
   if (!ran.ok) return ran
   return { ok: true, value: await decorateGitLog(root.root, parseGitLog(ran.stdout), signal) }
 }
@@ -173,25 +181,70 @@ export function diffArgs(
 }
 
 /**
- * Parse `git log --format=%H%x1f%s%x1f%an%x1f%at%x1f%P` stdout.
+ * Parse `git log --format=%x1e%H…%b --shortstat` stdout. Single-line
+ * records without the record separator still parse (older fixtures).
  * @param stdout - log text.
  */
 export function parseGitLog(stdout: string): GitLogEntry[] {
+  if (stdout.includes('\x1e')) {
+    const out: GitLogEntry[] = []
+    for (const record of stdout.split('\x1e')) {
+      const row = parseGitLogRecord(record)
+      if (row !== undefined) out.push(row)
+    }
+    return out
+  }
   const out: GitLogEntry[] = []
   for (const line of stdout.split(/\r?\n/)) {
     if (line.length === 0) continue
-    const [hash, subject, author, stamp, parentField] = line.split('\x1f')
-    if (hash === undefined || hash.length === 0) continue
-    const parents = (parentField ?? '').split(' ').filter(parent => parent.length > 0)
-    out.push({
-      hash,
-      subject: subject ?? '',
-      author: author ?? '',
-      timestamp: Number(stamp ?? 0),
-      ...parents.length > 0 ? { parents } : {},
-    })
+    const row = parseGitLogRecord(line)
+    if (row !== undefined) out.push(row)
   }
   return out
+}
+
+/**
+ * Parse one commit record (fields, optional body, optional shortstat).
+ * @param record - text after a `%x1e` split, or one legacy line.
+ */
+export function parseGitLogRecord(record: string): GitLogEntry | undefined {
+  const trimmed = record.replace(/^\r?\n/, '').replace(/\r?\n+$/, '')
+  if (trimmed.length === 0) return undefined
+  const stat = SHORTSTAT.exec(trimmed)
+  const core = stat === null ? trimmed : trimmed.slice(0, stat.index)
+  const [hash, subject, author, stamp, parentField, ...bodyParts] = core.split('\x1f')
+  if (hash === undefined || hash.trim().length === 0) return undefined
+  const parents = (parentField ?? '').split(' ').filter(parent => parent.length > 0)
+  const body = bodyParts.join('\x1f').replace(/\s+$/g, '')
+  const row: GitLogEntry = {
+    hash: hash.trim(),
+    subject: subject ?? '',
+    author: author ?? '',
+    timestamp: Number(stamp ?? 0),
+  }
+  if (parents.length > 0) row.parents = parents
+  if (body.length > 0) row.body = body
+  if (stat !== null) {
+    row.files = Number(stat[1])
+    if (stat[2] !== undefined) row.insertions = Number(stat[2])
+    if (stat[3] !== undefined) row.deletions = Number(stat[3])
+  }
+  return row
+}
+
+/**
+ * Copy a non-empty `origin` URL onto every log row.
+ * @param rows - newest-first log.
+ * @param remote - `git remote get-url origin` result, or undefined when the child was not run.
+ */
+export function attachOriginUrl(
+  rows: GitLogEntry[],
+  remote: { ok: true; stdout: string } | { ok: false } | undefined,
+): GitLogEntry[] {
+  if (remote === undefined || !remote.ok) return rows
+  const originUrl = remote.stdout.trim()
+  if (originUrl.length === 0) return rows
+  return rows.map(row => ({ ...row, originUrl }))
 }
 
 /**
@@ -348,10 +401,13 @@ async function decorateGitLog(
     ['-C', root, 'for-each-ref', '--format=%(objectname)%00%(refname)'],
     signal,
   )
-  const head = await runGit(['-C', root, 'rev-parse', 'HEAD'], signal)
-  const abbrev = await runGit(['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], signal)
-  if (!listed.ok || !head.ok || !abbrev.ok) return rows
-  return applyGitRefs(rows, parseGitRefMap(listed.stdout), head.stdout.trim(), abbrev.stdout.trim())
+  const head = listed.ok ? await runGit(['-C', root, 'rev-parse', 'HEAD'], signal) : undefined
+  const abbrev = head?.ok ? await runGit(['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], signal) : undefined
+  const remote = await runGit(['-C', root, 'remote', 'get-url', 'origin'], signal)
+  const decorated = listed.ok && head?.ok && abbrev?.ok
+    ? applyGitRefs(rows, parseGitRefMap(listed.stdout), head.stdout.trim(), abbrev.stdout.trim())
+    : rows
+  return attachOriginUrl(decorated, remote)
 }
 
 /**

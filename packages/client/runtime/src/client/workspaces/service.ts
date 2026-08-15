@@ -419,11 +419,21 @@ export class WorkspaceRuntime implements IWorkspaces {
    * @param path - absolute workspace path or any file inside it.
    * @param limit - max rows.
    * @param signal - aborts the wire request.
+   * @param skip - older-page offset (`git log --skip`).
    * @returns log rows newest first.
    */
-  async gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]> {
+  async gitLog(
+    path: string,
+    limit?: number,
+    signal?: AbortSignal,
+    skip?: number,
+  ): Promise<GitLogEntry[]> {
     const response = await this.api.host.gitLog(
-      limit === undefined ? { path } : { path, limit },
+      {
+        path,
+        ...(limit === undefined ? {} : { limit }),
+        ...(skip === undefined || skip <= 0 ? {} : { skip }),
+      },
       signal,
     )
     if (!response.result.ok) throw new GitAccessError(response.result.error)

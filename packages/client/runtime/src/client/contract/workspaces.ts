@@ -147,9 +147,10 @@ export interface IWorkspaces {
    * @param path - absolute workspace path or any file inside it.
    * @param limit - max rows (host caps at 100).
    * @param signal - aborts the wire request.
+   * @param skip - older-page offset (`git log --skip`).
    * @returns log rows newest first.
    */
-  gitLog(path: string, limit?: number, signal?: AbortSignal): Promise<GitLogEntry[]>
+  gitLog(path: string, limit?: number, signal?: AbortSignal, skip?: number): Promise<GitLogEntry[]>
   /**
    * User-initiated fetch / ff-only pull / push. Not an agent tool.
    * @param path - absolute workspace path or any file inside it.

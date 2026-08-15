@@ -386,7 +386,10 @@ describe('host domain schemas', () => {
     expect(hostGitLogValueSchema.parse([{
       hash: 'abc', subject: 's', author: 'a', timestamp: 1,
       refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'branch', name: 'main' }],
-    }])[0]?.refs?.[1]?.name).toBe('main')
+      body: 'Co-authored-by: Cursor <c@x>',
+      files: 2, insertions: 4, deletions: 1,
+      originUrl: 'git@github.com:acme/app.git',
+    }])[0]).toMatchObject({ files: 2, originUrl: 'git@github.com:acme/app.git' })
     expect(hostGitCheckoutRequestSchema.parse({ path: '/ws', name: 'feat' }).name).toBe('feat')
     expect(hostGitCheckoutRequestSchema.parse({
       path: '/ws', name: 'feat', create: true,

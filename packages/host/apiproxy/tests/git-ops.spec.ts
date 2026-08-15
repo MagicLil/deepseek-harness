@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  applyGitRefs, collectGitBranches, collectGitCheckout, collectGitCommit, collectGitDiff,
-  collectGitDiscard, collectGitLog, collectGitStage, collectGitSync, collectGitUnstage,
-  diffArgs, gitRefFromName, isGitCommitId, isNoUpstreamPushFailure, isUntrackedRestoreFailure,
-  parseGitBranches, parseGitLog, parseGitRefMap,
+  applyGitRefs, attachOriginUrl, collectGitBranches, collectGitCheckout, collectGitCommit,
+  collectGitDiff, collectGitDiscard, collectGitLog, collectGitStage, collectGitSync,
+  collectGitUnstage, diffArgs, gitRefFromName, isGitCommitId, isNoUpstreamPushFailure,
+  isUntrackedRestoreFailure, parseGitBranches, parseGitLog, parseGitLogRecord, parseGitRefMap,
 } from '../src/git-ops.ts'
 
 const { resolveGitRoot, runGit } = vi.hoisted(() => ({
@@ -39,6 +39,7 @@ describe('diffArgs / parseGitLog / isUntrackedRestoreFailure', () => {
   it('parses log rows and skips empties', () => {
     expect(parseGitLog('')).toEqual([])
     expect(parseGitLog('\n')).toEqual([])
+    expect(parseGitLogRecord('')).toBeUndefined()
     expect(parseGitLog([
       'abc\x1fsubject\x1fAnn\x1f10',
       '\x1fnohash\x1fX\x1f1',
@@ -51,6 +52,54 @@ describe('diffArgs / parseGitLog / isUntrackedRestoreFailure', () => {
       { hash: 'ghi', subject: '', author: '', timestamp: 0 },
       { hash: 'mrg', subject: 'merge', author: 'Ann', timestamp: 11, parents: ['abc', 'def'] },
     ])
+    expect(parseGitLog([
+      '\x1eabc\x1fsubject\x1fAnn\x1f10\x1f\x1fCo-authored-by: Cursor <c@x>',
+      '',
+      ' 1 file changed, 2 insertions(+), 1 deletion(-)',
+      '\x1edef\x1fonly\x1fBob\x1f9\x1fabc\x1f',
+      '',
+      ' 2 files changed, 3 insertions(+)',
+      '\x1eghi\x1fplain\x1fAnn\x1f8\x1f\x1f',
+      '\x1edel\x1fdrop\x1fAnn\x1f7\x1f\x1f',
+      '',
+      ' 1 file changed, 1 deletion(-)',
+    ].join('\n'))).toEqual([
+      {
+        hash: 'abc', subject: 'subject', author: 'Ann', timestamp: 10,
+        body: 'Co-authored-by: Cursor <c@x>', files: 1, insertions: 2, deletions: 1,
+      },
+      { hash: 'def', subject: 'only', author: 'Bob', timestamp: 9, parents: ['abc'], files: 2, insertions: 3 },
+      { hash: 'ghi', subject: 'plain', author: 'Ann', timestamp: 8 },
+      { hash: 'del', subject: 'drop', author: 'Ann', timestamp: 7, files: 1, deletions: 1 },
+    ])
+    expect(parseGitLogRecord([
+      'real\x1fsubject\x1fAnn\x1f10\x1fabc\x1f点分区标题即可折叠。',
+      '',
+      'Co-authored-by: Cursor <c@x>',
+      '',
+      '',
+      ' 9 files changed, 1701 insertions(+), 170 deletions(-)',
+    ].join('\n'))).toEqual({
+      hash: 'real', subject: 'subject', author: 'Ann', timestamp: 10, parents: ['abc'],
+      body: '点分区标题即可折叠。\n\nCo-authored-by: Cursor <c@x>',
+      files: 9, insertions: 1701, deletions: 170,
+    })
+    expect(attachOriginUrl(
+      [{ hash: 'abc', subject: 's', author: 'A', timestamp: 1 }],
+      undefined,
+    )[0]?.originUrl).toBeUndefined()
+    expect(attachOriginUrl(
+      [{ hash: 'abc', subject: 's', author: 'A', timestamp: 1 }],
+      { ok: false },
+    )[0]?.originUrl).toBeUndefined()
+    expect(attachOriginUrl(
+      [{ hash: 'abc', subject: 's', author: 'A', timestamp: 1 }],
+      { ok: true, stdout: '  \n' },
+    )[0]?.originUrl).toBeUndefined()
+    expect(attachOriginUrl(
+      [{ hash: 'abc', subject: 's', author: 'A', timestamp: 1 }],
+      { ok: true, stdout: 'git@github.com:acme/app.git\n' },
+    )[0]?.originUrl).toBe('git@github.com:acme/app.git')
   })
 
   it('detects untracked restore failures', () => {
@@ -106,6 +155,28 @@ describe('collect git ops', () => {
     await expect(collectGitLog('/ws', 999)).resolves.toMatchObject({ ok: true })
     runGit.mockResolvedValue({ ok: false, code: 'git-failed', message: 'no' })
     await expect(collectGitLog('/ws', 3)).resolves.toMatchObject({ ok: false })
+  })
+
+  it('pages older log rows with --skip', async () => {
+    runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
+    await collectGitLog('/ws', 80, undefined, 80)
+    expect(runGit.mock.calls[0]?.[0]).toEqual(expect.arrayContaining(['log', '--all', '-n80', '--skip=80']))
+    runGit.mockClear()
+    runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
+    await collectGitLog('/ws', 80, undefined, 0)
+    expect(runGit.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining([expect.stringMatching(/^--skip=/)]))
+    runGit.mockClear()
+    runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
+    await collectGitLog('/ws', 80, undefined, Number.NaN)
+    expect(runGit.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining([expect.stringMatching(/^--skip=/)]))
+    runGit.mockClear()
+    runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
+    await collectGitLog('/ws', 80, undefined, -4)
+    expect(runGit.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining([expect.stringMatching(/^--skip=/)]))
+    runGit.mockClear()
+    runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
+    await collectGitLog('/ws', 80, undefined, 999_999)
+    expect(runGit.mock.calls[0]?.[0]).toEqual(expect.arrayContaining(['--skip=100000']))
   })
 
   it('commits then reads HEAD, and discards through restore+clean', async () => {
@@ -237,15 +308,36 @@ describe('collect git sync / branches / checkout', () => {
       .mockResolvedValueOnce({ ok: true, stdout: 'aaa\0refs/heads/main\n' })
       .mockResolvedValueOnce({ ok: true, stdout: 'aaa\n' })
       .mockResolvedValueOnce({ ok: true, stdout: 'main\n' })
+      .mockResolvedValueOnce({ ok: true, stdout: 'git@github.com:acme/app.git\n' })
     const decorated = await collectGitLog('/ws', 5)
     expect(decorated).toMatchObject({
       ok: true,
-      value: [{ hash: 'aaa', refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'branch', name: 'main' }] }],
+      value: [{
+        hash: 'aaa',
+        refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'branch', name: 'main' }],
+        originUrl: 'git@github.com:acme/app.git',
+      }],
     })
     runGit
       .mockResolvedValueOnce({ ok: true, stdout: 'aaa\x1fs\x1fA\x1f1\n' })
       .mockResolvedValueOnce({ ok: false, code: 'git-failed', message: 'no refs' })
     const plain = await collectGitLog('/ws', 5)
     expect(plain.ok && plain.value[0]?.refs).toBeUndefined()
+    runGit
+      .mockResolvedValueOnce({ ok: true, stdout: 'aaa\x1fs\x1fA\x1f1\n' })
+      .mockResolvedValueOnce({ ok: true, stdout: 'aaa\0refs/heads/main\n' })
+      .mockResolvedValueOnce({ ok: false, code: 'git-failed', message: 'no head' })
+      .mockResolvedValueOnce({ ok: true, stdout: '' })
+    const noHead = await collectGitLog('/ws', 5)
+    expect(noHead.ok && noHead.value[0]?.refs).toBeUndefined()
+    expect(noHead.ok && noHead.value[0]?.originUrl).toBeUndefined()
+    runGit
+      .mockResolvedValueOnce({ ok: true, stdout: 'aaa\x1fs\x1fA\x1f1\n' })
+      .mockResolvedValueOnce({ ok: true, stdout: 'aaa\0refs/heads/main\n' })
+      .mockResolvedValueOnce({ ok: true, stdout: 'aaa\n' })
+      .mockResolvedValueOnce({ ok: false, code: 'git-failed', message: 'no abbrev' })
+      .mockResolvedValueOnce({ ok: false, code: 'git-failed', message: 'no origin' })
+    const noAbbrev = await collectGitLog('/ws', 5)
+    expect(noAbbrev.ok && noAbbrev.value[0]?.refs).toBeUndefined()
   })
 })

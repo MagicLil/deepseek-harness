@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SessionRuntime } from '../src/client/sessions/service.ts'
 import { WorkspaceManager } from '../src/client/workspaces/manager.ts'
-import { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
+import { DirectoryBrowseError, GitAccessError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 
 const sid = (id: string): SessionId => id as SessionId
@@ -358,6 +358,24 @@ describe('WorkspaceRuntime', () => {
     expect(api.callsOf('host.openPath')).toEqual([{ path: '/w/alpha/a.ts' }])
     api.onOpenPath = () => Promise.resolve(err({ code: 'internal', message: 'boom', details: {} }))
     await expect(workspaces.openPath('/missing')).rejects.toThrow(/path open failed/)
+  })
+
+  it('forwards git log limit and skip and wraps host failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    await expect(workspaces.gitLog('/w')).resolves.toEqual([])
+    expect(api.callsOf('host.gitLog')).toEqual([{ path: '/w' }])
+    await workspaces.gitLog('/w', 80)
+    expect(api.callsOf('host.gitLog')[1]).toEqual({ path: '/w', limit: 80 })
+    await workspaces.gitLog('/w', 80, undefined, 160)
+    expect(api.callsOf('host.gitLog')[2]).toEqual({ path: '/w', limit: 80, skip: 160 })
+    await workspaces.gitLog('/w', undefined, undefined, 0)
+    expect(api.callsOf('host.gitLog')[3]).toEqual({ path: '/w' })
+    vi.spyOn(api.host, 'gitLog').mockResolvedValue(err({
+      code: 'git-failed', message: 'no log', details: { path: '/w' },
+    }))
+    await expect(workspaces.gitLog('/w', 80, undefined, 80)).rejects.toBeInstanceOf(GitAccessError)
   })
 
   it('deletes a Workspace or preserves it when the Host rejects deletion', async () => {

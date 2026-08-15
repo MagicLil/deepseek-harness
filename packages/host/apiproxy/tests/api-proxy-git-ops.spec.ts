@@ -182,6 +182,8 @@ describe('host.git* handlers', () => {
       .toEqual({ root: '/r', hash: 'abc' })
     expectOk(await api.host.gitDiscard(request({ path: '/r', files: ['a.ts'] }), new AbortController().signal))
     expect(expectOk(await api.host.gitLog(request({ path: '/r' }), new AbortController().signal))).toEqual([])
+    expect(expectOk(await api.host.gitLog(request({ path: '/r', skip: 80 }), new AbortController().signal))).toEqual([])
+    expect(collectGitLog).toHaveBeenCalledWith('/r', 20, expect.any(AbortSignal), 80)
     expectOk(await api.host.gitSync(request({ path: '/r', mode: 'fetch' }), new AbortController().signal))
     expect(expectOk(await api.host.gitBranches(request({ path: '/r' }), new AbortController().signal)))
       .toEqual({ root: '/r', branches: [] })

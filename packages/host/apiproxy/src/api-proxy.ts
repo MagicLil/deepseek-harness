@@ -3200,8 +3200,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async gitLog(request, signal) {
-        const { path, limit } = request.payload
-        const result = await collectGitLog(path, limit ?? 20, signal)
+        const { path, limit, skip } = request.payload
+        const result = await collectGitLog(path, limit ?? 20, signal, skip)
         if (!result.ok) {
           if (signal.aborted) {
             return err(request, { code: 'cancelled', message: 'git was aborted', details: {} })
