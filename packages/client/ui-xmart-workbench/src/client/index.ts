@@ -28,7 +28,7 @@ import { WorkbenchSettingsSection } from './WorkbenchSettingsSection.tsx'
 import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
 import { EditorTab } from './EditorTab.tsx'
-import type { EditorLspRemote } from './editor-lsp.ts'
+import { peekRemote } from './editor-lsp.ts'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
 import { GitTab } from './GitTab.tsx'
 import { DiffTab } from './DiffTab.tsx'
@@ -354,10 +354,17 @@ export function apply(ctx: ClientContext): void {
     hidden: true,
     dedupeKey: tab => tab.path,
     component: (props) => {
-      const workspaceRoot = getCwd(props.sessionId)
-      const remotes = (ctx as {
-        remote?: { vueLsp?: EditorLspRemote; tsLsp?: EditorLspRemote; javaLsp?: EditorLspRemote }
-      }).remote
+      let workspaceRoot: string | undefined
+      try {
+        workspaceRoot = getCwd(props.sessionId)
+      }
+      catch {
+        workspaceRoot = undefined
+      }
+      const remote = ctx.get('remote')
+      const vueLsp = peekRemote(remote, 'vueLsp')
+      const tsLsp = peekRemote(remote, 'tsLsp')
+      const javaLsp = peekRemote(remote, 'javaLsp')
       return createElement(EditorTab, {
         ...props,
         t,
@@ -365,9 +372,9 @@ export function apply(ctx: ClientContext): void {
         writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
         files,
         ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
-        ...(remotes?.vueLsp === undefined ? {} : { vueLsp: remotes.vueLsp }),
-        ...(remotes?.tsLsp === undefined ? {} : { tsLsp: remotes.tsLsp }),
-        ...(remotes?.javaLsp === undefined ? {} : { javaLsp: remotes.javaLsp }),
+        ...(vueLsp === undefined ? {} : { vueLsp }),
+        ...(tsLsp === undefined ? {} : { tsLsp }),
+        ...(javaLsp === undefined ? {} : { javaLsp }),
       })
     },
   }), 'ui-xmart-workbench: editor tab')

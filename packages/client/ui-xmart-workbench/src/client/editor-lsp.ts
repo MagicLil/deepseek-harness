@@ -149,6 +149,31 @@ export interface EditorLspRemotes {
   readonly javaLsp?: EditorLspRemote
 }
 
+const REMOTE_KEYS = ['vueLsp', 'tsLsp', 'javaLsp'] as const
+
+/**
+ * Read one editor-LSP namespace off `ctx.remote` without throwing.
+ * A missing, unfinished, or accessor-throwing Remote must not blank the file.
+ * @param remote - `ctx.remote` or a test double.
+ * @param key - namespace id.
+ */
+export function peekRemote(
+  remote: unknown,
+  key: (typeof REMOTE_KEYS)[number],
+): EditorLspRemote | undefined {
+  if (remote === null || typeof remote !== 'object') return undefined
+  try {
+    const value = (remote as Record<string, unknown>)[key]
+    if (value === null || typeof value !== 'object') return undefined
+    const face = value as EditorLspRemote
+    if (typeof face.open !== 'function') return undefined
+    return face
+  }
+  catch {
+    return undefined
+  }
+}
+
 /**
  * Pick the language Remote for this path. `.vue` stays on vueLsp.
  * @param remotes - available Host namespaces.

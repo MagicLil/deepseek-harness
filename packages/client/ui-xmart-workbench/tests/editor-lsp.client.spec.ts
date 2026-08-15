@@ -5,6 +5,7 @@ import {
   isTsPath,
   isVuePath,
   languageClientFor,
+  peekRemote,
   type EditorLspRemote,
 } from '../src/client/editor-lsp.ts'
 
@@ -44,6 +45,20 @@ describe('bindEditorLsp', () => {
     expect(await client.diagnostics('/ws/a.ts')).toEqual([])
     host.open = vi.fn(async () => ({ ok: false, error: { code: 'x', message: 'no' } }))
     await expect(client.open('/ws/a.ts', 'x')).rejects.toThrow(/tsLsp.open failed/)
+  })
+})
+
+describe('peekRemote', () => {
+  it('returns a face that has open, and ignores missing or throwing accessors', () => {
+    expect(peekRemote(undefined, 'tsLsp')).toBeUndefined()
+    expect(peekRemote(null, 'tsLsp')).toBeUndefined()
+    expect(peekRemote({ tsLsp: remote() }, 'tsLsp')).toBeDefined()
+    expect(peekRemote({ tsLsp: {} }, 'tsLsp')).toBeUndefined()
+    expect(peekRemote({
+      get tsLsp(): EditorLspRemote {
+        throw new Error('not ready')
+      },
+    }, 'tsLsp')).toBeUndefined()
   })
 })
 
