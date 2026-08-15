@@ -175,7 +175,10 @@ export function AppFrame({
   // re-expand override, stores.ts). Collapsed is decided here, so the
   // solver stays breakpoint-free.
   const narrow = viewport.width < SIDEBAR_AUTO_COLLAPSE
-  useEffect(() => { actions.setNarrow(narrow) }, [actions, narrow])
+  useEffect(() => {
+    actions.setNarrow(narrow)
+    actions.setFrameWidth(viewport.width)
+  }, [actions, narrow, viewport.width])
   const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0

@@ -13,10 +13,10 @@
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  BOTTOM_DEFAULT, BOTTOM_MAX, BOTTOM_MIN, clampWidth,
+  BOTTOM_DEFAULT, BOTTOM_MAX, BOTTOM_MIN, clampWidth, computeColumns,
   CONVERSATION_DEFAULT, CONVERSATION_MAX, CONVERSATION_MIN,
   DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
-  SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
+  planPrimaryReveal, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
   WORKBENCH_DEFAULT, WORKBENCH_MAX, WORKBENCH_MIN,
 } from './columns.ts'
 
@@ -33,6 +33,8 @@ type LayoutState = {
   workbench: number
   conversation: number
   bottom: number
+  /** Live AppFrame width; 0 until the first measure. */
+  frameWidth: number
   narrow: boolean
   narrowExpanded: boolean
 }
@@ -49,6 +51,7 @@ type LayoutActions = {
   setBottom: (draft: LayoutState, px: number) => void
   toggleSidebar: (draft: LayoutState) => void
   setNarrow: (draft: LayoutState, narrow: boolean) => void
+  setFrameWidth: (draft: LayoutState, px: number) => void
   openDetails: (draft: LayoutState) => void
   closeDetails: (draft: LayoutState) => void
   openWorkbench: (draft: LayoutState) => void
@@ -60,6 +63,30 @@ type LayoutActions = {
 }
 
 /**
+ * Session-sidebar preference AppFrame would pass to the solver (0 = rail).
+ * Mirrors AppFrame's narrow / collapsed reading so reveal plans the same pack.
+ */
+function solveSidebar(d: LayoutState): number {
+  const collapsed = d.narrow ? !d.narrowExpanded : d.sidebar === 0
+  return collapsed ? 0 : (d.sidebar === 0 ? SIDEBAR_DEFAULT : d.sidebar)
+}
+
+/** True when the current preferences already paint a non-zero primary track. */
+function primaryRenders(d: LayoutState): boolean {
+  if (d.workbench === 0 || d.frameWidth <= 0) return false
+  return computeColumns(
+    d.frameWidth, solveSidebar(d), d.details, d.workbench, d.conversation,
+  ).primary > 0
+}
+
+/** Write explorer + conversation prefs so the primary track becomes visible. */
+function revealPrimary(d: LayoutState): void {
+  const plan = planPrimaryReveal(d.frameWidth, solveSidebar(d), d.details, d.conversation)
+  d.workbench = plan.primary
+  d.conversation = plan.conversation
+}
+
+/**
  * Create the layout panel store handle. The preference IS the width, so
  * closing a panel forgets its drag width — reopening restores the contract
  * default. Actions are the complete write set: drag writes clamp
@@ -68,7 +95,9 @@ type LayoutActions = {
  * auto-collapse breakpoint (AppFrame feeds setNarrow) the sidebar toggle
  * flips the narrowExpanded override instead of the preference. Session-scoped
  * primary-sidebar width memory lives in the workbench plugin's persist store,
- * which writes these actions on session change.
+ * which writes these actions on session change. `openWorkbench` / the opening
+ * side of `toggleWorkbench` also reveal a conceded primary (shrink a 2/3
+ * conversation so explorer and editor can split the leftover).
  * @returns the store handle (spec + type + identity + factory in one).
  */
 export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutActions>  {
@@ -79,6 +108,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       workbench: WORKBENCH_DEFAULT,
       conversation: CONVERSATION_DEFAULT,
       bottom: 0,
+      frameWidth: 0,
       narrow: false,
       narrowExpanded: false,
     }),
@@ -101,13 +131,28 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         d.narrow = narrow
         d.narrowExpanded = false
       },
+      setFrameWidth: (d, px: number) => {
+        if (px <= 0) return
+        d.frameWidth = Math.round(px)
+      },
       openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
       closeDetails: (d) => { d.details = 0 },
-      openWorkbench: (d) => { if (d.workbench === 0) d.workbench = WORKBENCH_DEFAULT },
+      openWorkbench: (d) => {
+        if (d.frameWidth <= 0) {
+          if (d.workbench === 0) d.workbench = WORKBENCH_DEFAULT
+          return
+        }
+        if (primaryRenders(d)) return
+        revealPrimary(d)
+      },
       closeWorkbench: (d) => { d.workbench = 0 },
       toggleWorkbench: (d) => {
-        if (d.workbench === 0) d.workbench = WORKBENCH_DEFAULT
-        else d.workbench = 0
+        if (d.frameWidth <= 0) {
+          d.workbench = d.workbench === 0 ? WORKBENCH_DEFAULT : 0
+          return
+        }
+        if (primaryRenders(d)) d.workbench = 0
+        else revealPrimary(d)
       },
       openBottom: (d) => { if (d.bottom === 0) d.bottom = BOTTOM_DEFAULT },
       closeBottom: (d) => { d.bottom = 0 },

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACTIVITY_WIDTH, BOTTOM_DEFAULT, BOTTOM_MIN, chromeMenuBarVisible, clampWidth, computeBottom, computeColumns,
-  CONVERSATION_DEFAULT, CONVERSATION_MIN, DETAILS_DEFAULT, EDITOR_MIN,
-  EDITOR_MIN_HEIGHT, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
-  WORKBENCH_DEFAULT, WORKBENCH_MIN,
+  CONVERSATION_DEFAULT, CONVERSATION_MIN, conversationMax, DETAILS_DEFAULT, EDITOR_MIN,
+  EDITOR_MIN_HEIGHT, planPrimaryReveal, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
+  WORKBENCH_DEFAULT, WORKBENCH_MAX, WORKBENCH_MIN,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 
 const open = (width: number) => width
@@ -124,34 +124,42 @@ describe('computeColumns — conversation and primary concession', () => {
     })
   })
 
-  it('conversation shrinks after details has auto-closed', () => {
-    // 48+280+260+380+400 = 1368; at 1320 conversation concedes to 1320-48-280-260-400 = 332.
+  it('primary shrinks before conversation so a wide chat can keep its preference', () => {
+    // 48+280+260+380+400 = 1368; at 1320 primary concedes to 1320-48-280-380-400 = 212.
     const cols = computeColumns(
       1320, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(WORKBENCH_DEFAULT), open(CONVERSATION_DEFAULT),
     )
     expect(cols).toEqual({
       activity: ACTIVITY_WIDTH,
-      primary: WORKBENCH_DEFAULT,
+      primary: 212,
       editor: EDITOR_MIN,
-      conversation: 332,
+      conversation: CONVERSATION_DEFAULT,
       details: 0,
       sidebar: SIDEBAR_DEFAULT,
     })
   })
 
-  it('conversation auto-closes when its minimum still starves the editor', () => {
-    // 48+280+260+320+400 = 1308 > 1280 → conversation 0; editor = 1280-48-280-260 = 692.
+  it('primary auto-closes when its minimum still starves a preferred conversation', () => {
+    // 48+280+200+380+400 = 1308 > 1280 → primary 0; editor = 1280-48-280-380 = 572.
     const cols = computeColumns(
       1280, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(WORKBENCH_DEFAULT), open(CONVERSATION_DEFAULT),
     )
     expect(cols).toEqual({
       activity: ACTIVITY_WIDTH,
-      primary: WORKBENCH_DEFAULT,
-      editor: 1280 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - WORKBENCH_DEFAULT,
-      conversation: 0,
+      primary: 0,
+      editor: 1280 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - CONVERSATION_DEFAULT,
+      conversation: CONVERSATION_DEFAULT,
       details: 0,
       sidebar: SIDEBAR_DEFAULT,
     })
+  })
+
+  it('clamps a dragged conversation to two-thirds of the frame', () => {
+    const cols = computeColumns(
+      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(WORKBENCH_DEFAULT), open(2000),
+    )
+    expect(cols.conversation).toBe(conversationMax(1920))
+    expect(cols.conversation).toBe(1280)
   })
 
   it('primary shrinks after conversation has auto-closed', () => {
@@ -192,7 +200,8 @@ describe('computeColumns — conversation and primary concession', () => {
       900, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), open(WORKBENCH_DEFAULT), open(CONVERSATION_DEFAULT),
     )
     expect(squeezed.details).toBe(0)
-    expect(squeezed.conversation).toBe(0)
+    expect(squeezed.primary).toBe(0)
+    expect(squeezed.conversation).toBe(CONVERSATION_DEFAULT)
     const restored = computeColumns(
       1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), open(WORKBENCH_DEFAULT), open(CONVERSATION_DEFAULT),
     )
@@ -201,17 +210,81 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(restored.primary).toBe(WORKBENCH_DEFAULT)
   })
 
-  it('conversation min is respected when shrinking', () => {
+  it('primary hits its floor before conversation leaves its preference', () => {
     expect(CONVERSATION_MIN).toBe(320)
     const cols = computeColumns(
-      ACTIVITY_WIDTH + SIDEBAR_COLLAPSED + WORKBENCH_DEFAULT + CONVERSATION_MIN + EDITOR_MIN,
+      ACTIVITY_WIDTH + SIDEBAR_COLLAPSED + WORKBENCH_MIN + CONVERSATION_DEFAULT + EDITOR_MIN,
       closed(300),
       closed(DETAILS_DEFAULT),
       open(WORKBENCH_DEFAULT),
       open(CONVERSATION_DEFAULT),
     )
-    expect(cols.conversation).toBe(CONVERSATION_MIN)
+    expect(cols.conversation).toBe(CONVERSATION_DEFAULT)
+    expect(cols.primary).toBe(WORKBENCH_MIN)
     expect(cols.editor).toBe(EDITOR_MIN)
+  })
+})
+
+describe('planPrimaryReveal', () => {
+  it('falls back to the contract default when the frame is unmeasured', () => {
+    expect(planPrimaryReveal(0, SIDEBAR_DEFAULT, 0, 1280)).toEqual({
+      primary: WORKBENCH_DEFAULT,
+      conversation: 1280,
+    })
+    expect(planPrimaryReveal(-1, 0, 0, 0)).toEqual({
+      primary: WORKBENCH_DEFAULT,
+      conversation: CONVERSATION_DEFAULT,
+    })
+  })
+
+  it('keeps conversation and opens the default primary when leftover is generous', () => {
+    expect(planPrimaryReveal(1920, SIDEBAR_DEFAULT, 0, CONVERSATION_DEFAULT)).toEqual({
+      primary: WORKBENCH_DEFAULT,
+      conversation: CONVERSATION_DEFAULT,
+    })
+    expect(planPrimaryReveal(1920, SIDEBAR_DEFAULT, DETAILS_DEFAULT, CONVERSATION_DEFAULT)).toEqual({
+      primary: WORKBENCH_DEFAULT,
+      conversation: CONVERSATION_DEFAULT,
+    })
+  })
+
+  it('splits leftover 50/50 when the chat still fits beside a minimum workspace', () => {
+    // available = 1920-48-280 = 1592; leftover 620 ∈ [600, 660).
+    const plan = planPrimaryReveal(1920, SIDEBAR_DEFAULT, 0, 972)
+    expect(plan.conversation).toBe(972)
+    expect(plan.primary).toBe(310)
+    expect(plan.primary).toBeGreaterThanOrEqual(WORKBENCH_MIN)
+    expect(plan.primary).toBeLessThanOrEqual(WORKBENCH_MAX)
+  })
+
+  it('shrinks a 2/3 conversation so explorer and editor can split 400/400', () => {
+    const plan = planPrimaryReveal(1920, SIDEBAR_DEFAULT, 0, 1280)
+    expect(plan.primary).toBe(EDITOR_MIN)
+    expect(plan.conversation).toBe(1920 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - 2 * EDITOR_MIN)
+    const cols = computeColumns(1920, SIDEBAR_DEFAULT, 0, plan.primary, plan.conversation)
+    expect(cols.primary).toBe(EDITOR_MIN)
+    expect(cols.editor).toBe(EDITOR_MIN)
+  })
+
+  it('clamps a closed session sidebar to the rail and a closed conversation to the default', () => {
+    const plan = planPrimaryReveal(1920, 0, 0, 0)
+    expect(plan.primary).toBe(WORKBENCH_DEFAULT)
+    expect(plan.conversation).toBe(CONVERSATION_DEFAULT)
+  })
+
+  it('falls back to conversation min when the frame cannot host a 400/400 split', () => {
+    const viewport = ACTIVITY_WIDTH + SIDEBAR_DEFAULT + CONVERSATION_MIN + WORKBENCH_MIN + EDITOR_MIN
+    const plan = planPrimaryReveal(viewport, SIDEBAR_DEFAULT, 0, 900)
+    expect(plan.conversation).toBe(CONVERSATION_MIN)
+    expect(plan.primary).toBeGreaterThanOrEqual(WORKBENCH_MIN)
+    expect(computeColumns(viewport, SIDEBAR_DEFAULT, 0, plan.primary, plan.conversation).primary)
+      .toBeGreaterThan(0)
+  })
+
+  it('still emits floors when the frame is narrower than a minimum workspace', () => {
+    const plan = planPrimaryReveal(800, SIDEBAR_DEFAULT, 0, 600)
+    expect(plan.conversation).toBe(CONVERSATION_MIN)
+    expect(plan.primary).toBeGreaterThanOrEqual(WORKBENCH_MIN)
   })
 })
 

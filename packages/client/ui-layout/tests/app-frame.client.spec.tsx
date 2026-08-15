@@ -13,7 +13,7 @@ import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import {
-  ACTIVITY_WIDTH, CONVERSATION_DEFAULT, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, WORKBENCH_DEFAULT,
+  ACTIVITY_WIDTH, CONVERSATION_DEFAULT, EDITOR_MIN, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, WORKBENCH_DEFAULT,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
@@ -425,6 +425,17 @@ describe('AppFrame', () => {
     act(() => { rerenderFrame() })
     expect(tracks(frame)[1]).toBe(WORKBENCH_DEFAULT)
     expect(instance.getSnapshot().workbench).toBe(WORKBENCH_DEFAULT)
+  })
+
+  it('openWorkbench after a wide conversation drag shows explorer and splits the leftover', () => {
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.setConversation(1100) })
+    expect(tracks(frame)[1]).toBe(0)
+    expect(frame.hasAttribute('data-primary-collapsed')).toBe(true)
+    act(() => { instance.actions.openWorkbench() })
+    expect(tracks(frame)[1]).toBe(EDITOR_MIN)
+    expect(tracks(frame)[2]).toBeLessThan(1100)
+    expect(frame.hasAttribute('data-primary-collapsed')).toBe(false)
   })
 })
 

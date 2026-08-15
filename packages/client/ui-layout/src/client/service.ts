@@ -32,11 +32,18 @@ export interface ILayout {
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
-  /** Open the primary sidebar (no-op when already open). */
+  /**
+   * Open the primary sidebar. No-op when it already paints a non-zero
+   * track; if a wide conversation has conceded it to zero, shrinks
+   * conversation so explorer and editor can split the leftover.
+   */
   openWorkbench(): void
   /** Close the primary sidebar. */
   closeWorkbench(): void
-  /** Toggle the primary sidebar (closed ⟷ contract default width). */
+  /**
+   * Toggle the primary sidebar. A conceded (preference open, painted
+   * zero) track reveals instead of closing.
+   */
   toggleWorkbench(): void
   /**
    * Write the primary-sidebar width preference (clamped to the contract range).
@@ -91,7 +98,11 @@ export class LayoutController implements ILayout {
     this.#require().closeDetails()
   }
 
-  /** Open the primary sidebar (no-op when already open). */
+  /**
+   * Open the primary sidebar. No-op when it already paints a non-zero
+   * track; if a wide conversation has conceded it to zero, shrinks
+   * conversation so explorer and editor can split the leftover.
+   */
   openWorkbench(): void {
     this.#require().openWorkbench()
   }
@@ -101,7 +112,10 @@ export class LayoutController implements ILayout {
     this.#require().closeWorkbench()
   }
 
-  /** Toggle the primary sidebar (closed ⟷ contract default width). */
+  /**
+   * Toggle the primary sidebar. A conceded (preference open, painted
+   * zero) track reveals instead of closing.
+   */
   toggleWorkbench(): void {
     this.#require().toggleWorkbench()
   }

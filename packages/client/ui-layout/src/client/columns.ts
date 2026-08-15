@@ -1,8 +1,9 @@
 /**
  * Pure concession-chain solver for the Cursor-style AppFrame.
  * Horizontal order is fixed: keep the editor >= EDITOR_MIN by closing
- * details, shrinking then closing the conversation, then shrinking then
- * closing the primary sidebar. The activity bar and the session sidebar
+ * details, shrinking then closing the primary sidebar (so a conversation
+ * drag can reach two-thirds of the frame), then shrinking then closing
+ * the conversation. The activity bar and the session sidebar
  * never concede (AppFrame turns the session sidebar into a rail by
  * passing preference 0). The editor absorbs any remaining deficit as
  * the last resort (and may drop below EDITOR_MIN).
@@ -56,10 +57,83 @@ export const WORKBENCH_MAX = 420
 export const WORKBENCH_DEFAULT = 260
 /** Conversation-column drag clamp floor. */
 export const CONVERSATION_MIN = 320
-/** Conversation-column drag clamp ceiling. */
-export const CONVERSATION_MAX = 560
+/** Conversation may grow to this fraction of the frame (user drag ceiling). */
+export const CONVERSATION_MAX_RATIO = 2 / 3
+/**
+ * Store-side conversation ceiling: 2/3 of a 4K frame. The solver still caps
+ * each paint at {@link conversationMax} for the live viewport.
+ */
+export const CONVERSATION_MAX = Math.floor(3840 * CONVERSATION_MAX_RATIO)
 /** Conversation-column width before any user drag. */
 export const CONVERSATION_DEFAULT = 380
+
+/**
+ * Live conversation drag ceiling: two-thirds of the current frame.
+ * @param viewport - available frame width in px.
+ * @returns the clamp max, never below {@link CONVERSATION_MIN}.
+ */
+export function conversationMax(viewport: number): number {
+  return Math.max(CONVERSATION_MIN, Math.floor(viewport * CONVERSATION_MAX_RATIO))
+}
+
+/**
+ * Plan a user gesture that must make the primary sidebar visible
+ * (activity-bar Explorer / Git / Tasks). If the current conversation
+ * preference would concede the primary to zero, shrink conversation
+ * until explorer and editor can split the leftover 50/50.
+ * @param viewport - live frame width in px.
+ * @param sidebar - session-sidebar preference (0 = rail).
+ * @param details - details preference (0 = closed).
+ * @param conversation - conversation preference (0 treated as default).
+ * @returns widths to write back as preferences.
+ */
+export function planPrimaryReveal(
+  viewport: number,
+  sidebar: number,
+  details: number,
+  conversation: number,
+): { primary: number; conversation: number } {
+  if (viewport <= 0) {
+    return {
+      primary: WORKBENCH_DEFAULT,
+      conversation: conversation === 0 ? CONVERSATION_DEFAULT : conversation,
+    }
+  }
+  const s = sidebar === 0 ? SIDEBAR_COLLAPSED : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
+  const d = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
+  const available = Math.max(0, viewport - ACTIVITY_WIDTH - s - d)
+  const cPref = conversation === 0
+    ? CONVERSATION_DEFAULT
+    : clampWidth(conversation, CONVERSATION_MIN, conversationMax(viewport))
+  const minWorkspace = WORKBENCH_MIN + EDITOR_MIN
+  const leftover = available - cPref
+  if (leftover >= WORKBENCH_DEFAULT + EDITOR_MIN) {
+    return { primary: WORKBENCH_DEFAULT, conversation: cPref }
+  }
+  if (leftover >= minWorkspace) {
+    return {
+      primary: clampWidth(Math.floor(leftover / 2), WORKBENCH_MIN, WORKBENCH_MAX),
+      conversation: cPref,
+    }
+  }
+  // Conversation is blocking: shrink it so explorer + editor can split.
+  // Prefer 400/400 (survives EDITOR_MIN); otherwise take the remaining floors.
+  const idealWorkspace = 2 * EDITOR_MIN
+  const maxWorkspace = available - CONVERSATION_MIN
+  const workspace = maxWorkspace >= idealWorkspace
+    ? idealWorkspace
+    : Math.max(minWorkspace, maxWorkspace)
+  const conversationOut = clampWidth(
+    available - workspace,
+    CONVERSATION_MIN,
+    conversationMax(viewport),
+  )
+  const split = Math.max(minWorkspace, available - conversationOut)
+  return {
+    primary: clampWidth(Math.floor(split / 2), WORKBENCH_MIN, WORKBENCH_MAX),
+    conversation: conversationOut,
+  }
+}
 /** Bottom-panel drag clamp floor. */
 export const BOTTOM_MIN = 120
 /** Bottom-panel drag clamp ceiling. */
@@ -96,7 +170,8 @@ export function clampWidth(px: number, min: number, max: number): number {
  * the output is a function of (viewport, preferences) only, so recovery on
  * re-widening is automatic. Preferences re-clamp here because they cross the
  * store boundary and callers may still supply stale ranges.
- * Concession order: details, conversation, primary. The session sidebar
+ * Concession order: details, primary (so a 2/3 conversation drag can keep
+ * the chat), then conversation, then the leftover primary shrink. The session sidebar
  * is fixed at its preference (or the rail AppFrame already chose).
  * @param viewport - available frame width in px.
  * @param sidebar - session-sidebar width preference in px (0 = rail).
@@ -116,7 +191,7 @@ export function computeColumns(
   const activity = ACTIVITY_WIDTH
   const sOpen = sidebar === 0 ? SIDEBAR_COLLAPSED : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
   const p0 = primary === 0 ? 0 : clampWidth(primary, WORKBENCH_MIN, WORKBENCH_MAX)
-  const c0 = conversation === 0 ? 0 : clampWidth(conversation, CONVERSATION_MIN, CONVERSATION_MAX)
+  const c0 = conversation === 0 ? 0 : clampWidth(conversation, CONVERSATION_MIN, conversationMax(viewport))
   const d0 = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
 
   const pack = (s: number, p: number, c: number, d: number): Columns => ({
@@ -138,6 +213,17 @@ export function computeColumns(
   }
 
   if (fits(sOpen, p0, c0, 0)) return pack(sOpen, p0, c0, 0)
+
+  // A wide conversation (up to 2/3) wins over the primary sidebar so a drag
+  // to the left can keep the chat; the editor floor is protected first.
+  if (c0 > 0 && p0 > 0) {
+    const p1 = Math.max(WORKBENCH_MIN, viewport - activity - sOpen - c0 - EDITOR_MIN)
+    if (fits(sOpen, p1, c0, 0)) return pack(sOpen, p1, c0, 0)
+    if (fits(sOpen, 0, c0, 0)) return pack(sOpen, 0, c0, 0)
+  }
+
+  if (c0 > 0 && activity + sOpen + p0 + c0 <= viewport) return pack(sOpen, p0, c0, 0)
+  if (c0 > 0 && activity + sOpen + c0 <= viewport) return pack(sOpen, 0, c0, 0)
 
   if (c0 > 0) {
     const c1 = Math.max(CONVERSATION_MIN, viewport - activity - sOpen - p0 - EDITOR_MIN)

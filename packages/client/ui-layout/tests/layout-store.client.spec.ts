@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import {
-  BOTTOM_DEFAULT, BOTTOM_MAX, BOTTOM_MIN,
+  BOTTOM_DEFAULT, BOTTOM_MAX, BOTTOM_MIN, computeColumns,
   CONVERSATION_DEFAULT, CONVERSATION_MAX, CONVERSATION_MIN,
   DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
   SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
@@ -23,6 +23,7 @@ const INIT = {
   workbench: WORKBENCH_DEFAULT,
   conversation: CONVERSATION_DEFAULT,
   bottom: 0,
+  frameWidth: 0,
   narrow: false,
   narrowExpanded: false,
 }
@@ -126,6 +127,80 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().workbench).toBe(WORKBENCH_DEFAULT)
     actions.toggleWorkbench()
     expect(store.getSnapshot().workbench).toBe(0)
+  })
+
+  it('setFrameWidth records a live measure and ignores non-positive values', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setFrameWidth(0)
+    expect(store.getSnapshot().frameWidth).toBe(0)
+    actions.setFrameWidth(-10)
+    expect(store.getSnapshot().frameWidth).toBe(0)
+    actions.setFrameWidth(1920.4)
+    expect(store.getSnapshot().frameWidth).toBe(1920)
+  })
+
+  it('openWorkbench with a measured frame still uses the default when leftover is generous', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setFrameWidth(1920)
+    actions.closeWorkbench()
+    actions.openWorkbench()
+    expect(store.getSnapshot().workbench).toBe(WORKBENCH_DEFAULT)
+    expect(store.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT)
+  })
+
+  it('openWorkbench reveals a conceded primary by shrinking a wide conversation', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setFrameWidth(1920)
+    // 1100px sits in the concession window: explorer paints 0, a true 2/3 (1280) keeps a sliver.
+    actions.setConversation(1100)
+    expect(computeColumns(1920, SIDEBAR_DEFAULT, 0, WORKBENCH_DEFAULT, 1100).primary).toBe(0)
+    actions.openWorkbench()
+    const snap = store.getSnapshot()
+    expect(snap.workbench).toBeGreaterThan(0)
+    expect(snap.conversation).toBeLessThan(1100)
+    expect(computeColumns(1920, snap.sidebar, snap.details, snap.workbench, snap.conversation).primary)
+      .toBeGreaterThan(0)
+    actions.setWorkbench(400)
+    actions.openWorkbench()
+    expect(store.getSnapshot().workbench).toBe(400)
+  })
+
+  it('toggleWorkbench reveals a conceded primary instead of closing the preference', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setFrameWidth(1920)
+    actions.setConversation(1100)
+    expect(store.getSnapshot().workbench).toBe(WORKBENCH_DEFAULT)
+    actions.toggleWorkbench()
+    const snap = store.getSnapshot()
+    expect(computeColumns(1920, snap.sidebar, snap.details, snap.workbench, snap.conversation).primary)
+      .toBeGreaterThan(0)
+    actions.toggleWorkbench()
+    expect(store.getSnapshot().workbench).toBe(0)
+  })
+
+  it('openWorkbench on a narrow auto-collapsed rail plans against the 56px rail', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setNarrow(true)
+    actions.setFrameWidth(980)
+    actions.setConversation(600)
+    actions.openWorkbench()
+    const snap = store.getSnapshot()
+    expect(computeColumns(980, 0, snap.details, snap.workbench, snap.conversation).primary)
+      .toBeGreaterThan(0)
+  })
+
+  it('openWorkbench on a narrow re-expanded rail still plans against the default sidebar width', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.toggleSidebar()
+    expect(store.getSnapshot().sidebar).toBe(0)
+    actions.setNarrow(true)
+    actions.toggleSidebar()
+    actions.setFrameWidth(1920)
+    actions.setConversation(1280)
+    actions.openWorkbench()
+    const snap = store.getSnapshot()
+    expect(computeColumns(1920, SIDEBAR_DEFAULT, snap.details, snap.workbench, snap.conversation).primary)
+      .toBeGreaterThan(0)
   })
 
   it('openBottom uses the contract default and close/toggle forget the drag height', () => {
