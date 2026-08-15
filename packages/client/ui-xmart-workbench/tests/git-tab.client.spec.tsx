@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { GitAccessError, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
+import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GitTab, gitMenuAnchor, handleGitMenuSelect } from '../src/client/GitTab.tsx'
@@ -24,7 +24,7 @@ const status: GitStatus = {
   changes: [{ path: 'a.ts', status: 'modified' }],
 }
 
-const emptyListing = { path: '/ws', entries: [], truncated: false }
+const emptyListing: FileListing = { path: '/ws', entries: [], truncated: false }
 
 function mount(opts?: {
   cwd?: string
@@ -32,7 +32,7 @@ function mount(opts?: {
   gitLog?: () => Promise<{ hash: string; subject: string; author: string; timestamp: number }[]>
   gitCommit?: (path: string, message: string) => Promise<unknown>
   gitStage?: (path: string, files: readonly string[]) => Promise<void>
-  listEntries?: () => Promise<typeof emptyListing>
+  listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
 }) {
   const files = createWorkbenchFilesStore()
   const gitStatus = opts?.gitStatus ?? vi.fn(async () => status)
@@ -300,6 +300,7 @@ describe('GitTab', () => {
         t={t}
         getCwd={() => '/ws'}
         watchSessions={() => () => {}}
+        listEntries={async () => emptyListing}
         gitStatus={() => new Promise<GitStatus>((resolve) => { settle = resolve })}
         gitStage={async () => {}}
         gitUnstage={async () => {}}

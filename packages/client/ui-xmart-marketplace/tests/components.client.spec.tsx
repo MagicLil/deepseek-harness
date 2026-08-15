@@ -8,7 +8,7 @@ import { en, type MarketplaceKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = ((key: MarketplaceKey) => en[key]) as MarketplacePaneProps['t']
+const t = (key: MarketplaceKey): string => en[key]
 
 const plugin: DshPluginCard = {
   id: 'acme/find',
@@ -107,7 +107,7 @@ describe('MarketplacePane plugins', () => {
     await waitFor(() => { expect(screen.getByText(en.unsupported)).toBeTruthy() })
     fireEvent.click(screen.getByTestId('xmart-plugin-cat-omdsh/sidebar').querySelector('button')!)
     expect(screen.getByText(en.confirmDesktop)).toBeTruthy()
-    expect((screen.getByRole('button', { name: en.confirmOk }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: en.confirmOk })).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByRole('button', { name: en.confirmCancel }))
     expect(screen.queryByTestId('xmart-marketplace-confirm')).toBeNull()
   })
@@ -177,7 +177,9 @@ describe('MarketplacePane extensions', () => {
     const props = rpc({
       kind: 'extensions',
       tab: { id: 'extensions', type: 'extensions', title: 'extensions' },
-      listInstalledExtensions: vi.fn(async () => [{ ...vue, installed: true, compatibility: 'pending-host' }]),
+      listInstalledExtensions: vi.fn(async (): Promise<readonly VsixCard[]> => [
+        { ...vue, installed: true, compatibility: 'pending-host' },
+      ]),
     })
     render(<MarketplacePane {...props} />)
     await waitFor(() => { expect(screen.getAllByText('Vue - Official').length).toBeGreaterThan(0) })

@@ -45,7 +45,7 @@ export function spawnDialogWorker(
   data: Win32DialogWorkerData,
   internals: DialogWorkerSpawnInternals = {},
 ): ReturnType<typeof spawn> {
-  const env = { ...(internals.env ?? process.env), DSH_DIALOG_TITLE: data.title }
+  const env: NodeJS.ProcessEnv = { ...(internals.env ?? process.env), DSH_DIALOG_TITLE: data.title }
   if ((internals.electron ?? process.versions.electron) !== undefined) {
     env.ELECTRON_RUN_AS_NODE = '1'
   }

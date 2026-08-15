@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { GitAccessError, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
+import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { ExplorerTab, menuAnchorRect, parentOf } from '../src/client/ExplorerTab.tsx'
@@ -18,11 +18,7 @@ const t = makeTranslate(zh, commonZh)
 
 function mount(opts?: {
   cwd?: string
-  listEntries?: (path: string) => Promise<{
-    path: string
-    entries: readonly { name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }[]
-    truncated: boolean
-  }>
+  listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
   gitStatus?: () => Promise<unknown>
   writeFile?: (path: string, content: string) => Promise<void>
   createDirectory?: (path: string, name: string) => Promise<string>
@@ -33,7 +29,7 @@ function mount(opts?: {
   const openSystem = vi.fn(async () => {})
   const openFile = vi.fn()
   const mentionFile = vi.fn()
-  const listEntries = opts?.listEntries ?? vi.fn(async (path: string) => ({
+  const listEntries = opts?.listEntries ?? vi.fn(async (path: string, _signal?: AbortSignal) => ({
     path,
     truncated: false,
     entries: path === '/ws'

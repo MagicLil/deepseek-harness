@@ -19,15 +19,17 @@ export function memFs(): VsixFs & {
   const writeFile = (async (path: string, data: string | Uint8Array) => {
     files.set(path, data)
   }) as VsixFs['writeFile']
+  const mkdir: VsixFs['mkdir'] = async () => undefined
+  const rm: VsixFs['rm'] = async (path) => {
+    if (String(path).endsWith('throw')) throw new Error('rm-failed')
+    files.delete(String(path))
+  }
   return {
     files,
-    mkdir: (async () => undefined) as VsixFs['mkdir'],
+    mkdir,
     readFile,
     writeFile,
-    rm: (async (path: string) => {
-      if (path.endsWith('throw')) throw new Error('rm-failed')
-      files.delete(path)
-    }) as VsixFs['rm'],
+    rm,
     readText: readFile,
     writeText: writeFile,
   }
@@ -40,14 +42,15 @@ export function jsonFetch(body: unknown, ok = true, status = 200): typeof fetch 
     status,
     json: async () => body,
     arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
-  })) as typeof fetch
+  })) as unknown as typeof fetch
 }
 
 /** Fetch that throws. */
 export function throwFetch(): typeof fetch {
-  return (async () => {
+  const impl: typeof fetch = async () => {
     throw new Error('net')
-  }) as typeof fetch
+  }
+  return impl
 }
 
 function child(close: number | null, error?: Error, bare = false): ReturnType<SpawnFn> {

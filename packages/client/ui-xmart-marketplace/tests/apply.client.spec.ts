@@ -29,14 +29,14 @@ async function bench() {
   }
   new RemoteService(ctx)
   const marketplace = {
-    searchPlugins: vi.fn(async () => emptyList),
-    listInstalledPlugins: vi.fn(async () => emptyList),
-    installPlugin: vi.fn(async () => emptyJob),
-    uninstallPlugin: vi.fn(async () => emptyJob),
-    searchExtensions: vi.fn(async () => emptyList),
-    listInstalledExtensions: vi.fn(async () => emptyList),
-    installExtension: vi.fn(async () => emptyJob),
-    uninstallExtension: vi.fn(async () => emptyJob),
+    searchPlugins: vi.fn(async (_req?: unknown) => emptyList),
+    listInstalledPlugins: vi.fn(async (_req?: unknown) => emptyList),
+    installPlugin: vi.fn(async (_req?: unknown) => emptyJob),
+    uninstallPlugin: vi.fn(async (_req?: unknown) => emptyJob),
+    searchExtensions: vi.fn(async (_req?: unknown) => emptyList),
+    listInstalledExtensions: vi.fn(async (_req?: unknown) => emptyList),
+    installExtension: vi.fn(async (_req?: unknown) => emptyJob),
+    uninstallExtension: vi.fn(async (_req?: unknown) => emptyJob),
   }
   ctx.provide('remote.marketplace', marketplace)
   Object.assign(ctx.get('remote') as object, { marketplace })
@@ -64,7 +64,12 @@ describe('ui-xmart-marketplace apply', () => {
     const extTitle = extensions.title
     expect(typeof title === 'function' ? title() : title).toBe('插件')
     expect(typeof extTitle === 'function' ? extTitle() : extTitle).toBe('扩展')
-    expect(extensions.component({
+    const renderActivity = extensions.component as (props: {
+      tab: { id: string; type: string; title: string }
+      visible: boolean
+      sessionId: string
+    }) => unknown
+    expect(renderActivity({
       tab: { id: 'extensions', type: 'extensions', title: 'e' },
       visible: false,
       sessionId: 's1',
@@ -74,7 +79,7 @@ describe('ui-xmart-marketplace apply', () => {
 
     const rpc = {
       searchPlugins: async (q: string) => (
-        await (b.ctx.remote as { marketplace: typeof b.marketplace }).marketplace.searchPlugins({ query: q })
+        await (b.ctx.remote as unknown as { marketplace: typeof b.marketplace }).marketplace.searchPlugins({ query: q })
       ),
     }
     void rpc
@@ -83,9 +88,9 @@ describe('ui-xmart-marketplace apply', () => {
 
     b.marketplace.searchPlugins.mockResolvedValueOnce({
       ok: false, error: { code: 'E', message: 'nope' },
-    })
+    } as never)
     const paneProps = { id: 'plugins', type: 'plugins', title: 'plugins' }
-    const element = injected({ tab: paneProps, visible: false, sessionId: 's1' })
+    const element = (injected as typeof renderActivity)({ tab: paneProps, visible: false, sessionId: 's1' })
     expect(element).toBeTruthy()
 
     await b.ctx.fiber.dispose()
@@ -95,11 +100,11 @@ describe('ui-xmart-marketplace apply', () => {
     const b = await bench()
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const plugins = b.workbench.getActivity('plugins')!
-    const element = plugins.component({
-      tab: { id: 'plugins', type: 'plugins', title: 'p' },
-      visible: false,
-      sessionId: 's1',
-    }) as { props: {
+    const renderPane = plugins.component as (props: {
+      tab: { id: string; type: string; title: string }
+      visible: boolean
+      sessionId: string
+    }) => { props: {
       searchPlugins: (q: string) => Promise<unknown>
       listInstalledPlugins: () => Promise<unknown>
       installPlugin: (spec: string, allow: boolean) => Promise<unknown>
@@ -109,6 +114,11 @@ describe('ui-xmart-marketplace apply', () => {
       installExtension: (id: string, url?: string) => Promise<unknown>
       uninstallExtension: (id: string) => Promise<unknown>
     } }
+    const element = renderPane({
+      tab: { id: 'plugins', type: 'plugins', title: 'p' },
+      visible: false,
+      sessionId: 's1',
+    })
     const p = element.props
     await expect(p.searchPlugins('q')).resolves.toEqual([])
     await expect(p.listInstalledPlugins()).resolves.toEqual([])
@@ -122,7 +132,7 @@ describe('ui-xmart-marketplace apply', () => {
     b.locale.setLocale('en')
     await expect(p.searchPlugins('q')).resolves.toEqual([])
     expect(b.marketplace.searchPlugins).toHaveBeenCalledWith({ query: 'q', locale: 'en' })
-    b.marketplace.searchPlugins.mockResolvedValueOnce({ ok: false, error: { code: 'E', message: 'x' } })
+    b.marketplace.searchPlugins.mockResolvedValueOnce({ ok: false, error: { code: 'E', message: 'x' } } as never)
     await expect(p.searchPlugins('q')).rejects.toThrow('marketplace.searchPlugins failed')
     await b.ctx.fiber.dispose()
   })

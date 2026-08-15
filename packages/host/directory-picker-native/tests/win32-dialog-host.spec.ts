@@ -5,7 +5,7 @@
  */
 
 const { spawnMock } = vi.hoisted(() => ({
-  spawnMock: vi.fn(() => ({ pid: 1 })),
+  spawnMock: vi.fn<(...args: unknown[]) => { pid: number }>(() => ({ pid: 1 })),
 }))
 
 vi.mock('node:child_process', () => ({
@@ -34,7 +34,9 @@ describe('spawnDialogWorker', () => {
     })
     expect(child).toBe(fakeChild)
     expect(run).toHaveBeenCalledOnce()
-    const [command, args, options] = run.mock.calls[0]!
+    const [command, args, options] = run.mock.calls[0] as unknown as [
+      string, string[], { env: NodeJS.ProcessEnv },
+    ]
     expect(command).toBe('/node')
     expect(args[0]).toBe('--import')
     expect(String(args[2])).toMatch(/win32-dialog-worker\.ts$/)
@@ -43,7 +45,7 @@ describe('spawnDialogWorker', () => {
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
       env: { PATH: '/bin', DSH_DIALOG_TITLE: 'Select Workspace Directory' },
     })
-    expect(options?.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+    expect(options.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
   })
 
   it('launches the sibling worker.cjs from a built-plane metaUrl', () => {
@@ -55,7 +57,7 @@ describe('spawnDialogWorker', () => {
       metaUrl,
       spawn: run as never,
     })
-    const args = run.mock.calls[0]![1] as string[]
+    const args = (run.mock.calls[0] as unknown as [string, string[]])[1]
     expect(args).toEqual([fileURLToPath(new URL('./worker.cjs', metaUrl))])
   })
 
@@ -68,7 +70,7 @@ describe('spawnDialogWorker', () => {
       metaUrl: import.meta.url,
       spawn: run as never,
     })
-    expect(run.mock.calls[0]![2]).toMatchObject({
+    expect((run.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }])[2]).toMatchObject({
       env: { FOO: '1', DSH_DIALOG_TITLE: 'Pick', ELECTRON_RUN_AS_NODE: '1' },
     })
   })
@@ -77,7 +79,7 @@ describe('spawnDialogWorker', () => {
     const child = spawnDialogWorker({ title: 'Live' })
     expect(child).toBe(fakeChild)
     expect(spawnMock).toHaveBeenCalledOnce()
-    const [command, args, options] = spawnMock.mock.calls[0]! as [
+    const [command, args, options] = spawnMock.mock.calls[0] as unknown as [
       string, string[], { env: NodeJS.ProcessEnv },
     ]
     expect(command).toBe(process.execPath)
