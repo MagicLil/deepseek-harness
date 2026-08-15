@@ -23,6 +23,11 @@ export type GitGraphNode = {
   subject: string
   author: string
   timestamp: number
+  body?: string
+  files?: number
+  insertions?: number
+  deletions?: number
+  originUrl?: string
   lane: number
   railCount: number
   rails: readonly number[]
@@ -79,6 +84,11 @@ export function layoutGitGraph(rows: readonly GitLogEntry[]): GitGraphNode[] {
       subject: row.subject,
       author: row.author,
       timestamp: row.timestamp,
+      ...row.body !== undefined ? { body: row.body } : {},
+      ...row.files !== undefined ? { files: row.files } : {},
+      ...row.insertions !== undefined ? { insertions: row.insertions } : {},
+      ...row.deletions !== undefined ? { deletions: row.deletions } : {},
+      ...row.originUrl !== undefined ? { originUrl: row.originUrl } : {},
       lane,
       railCount: Math.max(slots.length, 1),
       rails,

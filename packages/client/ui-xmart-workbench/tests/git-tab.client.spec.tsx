@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
@@ -12,6 +14,7 @@ beforeEach(() => { localStorage.clear() })
 afterEach(() => {
   localStorage.clear()
   cleanup()
+  vi.useRealTimers()
 })
 
 const t = makeTranslate(zh, commonZh)
@@ -29,7 +32,12 @@ const emptyListing: FileListing = { path: '/ws', entries: [], truncated: false }
 function mount(opts?: {
   cwd?: string
   gitStatus?: (path: string) => Promise<GitStatus>
-  gitLog?: () => Promise<{ hash: string; subject: string; author: string; timestamp: number }[]>
+  gitLog?: (
+    path: string,
+    limit?: number,
+    signal?: AbortSignal,
+    skip?: number,
+  ) => Promise<{ hash: string; subject: string; author: string; timestamp: number }[]>
   gitCommit?: (path: string, message: string) => Promise<unknown>
   gitStage?: (path: string, files: readonly string[]) => Promise<void>
   gitSync?: (path: string, mode: 'fetch' | 'pull' | 'push') => Promise<void>
@@ -37,7 +45,7 @@ function mount(opts?: {
   gitCheckout?: (path: string, name: string, create?: boolean) => Promise<void>
   gitCheckoutCommit?: (path: string, hash: string) => Promise<void>
   gitSuggestCommit?: (path: string, sessionId: string) => Promise<{ message: string }>
-  openCommit?: (hash: string, subject: string) => void
+  openCommit?: (hash: string, subject: string, root: string) => void
   listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
 }) {
   const files = createWorkbenchFilesStore()
@@ -88,8 +96,17 @@ function mount(opts?: {
   )
   return {
     files, gitStage, gitUnstage, gitDiscard, gitCommit, gitSync, gitCheckout,
-    gitCheckoutCommit, gitSuggestCommit, openFile, openDiff, openCommit,
+    gitCheckoutCommit, gitSuggestCommit, openFile, openDiff, openCommit, gitLog,
   }
+}
+
+function logPage(start: number, count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    hash: `h${String(start + i).padStart(7, '0')}`,
+    subject: `c${start + i}`,
+    author: 'A',
+    timestamp: start + i,
+  }))
 }
 
 function gitPathButton(key: string) {
@@ -150,7 +167,7 @@ describe('GitTab', () => {
     expect(screen.getByText('a.ts')).toBeTruthy()
     expect(screen.getByText('src/foo')).toBeTruthy()
     fireEvent.click(gitPathButton('worktree:src/foo/a.ts'))
-    expect(openDiff).toHaveBeenCalledWith('worktree', 'src/foo/a.ts')
+    expect(openDiff).toHaveBeenCalledWith('worktree', 'src/foo/a.ts', '/ws')
     expect(openFile).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('提交说明（Ctrl+Enter）'), { target: { value: '   ' } })
     fireEvent.submit(screen.getByLabelText('提交说明（Ctrl+Enter）').closest('form') as HTMLFormElement)
@@ -214,7 +231,7 @@ describe('GitTab', () => {
     const graphRow = () => screen.getByTestId('xmart-git-graph-abcdef1')
     expect(graphRow().querySelectorAll('circle').length).toBeGreaterThan(1)
     fireEvent.click(screen.getByLabelText('查看此提交'))
-    expect(openCommit).toHaveBeenCalledWith('abcdef1', 'init')
+    expect(openCommit).toHaveBeenCalledWith('abcdef1', 'init', '/ws')
     expect(gitCheckoutCommit).not.toHaveBeenCalled()
     expect(graphRow().getAttribute('data-active')).toBe('true')
     fireEvent.click(within(graphRow()).getByText('main'))
@@ -287,6 +304,46 @@ describe('GitTab', () => {
     expect((screen.getByLabelText('提交说明（Ctrl+Enter）') as HTMLTextAreaElement).value).toBe('feat: later')
   })
 
+  it('binds picker row color to the same surface as its background', () => {
+    const text = readFileSync(join(process.cwd(), 'packages/client/ui-xmart-workbench/src/client/GitTab.module.css'), 'utf8')
+    const start = text.indexOf('.pickerItem {')
+    const hover = text.indexOf('.pickerItem:hover')
+    expect(start).toBeGreaterThan(-1)
+    const block = text.slice(start, hover)
+    expect(block).toContain('color: var(--dsw-alias-label-primary)')
+    expect(block).toContain('background: var(--dsw-alias-bg-layer-3)')
+  })
+
+  it('lists branches in a themed menu instead of a native select', async () => {
+    mount({
+      gitStatus: async () => ({
+        ...status, branch: 'feat/xmart-workbench-phase2', ahead: 0, behind: 0, changes: [],
+      }),
+      gitBranches: async () => [
+        { name: 'feat/xmart-workbench-phase0', current: false },
+        { name: 'feat/xmart-workbench-phase1', current: false },
+        { name: 'feat/xmart-workbench-phase2', current: true },
+        { name: 'loean7', current: false },
+        { name: 'master', current: false },
+      ],
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    const trigger = screen.getByTestId('xmart-workbench-git-branch')
+    expect(trigger.tagName).toBe('BUTTON')
+    expect(screen.queryByRole('combobox')).toBeNull()
+    fireEvent.click(trigger)
+    expect(screen.getByTestId('xmart-workbench-git-branch-menu')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'feat/xmart-workbench-phase0' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'loean7' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'a' })
+    expect(screen.getByRole('menuitem', { name: 'loean7' })).toBeTruthy()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('menuitem', { name: 'loean7' })).toBeNull()
+    fireEvent.click(trigger)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menuitem', { name: 'loean7' })).toBeNull()
+  })
+
   it('keeps the branch label when listing branches fails', async () => {
     mount({ gitBranches: async () => { throw new Error('no refs') } })
     expect(await screen.findByText('main')).toBeTruthy()
@@ -320,7 +377,7 @@ describe('GitTab', () => {
       }
       return { ...status, root: '/ws/xmart-backend', branch: 'backend' }
     })
-    mount({
+    const { openDiff, openCommit } = mount({
       gitStatus,
       listEntries: async () => ({
         path: '/ws',
@@ -333,10 +390,19 @@ describe('GitTab', () => {
       }),
     })
     expect(await screen.findByText('backend')).toBeTruthy()
-    const picker = screen.getByTestId('xmart-workbench-git-repo') as HTMLSelectElement
-    expect(picker.options).toHaveLength(2)
-    fireEvent.change(picker, { target: { value: '/ws/xmart-web' } })
+    const picker = screen.getByTestId('xmart-workbench-git-repo')
+    fireEvent.click(picker)
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(gitPathButton('worktree:a.ts'))
+    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts', '/ws/xmart-backend')
+    fireEvent.click(screen.getByLabelText('查看此提交'))
+    expect(openCommit).toHaveBeenCalledWith('abcdef1', 'init', '/ws/xmart-backend')
+    fireEvent.click(picker)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'xmart-web' }))
     expect(await screen.findByText('web')).toBeTruthy()
+    fireEvent.click(gitPathButton('worktree:a.ts'))
+    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts', '/ws/xmart-web')
   })
 
   it('shows an error when the selected child repo fails', async () => {
@@ -363,7 +429,8 @@ describe('GitTab', () => {
       }),
     })
     expect(await screen.findByTestId('xmart-workbench-git-repo')).toBeTruthy()
-    fireEvent.change(screen.getByTestId('xmart-workbench-git-repo'), { target: { value: '/ws/web' } })
+    fireEvent.click(screen.getByTestId('xmart-workbench-git-repo'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'web' }))
     expect(await screen.findByText('Git 状态读取失败。')).toBeTruthy()
     expect(screen.getByText('boom')).toBeTruthy()
   })
@@ -471,7 +538,7 @@ describe('GitTab', () => {
     expect(screen.getByTestId('xmart-git-staged')).toBeTruthy()
     expect(screen.getByTestId('xmart-git-changes')).toBeTruthy()
     fireEvent.click(gitPathButton('index:staged.ts'))
-    expect(openDiff).toHaveBeenCalledWith('staged', 'staged.ts')
+    expect(openDiff).toHaveBeenCalledWith('staged', 'staged.ts', '/ws')
     fireEvent.click(gitRowAction('worktree:dirty.ts', '暂存'))
     await act(async () => { await Promise.resolve() })
     expect(gitStage).toHaveBeenCalledWith('/ws', ['dirty.ts'])
@@ -483,7 +550,7 @@ describe('GitTab', () => {
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['dirty.ts'])
     fireEvent.contextMenu(gitPathButton('index:staged.ts'))
     fireEvent.click(screen.getByText('查看暂存差异'))
-    expect(openDiff).toHaveBeenCalledWith('staged', 'staged.ts')
+    expect(openDiff).toHaveBeenCalledWith('staged', 'staged.ts', '/ws')
     fireEvent.contextMenu(gitPathButton('index:staged.ts'))
     fireEvent.click(screen.getByText('打开文件'))
     expect(openFile).toHaveBeenCalledWith('/ws/staged.ts')
@@ -496,6 +563,67 @@ describe('GitTab', () => {
     fireEvent.click(screen.getByText('全部还原'))
     await act(async () => { await Promise.resolve() })
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['both.ts', 'dirty.ts'])
+  })
+
+  it('collapses and expands staged and changes without hiding the other list', async () => {
+    mount({
+      gitStatus: async () => ({
+        ...status,
+        changes: [
+          { path: 'staged.ts', status: 'modified', area: 'index' },
+          { path: 'dirty.ts', status: 'modified', area: 'worktree' },
+        ],
+      }),
+      gitLog: async () => [],
+    })
+    await act(async () => { await Promise.resolve() })
+    const stagedToggle = screen.getByTestId('xmart-git-staged-toggle')
+    const changesToggle = screen.getByTestId('xmart-git-changes-toggle')
+    expect(stagedToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(changesToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('xmart-git-row-index:staged.ts')).toBeTruthy()
+    expect(screen.getByTestId('xmart-git-row-worktree:dirty.ts')).toBeTruthy()
+    fireEvent.click(stagedToggle)
+    expect(stagedToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('xmart-git-row-index:staged.ts')).toBeNull()
+    expect(screen.getByTestId('xmart-git-row-worktree:dirty.ts')).toBeTruthy()
+    fireEvent.click(changesToggle)
+    expect(changesToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('xmart-git-row-worktree:dirty.ts')).toBeNull()
+    fireEvent.click(stagedToggle)
+    fireEvent.click(changesToggle)
+    expect(stagedToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('xmart-git-row-index:staged.ts')).toBeTruthy()
+    expect(screen.getByTestId('xmart-git-row-worktree:dirty.ts')).toBeTruthy()
+  })
+
+  it('collapses and expands the commit graph', async () => {
+    mount()
+    await act(async () => { await Promise.resolve() })
+    const toggle = screen.getByTestId('xmart-git-history-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('xmart-git-graph-abcdef1')).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('xmart-git-graph-abcdef1')).toBeNull()
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('xmart-git-graph-abcdef1')).toBeTruthy()
+  })
+
+  it('keeps the graph collapsed after a status refresh', async () => {
+    const { files } = mount()
+    await act(async () => { await Promise.resolve() })
+    fireEvent.click(screen.getByTestId('xmart-git-history-toggle'))
+    expect(screen.queryByTestId('xmart-git-graph-abcdef1')).toBeNull()
+    await act(async () => {
+      files.bumpRefresh()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('xmart-git-history-toggle').getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('xmart-git-graph-abcdef1')).toBeNull()
+    expect(screen.queryByText('正在读取 Git 状态…')).toBeNull()
   })
 
   it('runs context-menu verbs and still refreshes after a failed commit', async () => {
@@ -518,7 +646,7 @@ describe('GitTab', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.contextMenu(gitPathButton('worktree:a.ts'))
     fireEvent.click(screen.getByText('查看工作区差异'))
-    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts')
+    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts', '/ws')
     fireEvent.change(screen.getByLabelText('提交说明（Ctrl+Enter）'), { target: { value: 'x' } })
     fireEvent.submit(screen.getByLabelText('提交说明（Ctrl+Enter）').closest('form') as HTMLFormElement)
     await act(async () => { await Promise.resolve() })
@@ -540,9 +668,15 @@ describe('GitTab', () => {
     expect(gitSync).toHaveBeenCalledWith('/ws', 'fetch')
     expect(gitSync).toHaveBeenCalledWith('/ws', 'pull')
     expect(gitSync).toHaveBeenCalledWith('/ws', 'push')
-    fireEvent.change(screen.getByTestId('xmart-workbench-git-branch'), { target: { value: 'main' } })
+    const branch = screen.getByTestId('xmart-workbench-git-branch')
+    fireEvent.click(branch)
+    fireEvent.click(branch)
+    expect(screen.queryByRole('menuitem', { name: 'feat' })).toBeNull()
+    fireEvent.click(branch)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'main' }))
     expect(gitCheckout).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByTestId('xmart-workbench-git-branch'), { target: { value: 'feat' } })
+    fireEvent.click(branch)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'feat' }))
     await act(async () => { await Promise.resolve() })
     expect(gitCheckout).toHaveBeenCalledWith('/ws', 'feat')
     fireEvent.change(screen.getByLabelText('新分支名'), { target: { value: 'bad..name' } })
@@ -679,6 +813,207 @@ describe('GitTab', () => {
   })
 })
 
+describe('GitTab hover card', () => {
+  const now = 1_777_000_000_000
+
+  it('shows Cursor-style commit details and copies the hash', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.assign(navigator, { clipboard: { writeText } })
+    mount({
+      gitLog: async () => [{
+        hash: '5120bf4aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        subject: 'feat(ui): keep widths',
+        author: 'lx',
+        timestamp: Math.floor(now / 1000) - 3600,
+        body: 'why this\n\nCo-authored-by: Cursor <cursoragent@cursor.com>',
+        files: 16,
+        insertions: 442,
+        deletions: 8,
+        originUrl: 'git@github.com:acme/app.git',
+        refs: [
+          { kind: 'head', name: 'HEAD' },
+          { kind: 'branch', name: 'feat/x' },
+          { kind: 'remote', name: 'origin/feat/x' },
+        ],
+      }],
+    })
+    await act(async () => { await Promise.resolve() })
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const wrap = screen.getByTestId('xmart-git-graph-5120bf4aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').parentElement as HTMLElement
+    fireEvent.pointerEnter(wrap)
+    await act(async () => { vi.advanceTimersByTime(400) })
+    const card = screen.getByTestId('xmart-git-hover')
+    expect(card.closest('[data-testid="xmart-workbench-git"]')).toBeNull()
+    expect(document.body.contains(card)).toBe(true)
+    expect(card.textContent).toMatch(/lx/)
+    expect(card.textContent).toMatch(/小时前/)
+    expect(card.textContent).toMatch(/feat\(ui\): keep widths/)
+    expect(card.textContent).toMatch(/why this/)
+    expect(card.textContent).toMatch(/Co-authored-by: Cursor/)
+    expect(card.textContent).toMatch(/16 files changed/)
+    expect(card.textContent).toMatch(/442 insertions/)
+    expect(card.textContent).toMatch(/8 deletions/)
+    expect(within(card).getByText('feat/x')).toBeTruthy()
+    expect(within(card).getByText('origin/feat/x')).toBeTruthy()
+    expect(card.textContent).toMatch(/5120bf4/)
+    expect(within(card).getByText('在 GitHub 上打开')).toBeTruthy()
+    expect((within(card).getByText('在 GitHub 上打开') as HTMLAnchorElement).href)
+      .toMatch(/github\.com\/acme\/app\/commit/)
+    fireEvent.click(screen.getByLabelText('复制提交哈希'))
+    await act(async () => { await Promise.resolve() })
+    expect(writeText).toHaveBeenCalledWith('5120bf4aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    expect(screen.getByLabelText('已复制')).toBeTruthy()
+    fireEvent.pointerLeave(wrap)
+    await act(async () => { vi.advanceTimersByTime(200) })
+    expect(screen.queryByTestId('xmart-git-hover')).toBeNull()
+  })
+
+  it('hides empty hover slots, cancels a pending show, and dismisses on scroll', async () => {
+    const clipboard = navigator.clipboard
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    mount({
+      gitLog: async () => [{
+        hash: 'deadbee',
+        subject: 'solo',
+        author: '',
+        timestamp: 1,
+        files: 1,
+      }],
+    })
+    await act(async () => { await Promise.resolve() })
+    vi.useFakeTimers()
+    const wrap = screen.getByTestId('xmart-git-graph-deadbee').parentElement as HTMLElement
+    fireEvent.pointerEnter(wrap)
+    fireEvent.pointerLeave(wrap)
+    await act(async () => { vi.advanceTimersByTime(400) })
+    expect(screen.queryByTestId('xmart-git-hover')).toBeNull()
+    fireEvent.pointerEnter(wrap)
+    await act(async () => { vi.advanceTimersByTime(400) })
+    const card = screen.getByTestId('xmart-git-hover')
+    expect(card.textContent).toMatch(/solo/)
+    expect(card.textContent).toMatch(/1 file changed/)
+    expect(card.textContent).not.toMatch(/insertion/)
+    expect(within(card).queryByText('在 GitHub 上打开')).toBeNull()
+    fireEvent.click(screen.getByLabelText('复制提交哈希'))
+    fireEvent.pointerLeave(wrap)
+    await act(async () => { vi.advanceTimersByTime(200) })
+    expect(screen.queryByTestId('xmart-git-hover')).toBeNull()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
+  })
+
+  it('keeps the card when the pointer moves onto it', async () => {
+    mount({
+      gitLog: async () => [{ hash: 'abcdef1', subject: 'init', author: 'Ann', timestamp: 1 }],
+    })
+    await act(async () => { await Promise.resolve() })
+    vi.useFakeTimers()
+    const wrap = screen.getByTestId('xmart-git-graph-abcdef1').parentElement as HTMLElement
+    fireEvent.pointerEnter(wrap)
+    await act(async () => { vi.advanceTimersByTime(400) })
+    expect(screen.getByTestId('xmart-git-hover')).toBeTruthy()
+    fireEvent.pointerLeave(wrap)
+    fireEvent.pointerEnter(wrap)
+    await act(async () => { vi.advanceTimersByTime(200) })
+    expect(screen.getByTestId('xmart-git-hover')).toBeTruthy()
+  })
+
+  it('loads older commits when the graph is scrolled to the bottom', async () => {
+    const gitLog = vi.fn(async (_path: string, _limit?: number, _signal?: AbortSignal, skip = 0) => {
+      if (skip === 0) return logPage(0, 80)
+      if (skip === 80) return logPage(80, 80)
+      return logPage(160, 5)
+    })
+    mount({ gitLog })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('c0')).toBeTruthy()
+    expect(screen.queryByText('c80')).toBeNull()
+    expect(screen.getByTestId('xmart-git-history-more')).toBeTruthy()
+    await act(async () => {
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('c80')).toBeTruthy()
+    expect(gitLog).toHaveBeenCalledWith('/ws', 80, undefined, 80)
+    await act(async () => {
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('c160')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-git-history-more')).toBeNull()
+  })
+
+  it('does not fetch when the graph is not near the bottom', async () => {
+    const gitLog = vi.fn(async () => logPage(0, 80))
+    mount({ gitLog })
+    await act(async () => { await Promise.resolve() })
+    const body = screen.getByTestId('xmart-git-body')
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, value: 2000 })
+    Object.defineProperty(body, 'scrollTop', { configurable: true, value: 0 })
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 200 })
+    fireEvent.scroll(body)
+    await act(async () => { await Promise.resolve() })
+    expect(gitLog).toHaveBeenCalledOnce()
+  })
+
+  it('does not fetch again when the first page is short', async () => {
+    const { gitLog } = mount()
+    await act(async () => { await Promise.resolve() })
+    fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+    await act(async () => { await Promise.resolve() })
+    expect(gitLog).toHaveBeenCalledOnce()
+  })
+
+  it('keeps painted rows when the next page fails or is not an array', async () => {
+    const gitLog = vi.fn(async (_path: string, _limit?: number, _signal?: AbortSignal, skip = 0) => {
+      if (skip === 0) return logPage(0, 80)
+      throw new Error('no page')
+    })
+    mount({ gitLog })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => {
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('c0')).toBeTruthy()
+    expect(screen.getByTestId('xmart-git-history-more')).toBeTruthy()
+    cleanup()
+    const broken = vi.fn(async (_path: string, _limit?: number, _signal?: AbortSignal, skip = 0) => {
+      if (skip === 0) return logPage(0, 80)
+      return undefined as never
+    })
+    mount({ gitLog: broken })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => {
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('c0')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-git-history-more')).toBeNull()
+  })
+
+  it('ignores a second scroll while the next page is in flight', async () => {
+    let finish: (rows: ReturnType<typeof logPage>) => void = () => {}
+    const gitLog = vi.fn(async (_path: string, _limit?: number, _signal?: AbortSignal, skip = 0) => {
+      if (skip === 0) return logPage(0, 80)
+      return new Promise<ReturnType<typeof logPage>>((resolve) => { finish = resolve })
+    })
+    mount({ gitLog })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => {
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+      fireEvent.scroll(screen.getByTestId('xmart-git-body'))
+    })
+    expect(screen.getByText('正在加载更早的提交…')).toBeTruthy()
+    expect(gitLog).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      finish(logPage(80, 10))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('c80')).toBeTruthy()
+  })
+})
+
 describe('gitMenuAnchor', () => {
   it('uses the click point or the origin', () => {
     expect(gitMenuAnchor(null)).toMatchObject({ x: 0, y: 0 })
@@ -709,8 +1044,8 @@ describe('handleGitMenuSelect', () => {
     expect(gitStage).toHaveBeenCalledWith('/ws', ['a.ts'])
     expect(gitUnstage).toHaveBeenCalledWith('/ws', ['a.ts'])
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['a.ts'])
-    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts')
-    expect(openDiff).toHaveBeenCalledWith('staged', 'a.ts')
+    expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts', '/ws')
+    expect(openDiff).toHaveBeenCalledWith('staged', 'a.ts', '/ws')
     expect(openFile).toHaveBeenCalledWith('/ws/a.ts')
   })
 })

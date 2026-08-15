@@ -106,6 +106,18 @@ export type WorkbenchKey =
   | 'git.generating'
   | 'git.checkoutCommit'
   | 'git.openCommit'
+  | 'git.hoverNow'
+  | 'git.hoverMinutes'
+  | 'git.hoverHours'
+  | 'git.hoverDays'
+  | 'git.hoverMonths'
+  | 'git.hoverYears'
+  | 'git.copyHash'
+  | 'git.copied'
+  | 'git.openOnGitHub'
+  | 'git.openOnGitLab'
+  | 'git.openOnGitee'
+  | 'git.openOnRemote'
   | 'git.stage'
   | 'git.unstage'
   | 'git.stageAll'
@@ -115,6 +127,7 @@ export type WorkbenchKey =
   | 'git.changes'
   | 'git.history'
   | 'git.graph'
+  | 'git.loadingMore'
   | 'git.discard'
   | 'git.diffWorktree'
   | 'git.diffStaged'
@@ -294,6 +307,18 @@ export const zh: Record<WorkbenchKey, string> = {
   'git.generating': '正在生成…',
   'git.checkoutCommit': '检出此提交',
   'git.openCommit': '查看此提交',
+  'git.hoverNow': '刚刚',
+  'git.hoverMinutes': '{n} 分钟前',
+  'git.hoverHours': '{n} 小时前',
+  'git.hoverDays': '{n} 天前',
+  'git.hoverMonths': '{n} 个月前',
+  'git.hoverYears': '{n} 年前',
+  'git.copyHash': '复制提交哈希',
+  'git.copied': '已复制',
+  'git.openOnGitHub': '在 GitHub 上打开',
+  'git.openOnGitLab': '在 GitLab 上打开',
+  'git.openOnGitee': '在 Gitee 上打开',
+  'git.openOnRemote': '在远端打开',
   'git.stage': '暂存',
   'git.unstage': '取消暂存',
   'git.stageAll': '全部暂存',
@@ -303,6 +328,7 @@ export const zh: Record<WorkbenchKey, string> = {
   'git.changes': '更改',
   'git.history': '历史',
   'git.graph': '图表',
+  'git.loadingMore': '正在加载更早的提交…',
   'git.discard': '还原',
   'git.diffWorktree': '查看工作区差异',
   'git.diffStaged': '查看暂存差异',
@@ -470,6 +496,18 @@ export const en: Record<WorkbenchKey, string> = {
   'git.generating': 'Generating…',
   'git.checkoutCommit': 'Check out this commit',
   'git.openCommit': 'Open this commit',
+  'git.hoverNow': 'just now',
+  'git.hoverMinutes': '{n} minutes ago',
+  'git.hoverHours': '{n} hours ago',
+  'git.hoverDays': '{n} days ago',
+  'git.hoverMonths': '{n} months ago',
+  'git.hoverYears': '{n} years ago',
+  'git.copyHash': 'Copy commit hash',
+  'git.copied': 'Copied',
+  'git.openOnGitHub': 'Open on GitHub',
+  'git.openOnGitLab': 'Open on GitLab',
+  'git.openOnGitee': 'Open on Gitee',
+  'git.openOnRemote': 'Open on remote',
   'git.stage': 'Stage',
   'git.unstage': 'Unstage',
   'git.stageAll': 'Stage All',
@@ -479,6 +517,7 @@ export const en: Record<WorkbenchKey, string> = {
   'git.changes': 'Changes',
   'git.history': 'History',
   'git.graph': 'Graph',
+  'git.loadingMore': 'Loading earlier commits…',
   'git.discard': 'Discard',
   'git.diffWorktree': 'Diff worktree',
   'git.diffStaged': 'Diff staged',

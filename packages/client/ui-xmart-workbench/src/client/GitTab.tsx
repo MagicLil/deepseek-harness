@@ -3,13 +3,14 @@
  * When the session cwd is a multi-project folder, discovers git repos in
  * immediate child directories (VS Code `git.autoRepositoryDetection`).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
   FileListing, GitBranch, GitChange, GitLogEntry, GitStatus, GitSyncMode,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  IconCheckOutline16, IconPlusOutline16, IconRefreshOutline16, IconSparkle16,
-  Menu,
+  HoverCard, IconCheckOutline16, IconChevronDownOutline14, IconCopyOutline16,
+  IconLinkOutline16, IconPlusOutline16, IconRefreshOutline16, IconSparkle16,
+  IconUserOutline16, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TabBodyProps } from './types.ts'
 import type { WorkbenchKey } from './locales.ts'
@@ -20,7 +21,12 @@ import {
   probeGitRoots, readGitSnapshot, visibleChildDirectories,
 } from './git-root.ts'
 import { gitFileKind, gitPathParts } from './git-display.ts'
-import { gitLaneClass, gitRefClass, layoutGitGraph, type GitGraphRef } from './git-graph.ts'
+import { gitLaneClass, gitRefClass, layoutGitGraph, type GitGraphNode, type GitGraphRef } from './git-graph.ts'
+import { gitHoverModel, gitRelativeLabel, gitWebLabel } from './git-hover.ts'
+import {
+  GIT_LOG_PAGE_SIZE, canRequestGitLogPage, gitHistoryObserverTarget, gitLogHasMore,
+  mergeGitLogPage, observeGitHistorySentinel, shouldLoadMoreFromScroll,
+} from './git-log-page.ts'
 import {
   gitActionMessage, gitChangeKey, gitDiffSideOf, gitMenuItemIds, gitSectionPaths,
   isGitBranchName, partitionGitChanges, runGitSyncSequence,
@@ -29,6 +35,81 @@ import css from './GitTab.module.css'
 
 type Translate = (key: WorkbenchKey) => string
 type Phase = 'loading' | 'ready' | 'missing' | 'error'
+
+/**
+ * Toolbar picker whose open list paints color and background on the same
+ * row. Native `<select>` and a portaled Menu both split those two paints
+ * (OS chrome / another package's CSS), which is the contrast failure.
+ */
+function GitToolbarSelect(props: {
+  label: string
+  testId: string
+  value: string
+  display: string
+  disabled?: boolean
+  items: readonly { id: string; label: string }[]
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.composedPath().includes(rootRef.current as EventTarget)) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <span ref={rootRef} className={css.picker}>
+      <button
+        type="button"
+        className={css.branchSelect}
+        aria-label={props.label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid={props.testId}
+        disabled={props.disabled}
+        title={props.display}
+        onClick={() => { setOpen(current => !current) }}
+      >
+        <span className={css.pickerLabel}>{props.display}</span>
+        <IconChevronDownOutline14 className={css.pickerChevron} />
+      </button>
+      {open
+        ? (
+          <div className={css.pickerMenu} role="menu" data-testid={`${props.testId}-menu`}>
+            {props.items.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                className={item.id === props.value ? `${css.pickerItem} ${css.pickerItemCurrent}` : css.pickerItem}
+                onClick={() => {
+                  setOpen(false)
+                  props.onSelect(item.id)
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )
+        : null}
+    </span>
+  )
+}
 
 export type GitTabProps = TabBodyProps & {
   t: Translate
@@ -40,15 +121,20 @@ export type GitTabProps = TabBodyProps & {
   gitUnstage: (path: string, files: readonly string[]) => Promise<void>
   gitDiscard: (path: string, files: readonly string[]) => Promise<void>
   gitCommit: (path: string, message: string) => Promise<unknown>
-  gitLog: (path: string, limit?: number) => Promise<GitLogEntry[]>
+  gitLog: (
+    path: string,
+    limit?: number,
+    signal?: AbortSignal,
+    skip?: number,
+  ) => Promise<GitLogEntry[]>
   gitSync: (path: string, mode: GitSyncMode) => Promise<void>
   gitBranches: (path: string, signal?: AbortSignal) => Promise<GitBranch[]>
   gitCheckout: (path: string, name: string, create?: boolean) => Promise<void>
   gitCheckoutCommit: (path: string, hash: string) => Promise<void>
   gitSuggestCommit: (path: string, sessionId: string) => Promise<{ message: string }>
   openFile: (path: string) => void
-  openDiff: (side: 'worktree' | 'staged', file: string) => void
-  openCommit: (hash: string, subject: string) => void
+  openDiff: (side: 'worktree' | 'staged', file: string, root: string) => void
+  openCommit: (hash: string, subject: string, root: string) => void
   files: WorkbenchFilesStore
 }
 
@@ -62,6 +148,8 @@ export function GitTab({
   const [phase, setPhase] = useState<Phase>('loading')
   const [status, setStatus] = useState<GitStatus | undefined>()
   const [log, setLog] = useState<GitLogEntry[]>([])
+  const [logHasMore, setLogHasMore] = useState(false)
+  const [logLoading, setLogLoading] = useState(false)
   const [repos, setRepos] = useState<string[]>([])
   const [selected, setSelected] = useState<string | undefined>()
   const [detail, setDetail] = useState<string | undefined>()
@@ -74,6 +162,17 @@ export function GitTab({
   const [activeHash, setActiveHash] = useState<string>()
   const [menu, setMenu] = useState<{ change: GitChange; x: number; y: number } | null>(null)
   const [nonce, setNonce] = useState(0)
+  const [sectionOpen, setSectionOpen] = useState({ staged: true, changes: true, graph: true })
+  const toggleSection = (key: keyof typeof sectionOpen) => {
+    setSectionOpen(current => ({ ...current, [key]: !current[key] }))
+  }
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef(log)
+  const hasMoreRef = useRef(false)
+  const moreLock = useRef(false)
+  const rootRef = useRef<string | undefined>()
+  logRef.current = log
 
   useEffect(() => watchSessions(() => { setCwd(getCwd(sessionId)) }), [getCwd, sessionId, watchSessions])
   useEffect(() => files.subscribe(() => { setNonce(files.getSnapshot().refreshNonce) }), [files])
@@ -89,10 +188,16 @@ export function GitTab({
       return
     }
     const controller = new AbortController()
-    setPhase('loading')
+    setPhase(current => (current === 'ready' ? 'ready' : 'loading'))
     const apply = async (next: GitStatus, rows: GitLogEntry[], roots?: string[]) => {
       setStatus(next)
       setLog(rows)
+      const more = gitLogHasMore(rows)
+      hasMoreRef.current = more
+      rootRef.current = next.root
+      moreLock.current = false
+      setLogHasMore(more)
+      setLogLoading(false)
       setRepos(current => roots ?? (current.length > 0 ? current : [next.root]))
       setDetail(undefined)
       setPhase('ready')
@@ -145,6 +250,34 @@ export function GitTab({
     })()
     return () => { controller.abort() }
   }, [cwd, nonce, selected, gitStatus, gitLog, gitBranches, listEntries])
+
+  const requestMore = () => {
+    const nextRoot = rootRef.current
+    if (!canRequestGitLogPage(nextRoot, moreLock.current, hasMoreRef.current)) return
+    moreLock.current = true
+    setLogLoading(true)
+    void gitLog(nextRoot, GIT_LOG_PAGE_SIZE, undefined, logRef.current.length).then(
+      (rows) => {
+        const page = Array.isArray(rows) ? rows : []
+        const merged = mergeGitLogPage(logRef.current, page)
+        setLog(merged.rows)
+        hasMoreRef.current = merged.hasMore
+        setLogHasMore(merged.hasMore)
+        moreLock.current = false
+        setLogLoading(false)
+      },
+      () => {
+        moreLock.current = false
+        setLogLoading(false)
+      },
+    )
+  }
+
+  useEffect(() => {
+    const target = gitHistoryObserverTarget(logHasMore, moreRef.current)
+    if (target === null) return
+    return observeGitHistorySentinel(target, bodyRef.current, requestMore)
+  }, [logHasMore, log.length, gitLog])
 
   if (cwd === undefined || cwd === '') {
     return <div className={css.note} data-testid="xmart-workbench-git">{t('git.noWorkspace')}</div>
@@ -205,38 +338,30 @@ export function GitTab({
       <div className={css.toolbar}>
         {repos.length > 1
           ? (
-            <select
-              className={css.repo}
-              aria-label={t('git.repo')}
-              data-testid="xmart-workbench-git-repo"
+            <GitToolbarSelect
+              label={t('git.repo')}
+              testId="xmart-workbench-git-repo"
               value={root}
-              onChange={(event) => { setSelected(event.target.value) }}
-            >
-              {repos.map(path => (
-                <option key={path} value={path}>{basename(path)}</option>
-              ))}
-            </select>
+              display={basename(root)}
+              items={repos.map(path => ({ id: path, label: basename(path) }))}
+              onSelect={(path) => { setSelected(path) }}
+            />
           )
           : null}
         {branches.length > 0
           ? (
-            <select
-              className={css.branchSelect}
-              aria-label={t('git.branch')}
-              data-testid="xmart-workbench-git-branch"
-              disabled={busy || status.detached}
+            <GitToolbarSelect
+              label={t('git.branch')}
+              testId="xmart-workbench-git-branch"
               value={status.detached ? '' : status.branch}
-              onChange={(event) => {
-                const name = event.target.value
-                if (name === '' || name === status.branch) return
+              display={status.detached ? t('git.detached') : status.branch}
+              disabled={busy || status.detached}
+              items={branches.map(row => ({ id: row.name, label: row.name }))}
+              onSelect={(name) => {
+                if (name === status.branch) return
                 run(() => gitCheckout(root, name))
               }}
-            >
-              {status.detached ? <option value="">{t('git.detached')}</option> : null}
-              {branches.map(row => (
-                <option key={row.name} value={row.name}>{row.name}</option>
-              ))}
-            </select>
+            />
           )
           : (
             <span className={css.branch}>
@@ -336,45 +461,59 @@ export function GitTab({
           <IconCheckOutline16 size={16} />
         </button>
       </form>
-      <div className={css.body}>
+      <div
+        ref={bodyRef}
+        className={css.body}
+        data-testid="xmart-git-body"
+        onScroll={(event) => {
+          if (shouldLoadMoreFromScroll(event.currentTarget)) requestMore()
+        }}
+      >
         {staged.length === 0 && unstaged.length === 0
           ? <div className={css.note}>{t('git.clean')}</div>
           : (
             <>
               {staged.length > 0
                 ? (
-                  <section data-testid="xmart-git-staged">
-                    <div className={css.sectionHead}>
-                      <span>{t('git.staged')} · {staged.length}</span>
-                      <span className={css.sectionActions}>
-                        <button
-                          type="button"
-                          className={css.tool}
-                          onClick={() => { run(() => gitUnstage(root, gitSectionPaths(staged))) }}
-                        >
-                          {t('git.unstageAll')}
-                        </button>
-                      </span>
-                    </div>
+                  <GitChangeSection
+                    testId="xmart-git-staged"
+                    title={t('git.staged')}
+                    open={sectionOpen.staged}
+                    onToggle={() => { toggleSection('staged') }}
+                    count={staged.length}
+                    actions={(
+                      <button
+                        type="button"
+                        className={css.tool}
+                        onClick={() => { run(() => gitUnstage(root, gitSectionPaths(staged))) }}
+                      >
+                        {t('git.unstageAll')}
+                      </button>
+                    )}
+                  >
                     {staged.map(change => (
                       <GitChangeRow
                         key={gitChangeKey(change)}
                         change={change}
                         t={t}
-                        onOpen={() => { openDiff(gitDiffSideOf(change), change.path) }}
+                        onOpen={() => { openDiff(gitDiffSideOf(change), change.path, root) }}
                         onMenu={(x, y) => { setMenu({ change, x, y }) }}
                         onUnstage={() => { run(() => gitUnstage(root, [change.path])) }}
                       />
                     ))}
-                  </section>
+                  </GitChangeSection>
                 )
                 : null}
               {unstaged.length > 0
                 ? (
-                  <section data-testid="xmart-git-changes">
-                    <div className={css.sectionHead}>
-                      <span>{t('git.changes')} · {unstaged.length}</span>
-                      <span className={css.sectionActions}>
+                  <GitChangeSection
+                    testId="xmart-git-changes"
+                    title={t('git.changes')}
+                    open={sectionOpen.changes}
+                    onToggle={() => { toggleSection('changes') }}
+                    count={unstaged.length}
+                    actions={(
+                      <>
                         <button
                           type="button"
                           className={css.tool}
@@ -389,118 +528,140 @@ export function GitTab({
                         >
                           {t('git.discardAll')}
                         </button>
-                      </span>
-                    </div>
+                      </>
+                    )}
+                  >
                     {unstaged.map(change => (
                       <GitChangeRow
                         key={gitChangeKey(change)}
                         change={change}
                         t={t}
-                        onOpen={() => { openDiff(gitDiffSideOf(change), change.path) }}
+                        onOpen={() => { openDiff(gitDiffSideOf(change), change.path, root) }}
                         onMenu={(x, y) => { setMenu({ change, x, y }) }}
                         onStage={() => { run(() => gitStage(root, [change.path])) }}
                         onDiscard={() => { run(() => gitDiscard(root, [change.path])) }}
                       />
                     ))}
-                  </section>
+                  </GitChangeSection>
                 )
                 : null}
             </>
           )}
         {graph.length > 0
           ? (
-            <section data-testid="xmart-git-history">
-              <div className={css.sectionHead}>{t('git.graph')}</div>
+            <GitChangeSection
+              testId="xmart-git-history"
+              title={t('git.graph')}
+              open={sectionOpen.graph}
+              onToggle={() => { toggleSection('graph') }}
+            >
               {graph.map(row => (
-                <div
+                <HoverCard
                   key={row.hash}
-                  className={`${css.history} ${activeHash === row.hash ? css.historyActive : ''}`}
-                  data-testid={`xmart-git-graph-${row.hash}`}
-                  data-active={activeHash === row.hash ? 'true' : undefined}
-                >
-                  <button
-                    type="button"
-                    className={css.historyHit}
-                    aria-label={t('git.openCommit')}
-                    onClick={() => {
-                      setActiveHash(row.hash)
-                      openCommit(row.hash, row.subject)
-                    }}
-                  >
-                    <svg
-                      className={css.graph}
-                      width={row.railCount * GRAPH_LANE + 8}
-                      height={GRAPH_ROW}
-                      aria-hidden
+                  openDelayMs={HOVER_SHOW_MS}
+                  content={<GitCommitHover row={row} t={t} />}
+                  anchor={(
+                    <div
+                      className={`${css.history} ${activeHash === row.hash ? css.historyActive : ''}`}
+                      data-testid={`xmart-git-graph-${row.hash}`}
+                      data-active={activeHash === row.hash ? 'true' : undefined}
                     >
-                      {row.rails.map(rail => (
-                        <line
-                          key={rail}
-                          className={css[gitLaneClass(rail)]}
-                          x1={rail * GRAPH_LANE + 6}
-                          y1={0}
-                          x2={rail * GRAPH_LANE + 6}
-                          y2={GRAPH_ROW}
-                        />
-                      ))}
-                      {row.merges.map(edge => (
-                        <path
-                          key={`${edge.from}-${edge.to}`}
-                          className={css[gitLaneClass(edge.to)]}
-                          fill="none"
-                          d={`M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_ROW - 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW}`}
-                        />
-                      ))}
-                      {row.refs.some(ref => ref.kind === 'head')
-                        ? (
+                      <button
+                        type="button"
+                        className={css.historyHit}
+                        aria-label={t('git.openCommit')}
+                        onClick={() => {
+                          setActiveHash(row.hash)
+                          openCommit(row.hash, row.subject, root)
+                        }}
+                      >
+                        <svg
+                          className={css.graph}
+                          width={row.railCount * GRAPH_LANE + 8}
+                          height={GRAPH_ROW}
+                          aria-hidden
+                        >
+                          {row.rails.map(rail => (
+                            <line
+                              key={rail}
+                              className={css[gitLaneClass(rail)]}
+                              x1={rail * GRAPH_LANE + 6}
+                              y1={0}
+                              x2={rail * GRAPH_LANE + 6}
+                              y2={GRAPH_ROW}
+                            />
+                          ))}
+                          {row.merges.map(edge => (
+                            <path
+                              key={`${edge.from}-${edge.to}`}
+                              className={css[gitLaneClass(edge.to)]}
+                              fill="none"
+                              d={`M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_ROW - 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW}`}
+                            />
+                          ))}
+                          {row.refs.some(ref => ref.kind === 'head')
+                            ? (
+                              <circle
+                                className={`${css.headRing} ${css[gitLaneClass(row.lane)]}`}
+                                cx={row.lane * GRAPH_LANE + 6}
+                                cy={GRAPH_MID}
+                                r={6}
+                              />
+                            )
+                            : null}
                           <circle
-                            className={`${css.headRing} ${css[gitLaneClass(row.lane)]}`}
+                            className={css[gitLaneClass(row.lane)]}
                             cx={row.lane * GRAPH_LANE + 6}
                             cy={GRAPH_MID}
-                            r={6}
+                            r={4}
                           />
+                        </svg>
+                        <span className={css.historyBody}>
+                          <span className={css.subject}>{row.subject}</span>
+                          {row.author !== '' ? <span className={css.author}>{row.author}</span> : null}
+                        </span>
+                      </button>
+                      {row.refs.length > 0
+                        ? (
+                          <span className={css.refs}>
+                            {row.refs.map((ref: GitGraphRef) => (
+                              <button
+                                key={`${ref.kind}:${ref.name}`}
+                                type="button"
+                                className={`${css.ref} ${css[gitRefClass(ref.kind)]}`}
+                                title={ref.kind === 'remote' || ref.kind === 'tag' ? t('git.checkoutCommit') : undefined}
+                                disabled={ref.kind === 'head' || busy}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  if (ref.kind === 'branch') {
+                                    run(() => gitCheckout(root, ref.name))
+                                    return
+                                  }
+                                  run(() => gitCheckoutCommit(root, row.hash))
+                                }}
+                              >
+                                {ref.name}
+                              </button>
+                            ))}
+                          </span>
                         )
                         : null}
-                      <circle
-                        className={css[gitLaneClass(row.lane)]}
-                        cx={row.lane * GRAPH_LANE + 6}
-                        cy={GRAPH_MID}
-                        r={4}
-                      />
-                    </svg>
-                    <span className={css.historyBody}>
-                      <span className={css.subject}>{row.subject}</span>
-                      {row.author !== '' ? <span className={css.author}>{row.author}</span> : null}
-                    </span>
-                  </button>
-                  {row.refs.length > 0
-                    ? (
-                      <span className={css.refs}>
-                        {row.refs.map((ref: GitGraphRef) => (
-                          <button
-                            key={`${ref.kind}:${ref.name}`}
-                            type="button"
-                            className={`${css.ref} ${css[gitRefClass(ref.kind)]}`}
-                            title={ref.kind === 'remote' || ref.kind === 'tag' ? t('git.checkoutCommit') : undefined}
-                            disabled={ref.kind === 'head' || busy}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              if (ref.kind === 'branch') {
-                                run(() => gitCheckout(root, ref.name))
-                                return
-                              }
-                              run(() => gitCheckoutCommit(root, row.hash))
-                            }}
-                          >
-                            {ref.name}
-                          </button>
-                        ))}
-                      </span>
-                    )
-                    : null}
-                </div>
+                    </div>
+                  )}
+                />
               ))}
-            </section>
+              {logHasMore
+                ? (
+                  <div
+                    ref={moreRef}
+                    className={css.historyMore}
+                    data-testid="xmart-git-history-more"
+                  >
+                    {logLoading ? t('git.loadingMore') : null}
+                  </div>
+                )
+                : null}
+            </GitChangeSection>
           )
           : null}
       </div>
@@ -521,6 +682,42 @@ export function GitTab({
         anchor={<span />}
       />
     </div>
+  )
+}
+
+function GitChangeSection(props: {
+  testId: string
+  title: string
+  open: boolean
+  onToggle: () => void
+  count?: number
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section data-testid={props.testId}>
+      <div className={css.sectionHead}>
+        <button
+          type="button"
+          className={css.sectionToggle}
+          aria-expanded={props.open}
+          data-testid={`${props.testId}-toggle`}
+          onClick={props.onToggle}
+        >
+          <span className={props.open ? css.chevron : `${css.chevron} ${css.chevronClosed}`} aria-hidden>
+            <IconChevronDownOutline14 size={14} />
+          </span>
+          <span className={css.sectionTitle}>{props.title}</span>
+          {props.count !== undefined
+            ? <span className={css.sectionCount}>{props.count}</span>
+            : null}
+        </button>
+        {props.actions !== undefined
+          ? <span className={css.sectionActions}>{props.actions}</span>
+          : null}
+      </div>
+      {props.open ? props.children : null}
+    </section>
   )
 }
 
@@ -621,11 +818,104 @@ export function handleGitMenuSelect(
   if (id === 'stage') ops.run(() => ops.gitStage(cwd, [change.path]))
   if (id === 'unstage') ops.run(() => ops.gitUnstage(cwd, [change.path]))
   if (id === 'discard') ops.run(() => ops.gitDiscard(cwd, [change.path]))
-  if (id === 'diff-work') ops.openDiff('worktree', change.path)
-  if (id === 'diff-staged') ops.openDiff('staged', change.path)
+  if (id === 'diff-work') ops.openDiff('worktree', change.path, root)
+  if (id === 'diff-staged') ops.openDiff('staged', change.path, root)
   if (id === 'open') ops.openFile(absPath(root, change.path))
+}
+
+function GitCommitHover(props: { row: GitGraphNode; t: Translate }) {
+  const [copied, setCopied] = useState(false)
+  const model = gitHoverModel(props.row, Date.now())
+  return (
+    <div className={css.hover} data-testid="xmart-git-hover">
+      <div className={css.hoverMeta}>
+        {model.author !== ''
+          ? (
+            <span className={css.hoverAuthor}>
+              <IconUserOutline16 size={12} />
+              {model.author}
+            </span>
+          )
+          : null}
+        <span className={css.hoverTime}>
+          <HoverClockIcon />
+          {gitRelativeLabel(model.relative, props.t)}
+          <span className={css.hoverExact}>({model.exact})</span>
+        </span>
+      </div>
+      <div className={css.hoverSubject}>{model.subject}</div>
+      {model.bodyLines.map(line => (
+        <div key={line} className={css.hoverBody}>{line}</div>
+      ))}
+      {model.coAuthors.map(line => (
+        <div key={line} className={css.hoverCoauthor}>Co-authored-by: {line}</div>
+      ))}
+      {model.stats !== undefined
+        ? (
+          <div className={css.hoverStats}>
+            {model.stats.files}
+            {model.stats.insertions !== undefined
+              ? <span className={css.hoverIns}>, {model.stats.insertions}</span>
+              : null}
+            {model.stats.deletions !== undefined
+              ? <span className={css.hoverDel}>, {model.stats.deletions}</span>
+              : null}
+          </div>
+        )
+        : null}
+      {model.refs.length > 0
+        ? (
+          <div className={css.hoverRefs}>
+            {model.refs.map(ref => (
+              <span key={`${ref.kind}:${ref.name}`} className={`${css.ref} ${css[gitRefClass(ref.kind)]}`}>
+                {ref.name}
+              </span>
+            ))}
+          </div>
+        )
+        : null}
+      <div className={css.hoverFooter}>
+        <button
+          type="button"
+          className={css.hoverHash}
+          aria-label={copied ? props.t('git.copied') : props.t('git.copyHash')}
+          onClick={() => {
+            const clip = navigator.clipboard
+            if (clip === undefined) return
+            void clip.writeText(model.hash).then(() => { setCopied(true) })
+          }}
+        >
+          <IconCopyOutline16 size={12} />
+          {copied ? props.t('git.copied') : model.shortHash}
+        </button>
+        {model.web !== undefined
+          ? (
+            <a
+              className={css.hoverLink}
+              href={model.web.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <IconLinkOutline16 size={12} />
+              {gitWebLabel(model.web.host, props.t)}
+            </a>
+          )
+          : null}
+      </div>
+    </div>
+  )
+}
+
+function HoverClockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 4.5V8l2.4 1.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 const GRAPH_ROW = 28
 const GRAPH_LANE = 12
 const GRAPH_MID = 14
+const HOVER_SHOW_MS = 400
