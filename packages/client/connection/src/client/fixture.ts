@@ -1585,6 +1585,16 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     const name = path.slice(path.lastIndexOf('/') + 1)
     return directoryTree.get(parent)?.includes(name) === true ? [] : undefined
   }
+  // In-memory text files behind the editor primitives (listEntries/readFile/
+  // writeFile): absolute path → UTF-8 content, seeded under the design-mock
+  // project so the editor lanes have something to open; writes land here.
+  const fileTree = new Map<string, string>([
+    [`${FIXTURE_HOME}/Documents/project/README.md`, '# Fixture project\n\nDeterministic editor fixture content.\n'],
+    [`${FIXTURE_HOME}/Documents/project/main.py`, 'def main():\n    print("fixture")\n\n\nif __name__ == "__main__":\n    main()\n'],
+  ])
+  const filesUnder = (target: string): string[] => [...fileTree.keys()]
+    .filter(path => (path.slice(0, path.lastIndexOf('/')) || '/') === target)
+    .map(path => path.slice(path.lastIndexOf('/') + 1))
   const crumbsOf = (path: string): { name: string; path: string; hidden: boolean }[] => {
     const crumbs = [{ name: '/', path: '/', hidden: false }]
     let acc = ''
@@ -2562,6 +2572,47 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         return ok(request, { path: target })
       },
       openPath: request => ok(request, { opened: true as const }),
+      listEntries: (request) => {
+        const target = request.payload.path
+        const children = childrenOf(target)
+        if (children === undefined) {
+          return err(request, { code: 'directory-unreadable', message: `cannot list ${target}: not in the fixture tree`, details: { path: target } })
+        }
+        const joined = (name: string): string => target === '/' ? `/${name}` : `${target}/${name}`
+        return ok(request, {
+          path: target,
+          entries: [
+            ...[...children].sort((a, b) => a.localeCompare(b))
+              .map(name => ({ name, path: joined(name), kind: 'directory' as const, hidden: name.startsWith('.') })),
+            ...filesUnder(target).sort((a, b) => a.localeCompare(b))
+              .map(name => ({ name, path: joined(name), kind: 'file' as const, hidden: name.startsWith('.') })),
+          ],
+          truncated: false,
+        })
+      },
+      readFile: (request) => {
+        const content = fileTree.get(request.payload.path)
+        if (content === undefined) {
+          return err(request, { code: 'file-unreadable', message: `${request.payload.path}: not in the fixture tree`, details: { path: request.payload.path } })
+        }
+        return ok(request, { path: request.payload.path, content })
+      },
+      writeFile: (request) => {
+        const parent = request.payload.path.slice(0, request.payload.path.lastIndexOf('/')) || '/'
+        if (childrenOf(parent) === undefined) {
+          return err(request, { code: 'file-write-failed', message: `${request.payload.path}: missing parent ${parent}`, details: { path: request.payload.path } })
+        }
+        fileTree.set(request.payload.path, request.payload.content)
+        return ok(request, { path: request.payload.path })
+      },
+      gitStatus: request => ok(request, {
+        root: request.payload.path,
+        branch: 'main',
+        ahead: 0,
+        behind: 0,
+        detached: false,
+        changes: [],
+      }),
     },
     workspace: {
       list: request => ok(request, {
@@ -3098,6 +3149,10 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
+      case 'host.listEntries': return this.api.host.listEntries(request, new AbortController().signal)
+      case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
+      case 'host.writeFile': return this.api.host.writeFile(request)
+      case 'host.gitStatus': return this.api.host.gitStatus(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)
       case 'workspace.rename': return this.api.workspace.rename(request)

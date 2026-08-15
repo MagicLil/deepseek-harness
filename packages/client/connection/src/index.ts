@@ -16,6 +16,7 @@ export type {
   ConnectionRpcEndpointMatcher,
   ConnectionRpcHandler,
   ConnectionRpcHandlerOptions,
+  FetchHandler,
   HostConnectionHandle,
   HostConnectionRpc,
 } from './rpc.ts'
@@ -44,7 +45,7 @@ function assertImageBodyCapacity(ctx: Context, maxRequestBodyBytes: number): voi
 }
 
 /** Services required before providing Connection; API Proxy is an optional `/api` fallback. */
-export const inject = ['webServer']
+export const inject: string[] = []
 
 /** Plugin config: the deployment's non-loopback serving authorities. */
 export interface ConnectionConfig {
@@ -119,11 +120,9 @@ const PRIVILEGED_METHODS = new Set([
 ])
 
 /**
- * Mounts the API gateway under the browser transport prefix. Every request on
- * the prefix passes the browser-trust fence first (DNS-rebinding and
- * cross-site defense — [api-request-trust](./api-request-trust.ts));
- * privileged methods additionally pass it with an empty trust list, which
- * pins them to loopback.
+ * Mounts the API gateway under the browser transport prefix when `webServer`
+ * is present. Desktop compositions omit webServer and carry fetch over IPC
+ * instead; this host half still provides `HostConnectionService` for remotes.
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
@@ -147,7 +146,11 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         && !isTrustedApiRequest(request, [])) {
         return new Response('forbidden', { status: 403 })
       }
-      if (request.method === 'GET' && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)) {
+      // Browser WebSocket downlinks claim these paths when webServer is mounted.
+      // Desktop IPC has no upgrade path — fall through to SSE from toFetchHandler.
+      if (request.method === 'GET'
+        && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)
+        && ctx.get('webServer') !== undefined) {
         return new Response('upgrade required', {
           status: 426,
           headers: { connection: 'Upgrade', upgrade: 'websocket' },
@@ -158,39 +161,49 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       return toFetchHandler(apiProxy).fetch(request)
     },
   })
-  const route: WebRoute = {
-    kind: 'prefix',
-    path: API_PATH,
-    handler: async (req, res) => {
-      if (!isTrustedApiRequest(req, trustedHosts)) {
-        res.writeHead(403)
-        res.end('forbidden')
-        return
-      }
-      await bridge(req, res, fetchHandler, maxRequestBodyBytes)
-    },
-  }
-  ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
-  ctx.inject(['apiProxy'], (apiCtx) => {
-    assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
-    const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)
-    const registerDownlink = (
-      path: string,
-      handle: WebUpgradeRoute['handler'],
-    ): void => {
-      apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
-        path,
-        handler: (req, socket, head) => {
-          if (!isTrustedApiRequest(req, trustedHosts)) {
-            rejectWebSocketUpgrade(socket)
-            return
-          }
-          return handle(req, socket, head)
-        },
-      }), `client-connection: ${path} WebSocket`)
+  void fetchHandler
+
+  // Optional HTTP carriage — the desktop Electron shell skips this block.
+  // Row-level `inject: [webRuntime]` on the web composition ensures webServer
+  // is already present when this plugin activates there. The optional read
+  // hands back the service value itself: property access through `ctx`
+  // requires an inject declaration this plugin deliberately no longer makes.
+  const webServer = ctx.get('webServer')
+  if (webServer !== undefined) {
+    const route: WebRoute = {
+      kind: 'prefix',
+      path: API_PATH,
+      handler: async (req, res) => {
+        if (!isTrustedApiRequest(req, trustedHosts)) {
+          res.writeHead(403)
+          res.end('forbidden')
+          return
+        }
+        await bridge(req, res, fetchHandler, maxRequestBodyBytes)
+      },
     }
-    apiCtx.effect(() => () => downlinks.close(), 'client-connection: WebSocket downlinks')
-    registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head) })
-    registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head) })
-  })
+    ctx.effect(() => webServer.register(route), 'client-connection: /api route')
+    ctx.inject(['apiProxy'], (apiCtx) => {
+      assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
+      const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)
+      const registerDownlink = (
+        path: string,
+        handle: WebUpgradeRoute['handler'],
+      ): void => {
+        apiCtx.effect(() => webServer.registerUpgrade({
+          path,
+          handler: (req, socket, head) => {
+            if (!isTrustedApiRequest(req, trustedHosts)) {
+              rejectWebSocketUpgrade(socket)
+              return
+            }
+            return handle(req, socket, head)
+          },
+        }), `client-connection: ${path} WebSocket`)
+      }
+      apiCtx.effect(() => () => downlinks.close(), 'client-connection: WebSocket downlinks')
+      registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head) })
+      registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head) })
+    })
+  }
 }

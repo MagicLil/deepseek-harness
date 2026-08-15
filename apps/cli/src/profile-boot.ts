@@ -12,6 +12,7 @@
  */
 
 import { writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
@@ -50,8 +51,17 @@ export function homePatchPath(): string {
   return join(resolveDshHome(), PROFILE_PATCH_FILENAME)
 }
 
-/** Absolute path of this dsh installation's package.json (both anchors: src/ and lib/ sit one level under apps/cli). */
-export const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.meta.url))
+/** Absolute path of this dsh installation's package.json (module-resolution anchor). */
+export const INSTALL_ANCHOR = (() => {
+  // Prefer the published CLI package even when this module is loaded through a
+  // re-export or accidental bundle (Electron main must not treat apps/desktop
+  // as the installation root).
+  try {
+    return createRequire(import.meta.url).resolve('@deepseek-ai/dsh/package.json')
+  } catch {
+    return fileURLToPath(new URL('../package.json', import.meta.url))
+  }
+})()
 
 /** The session-telemetry row id the DSH_TELEMETRY_DISABLED switch targets. */
 const TELEMETRY_ROW_ID = 'session-telemetry-otel'

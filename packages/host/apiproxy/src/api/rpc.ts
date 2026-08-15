@@ -45,6 +45,12 @@ export interface RpcErrorDetailsMap {
   'directory-exists': { path: string }
   'directory-create-failed': { path: string }
   'directory-picker-unavailable': { capability: string }
+  'file-unreadable': { path: string }
+  'file-too-large': { path: string; size: number; maxBytes: number }
+  'file-binary': { path: string }
+  'file-write-failed': { path: string }
+  'git-unavailable': { path: string }
+  'git-failed': { path: string }
   'agent-preset-read-only': { agentPreset: string; reason: string }
   'agent-preset-locked': { sessionId: SessionId; agentPreset: string }
   'agent-preset-conflict': { sessionId: SessionId; requestedPreset: string; existingPreset?: string }

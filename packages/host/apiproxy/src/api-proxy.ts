@@ -4,8 +4,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
@@ -93,6 +93,8 @@ import { approvalResponsePayloadSchema } from './api/approvals.schema.ts'
 import { imageLimitsProjectionSchema, sessionListMetadataProjectionSchema } from './api/sessions.schema.ts'
 import { questionResponsePayloadSchema } from './api/questions.schema.ts'
 import type { ClientResponse, RpcError, RpcReceipt, RpcRequest, RpcResponse } from './api/rpc.ts'
+import type { FileEntry } from './api/host.ts'
+import { collectGitStatus } from './git-status.ts'
 import { RpcId } from './api/rpc.ts'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
@@ -630,6 +632,17 @@ function directoryError(error: unknown): RpcError {
     return { code: error.code, message: error.message, details: { path: error.path } }
   }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
+}
+
+/** Editor read/write bound: whole-content transport stays interactive under it. */
+const EDITOR_FILE_MAX_BYTES = 2 * 1024 * 1024
+
+/** Editor listing bound (one directory level; the sorted tail past it is cut). */
+const EDITOR_LISTING_MAX_ENTRIES = 2000
+
+/** Map a filesystem failure onto one editor error code carrying the path detail. */
+function fileError(code: 'file-unreadable' | 'file-write-failed', path: string, error: unknown): RpcError {
+  return { code, message: `${path}: ${error instanceof Error ? error.message : String(error)}`, details: { path } }
 }
 
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
@@ -3007,6 +3020,117 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async openPath(request, signal) {
         return openPath(request, request.payload.path, signal)
+      },
+
+      async listEntries(request) {
+        const { path } = request.payload
+        try {
+          const dirents = await readdir(path, { withFileTypes: true })
+          const entries: FileEntry[] = []
+          for (const dirent of dirents) {
+            let kind: FileEntry['kind']
+            if (dirent.isSymbolicLink()) {
+              // Symlinks report the target's kind; a broken link lists as a file.
+              try {
+                kind = (await stat(join(path, dirent.name))).isDirectory() ? 'directory' : 'file'
+              } catch {
+                kind = 'file'
+              }
+            } else {
+              kind = dirent.isDirectory() ? 'directory' : 'file'
+            }
+            entries.push({
+              name: dirent.name,
+              path: join(path, dirent.name),
+              kind,
+              hidden: dirent.name.startsWith('.'),
+            })
+          }
+          entries.sort((left, right) => left.kind === right.kind
+            ? left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+            : (left.kind === 'directory' ? -1 : 1))
+          const truncated = entries.length > EDITOR_LISTING_MAX_ENTRIES
+          return ok(request, {
+            path,
+            entries: truncated ? entries.slice(0, EDITOR_LISTING_MAX_ENTRIES) : entries,
+            truncated,
+          })
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'directory-unreadable',
+            message: `cannot list ${path}: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path },
+          })
+        }
+      },
+
+      async readFile(request, signal) {
+        const { path } = request.payload
+        let size: number
+        try {
+          size = (await stat(path)).size
+        } catch (error: unknown) {
+          return err(request, fileError('file-unreadable', path, error))
+        }
+        if (size > EDITOR_FILE_MAX_BYTES) {
+          return err(request, {
+            code: 'file-too-large',
+            message: `${path} is ${size} bytes; the editor reads at most ${EDITOR_FILE_MAX_BYTES}`,
+            details: { path, size, maxBytes: EDITOR_FILE_MAX_BYTES },
+          })
+        }
+        let bytes: Buffer
+        try {
+          bytes = await readFile(path, { signal })
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+          }
+          return err(request, fileError('file-unreadable', path, error))
+        }
+        if (bytes.includes(0)) {
+          return err(request, {
+            code: 'file-binary',
+            message: `${path} carries NUL bytes; the editor serves UTF-8 text only`,
+            details: { path },
+          })
+        }
+        return ok(request, { path, content: bytes.toString('utf8') })
+      },
+
+      async writeFile(request) {
+        const { path, content } = request.payload
+        // Refuse growth past the read bound too: a document the editor could
+        // never reopen must not be writable through it.
+        if (Buffer.byteLength(content, 'utf8') > EDITOR_FILE_MAX_BYTES) {
+          return err(request, {
+            code: 'file-write-failed',
+            message: `${path}: content exceeds the editor bound of ${EDITOR_FILE_MAX_BYTES} bytes`,
+            details: { path },
+          })
+        }
+        try {
+          await writeFile(path, content, 'utf8')
+        } catch (error: unknown) {
+          return err(request, fileError('file-write-failed', path, error))
+        }
+        return ok(request, { path })
+      },
+
+      async gitStatus(request, signal) {
+        const { path } = request.payload
+        const result = await collectGitStatus(path, signal)
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'git status was aborted', details: {} })
+          }
+          return err(request, {
+            code: result.code,
+            message: result.message,
+            details: { path },
+          })
+        }
+        return ok(request, result.value)
       },
     },
 

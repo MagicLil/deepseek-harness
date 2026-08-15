@@ -32,6 +32,55 @@ export interface DirectoryListing {
   truncated: boolean
 }
 
+/** One row of a host.listEntries listing: a direct child file or directory. */
+export interface FileEntry {
+  /** Base name shown in a tree row. */
+  name: string
+  /** Absolute host path — the client never joins path segments itself. */
+  path: string
+  /** Entry kind (symlinks report their target's kind; broken links are files). */
+  kind: 'file' | 'directory'
+  /** Hidden by the host platform's convention (dot-prefixed); the client owns whether to dim it. */
+  hidden: boolean
+}
+
+/** host.listEntries response value: one directory level, files included. */
+export interface FileListing {
+  /** Absolute path of the listed directory. */
+  path: string
+  /** Direct children, directories first then files, name-sorted within each group. */
+  entries: FileEntry[]
+  /** True when the backend cut `entries` at its complete-result bound. */
+  truncated: boolean
+}
+
+/** One working-tree change reported by host.gitStatus (Cursor/VS Code SCM row). */
+export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict'
+
+/** One changed path relative to the repository root (git's `/` separators). */
+export interface GitChange {
+  /** Repository-relative path using `/`. */
+  path: string
+  /** Collapsed porcelain status the editor tree and SCM list render. */
+  status: GitFileStatus
+}
+
+/** host.gitStatus response: branch + working-tree changes for one workspace. */
+export interface GitStatus {
+  /** Absolute path of the repository root (`git rev-parse --show-toplevel`). */
+  root: string
+  /** Current branch name, or `HEAD` when detached. */
+  branch: string
+  /** Commits ahead of the upstream (0 when no upstream). */
+  ahead: number
+  /** Commits behind the upstream (0 when no upstream). */
+  behind: number
+  /** True when HEAD is detached. */
+  detached: boolean
+  /** Changed / untracked / conflicted paths (clean files omitted). */
+  changes: GitChange[]
+}
+
 /** Host-level unary methods. */
 export interface HostApi {
   /**
@@ -93,4 +142,46 @@ export interface HostApi {
     request: RpcRequest<{ path: string }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<{ opened: true }>>
+
+  /**
+   * List one directory level including files (the in-app editor's tree).
+   * Unlike `listDirectory` (workspace picker, directories only), this serves
+   * mixed entries with a kind discriminant. Unreadable or missing targets
+   * fail with `directory-unreadable`. The browser carrier's prefix-wide
+   * trust fence covers this method like every other `/api` request.
+   */
+  listEntries(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<FileListing>>
+
+  /**
+   * Read one UTF-8 text file for the in-app editor. Missing/unreadable
+   * targets fail with `file-unreadable`, files past the editor byte bound
+   * with `file-too-large`, and NUL-bearing content with `file-binary`.
+   */
+  readFile(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ path: string; content: string }>>
+
+  /**
+   * Write one UTF-8 text file for the in-app editor (whole-content
+   * replacement; the parent directory must exist). Filesystem failures
+   * report `file-write-failed`. Last write wins — the editor owns any
+   * concurrent-edit presentation.
+   */
+  writeFile(
+    request: RpcRequest<{ path: string; content: string }>,
+  ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Read `git status` for the repository containing `path` (the in-app
+   * editor's SCM panel). Missing git, or a path outside any work tree,
+   * fails with `git-unavailable`; other git failures report `git-failed`.
+   */
+  gitStatus(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<GitStatus>>
 }

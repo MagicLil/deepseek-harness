@@ -11,6 +11,21 @@
     "directory": "apps/cli"
   },
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/bin.d.ts",
+      "default": "./lib/bin.js"
+    },
+    "./args": {
+      "types": "./lib/types/args.d.ts",
+      "default": "./lib/args.js"
+    },
+    "./profile-boot": {
+      "types": "./lib/types/profile-boot.d.ts",
+      "default": "./lib/profile-boot.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "dsh": "lib/bin.js"
   },
@@ -40,6 +55,8 @@
     "@deepseek-ai/dsh-launch-environment": "workspace:^",
     "@deepseek-ai/dsh-fs-local": "workspace:^",
     "@deepseek-ai/dsh-headless": "workspace:^",
+    "@deepseek-ai/dsh-desktop": "workspace:^",
+    "@deepseek-ai/dsh-desktop-app": "workspace:^",
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-persona": "workspace:^",

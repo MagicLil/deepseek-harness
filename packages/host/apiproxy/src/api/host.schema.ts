@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod'
-import type { DirectoryEntry } from './host.ts'
+import type { DirectoryEntry, FileEntry, GitChange } from './host.ts'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 
@@ -72,3 +72,73 @@ export const hostOpenPathRequestSchema = z.object({
 export const hostOpenPathValueSchema = z.object({
   opened: z.literal(true),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.openPath'>>>
+
+/** Mixed file/directory row served by host.listEntries. */
+export const fileEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  kind: z.union([z.literal('file'), z.literal('directory')]),
+  hidden: z.boolean(),
+}) satisfies z.ZodType<Wire<FileEntry>>
+
+/** host.listEntries request payload. */
+export const hostListEntriesRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.listEntries'>>>
+
+/** host.listEntries response value. */
+export const hostListEntriesValueSchema = z.object({
+  path: z.string(),
+  entries: z.array(fileEntrySchema),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.listEntries'>>>
+
+/** host.readFile request payload. */
+export const hostReadFileRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.readFile'>>>
+
+/** host.readFile response value: whole UTF-8 text content. */
+export const hostReadFileValueSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.readFile'>>>
+
+/** host.writeFile request payload: whole-content replacement. */
+export const hostWriteFileRequestSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.writeFile'>>>
+
+/** host.writeFile response value: the written file's absolute path. */
+export const hostWriteFileValueSchema = z.object({
+  path: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.writeFile'>>>
+
+/** One SCM row served by host.gitStatus. */
+export const gitChangeSchema = z.object({
+  path: z.string(),
+  status: z.union([
+    z.literal('modified'),
+    z.literal('added'),
+    z.literal('deleted'),
+    z.literal('untracked'),
+    z.literal('renamed'),
+    z.literal('conflict'),
+  ]),
+}) satisfies z.ZodType<Wire<GitChange>>
+
+/** host.gitStatus request payload: any path inside the work tree. */
+export const hostGitStatusRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.gitStatus'>>>
+
+/** host.gitStatus response value. */
+export const hostGitStatusValueSchema = z.object({
+  root: z.string(),
+  branch: z.string(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  detached: z.boolean(),
+  changes: z.array(gitChangeSchema),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.gitStatus'>>>

@@ -1,0 +1,14 @@
+.pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--dsw-alias-bg-base);
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
+.body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 28px 48px;
+}

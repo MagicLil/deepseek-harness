@@ -96,6 +96,31 @@ export class FakeApiClient implements IApiClient {
   onCreateDirectory: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
     () => Promise.resolve(ok({ path: '/home/fake/new' }))
 
+  onListEntries: (payload: unknown) => Promise<RpcResponse<{
+    path: string
+    entries: { name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }[]
+    truncated: boolean
+  }>> =
+    () => Promise.resolve(ok({ path: '/home/fake', entries: [], truncated: false }))
+
+  onReadFile: (payload: unknown) => Promise<RpcResponse<{ path: string; content: string }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/file.txt', content: '' }))
+
+  onWriteFile: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/file.txt' }))
+
+  onGitStatus: (payload: unknown) => Promise<RpcResponse<{
+    root: string
+    branch: string
+    ahead: number
+    behind: number
+    detached: boolean
+    changes: never[]
+  }>> =
+    () => Promise.resolve(ok({
+      root: '/home/fake', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
+    }))
+
   private readonly muxConns: StreamConn<MuxFrame>[] = []
   private readonly hostConns: StreamConn<HostFrame>[] = []
   lastSearchSignal: AbortSignal | undefined
@@ -146,6 +171,10 @@ export class FakeApiClient implements IApiClient {
     listDirectory: payload => this.record('host.listDirectory', payload, this.onListDirectory(payload)),
     createDirectory: payload => this.record('host.createDirectory', payload, this.onCreateDirectory(payload)),
     openPath: payload => this.record('host.openPath', payload, this.onOpenPath(payload)),
+    listEntries: payload => this.record('host.listEntries', payload, this.onListEntries(payload)),
+    readFile: payload => this.record('host.readFile', payload, this.onReadFile(payload)),
+    writeFile: payload => this.record('host.writeFile', payload, this.onWriteFile(payload)),
+    gitStatus: payload => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
   }
 
   readonly workspace: IApiClient['workspace'] = {

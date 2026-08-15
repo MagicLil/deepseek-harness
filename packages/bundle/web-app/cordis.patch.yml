@@ -147,9 +147,11 @@
     # Dual-face: the node half scans this tree, composes window.__DSH_BOOT__,
     # and serves /plugins/<id>/client.js; the browser half is the module table
     # the shell kernel constructs before cordis exists (adopted as a plugin
-    # entry by the kernel, never fetched).
+    # entry by the kernel, never fetched). Wait for webServer so HTTP routes
+    # register after listen (desktop softens this inject away).
     - id: modules
       name: '@deepseek-ai/dsh-client-modules'
+      inject: [webServer]
 
     # Owns both ends of the web transport: node half binds the gateway to the
     # webserver under /api; browser half is the fetch/SSE client.
@@ -272,6 +274,11 @@
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
+
+    # In-app code editor: the workspace file tree + CodeMirror tab in the
+    # conversation view ring, over the host file RPCs.
+    - id: ui-editor
+      name: '@deepseek-ai/dsh-client-ui-editor'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

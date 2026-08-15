@@ -42,6 +42,7 @@ declare module '@deepseek-ai/cordis' {
 /** Host Connection service whose channel registrations belong to the caller fiber. */
 export class HostConnectionService extends Service implements HostConnectionHandle {
   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
+  private sharedApiFetch: FetchHandler | undefined
 
   /**
    * Provide the Host half over the active HTTP server.
@@ -50,6 +51,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
    */
   constructor(ctx: Context, private readonly trustedHosts: readonly string[]) {
     super(ctx, 'connection')
+  }
+
+  /** Shared `/api` Fetch handler installed by {@link createSharedFetchHandler}. */
+  get apiFetch(): FetchHandler {
+    if (this.sharedApiFetch === undefined) {
+      throw new Error('connection: shared /api fetch handler is not installed yet')
+    }
+    return this.sharedApiFetch
   }
 
   /** Generic channel registry scoped to the Context reading this service. */
@@ -72,7 +81,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
     channel: '/api',
     fallback: FetchHandler,
   ): FetchHandler {
-    return {
+    const handler: FetchHandler = {
       fetch: (request) => {
         const endpoint = endpointFromPath(channel, new URL(request.url).pathname)
         const interceptor = this.interceptors.get(channel)
@@ -85,6 +94,8 @@ export class HostConnectionService extends Service implements HostConnectionHand
         return interceptor.fetchHandler.fetch(request)
       },
     }
+    this.sharedApiFetch = handler
+    return handler
   }
 
   private register(

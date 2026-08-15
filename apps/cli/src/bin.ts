@@ -28,6 +28,18 @@ const invocation = parseDshArgs(process.argv.slice(2), readVersion())
 
 switch (invocation.mode) {
   case 'profile': {
+    // The desktop surface must own Electron's main process (file:// + IPC). When
+    // the Node CLI resolves a desktop boot, re-exec under the Electron binary
+    // so Cordis and BrowserWindow share one process.
+    if (invocation.profile === 'desktop' && process.versions.electron === undefined) {
+      // Package import keeps Electron out of the CLI tsc graph; relaunch loads
+      // the compiled desktop main (Electron cannot use tsx — esbuild ABI mismatch).
+      const relaunchSpec = '@deepseek-ai/dsh-desktop/relaunch'
+      const relaunchMod = await import(relaunchSpec) as {
+        relaunchDesktopUnderElectron: (argv: readonly string[]) => Promise<number>
+      }
+      process.exit(await relaunchMod.relaunchDesktopUnderElectron(process.argv.slice(2)))
+    }
     const { runProfile } = await import('./profile-boot.ts')
     await runProfile({
       environment: loadLayeredEnv('dsh'),

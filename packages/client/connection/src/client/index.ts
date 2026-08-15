@@ -7,6 +7,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { HostDescription, IApiClient } from './api.ts'
 import { ConnectionController, type ConnectionConfig, type ConnectionSinks, type ConnectionState } from './connection.ts'
 import { FixtureApiClient } from './fixture.ts'
+import { IpcApiClient, type DshIpcFetchBridge } from './ipc-api-client.ts'
 import { WebApiClient } from './web-api-client.ts'
 import { createWebConnectionRpc } from './rpc.ts'
 import { isLoopbackHostname } from '../loopback-hostname.ts'
@@ -16,7 +17,7 @@ import type { ClientConnectionRpc } from '../rpc.ts'
 export type {
   ApiProxy, SessionsApi, SessionSearchItem, SessionSummary, PromptContentPart, HostApi, EventsApi, MuxFrame, HostFrame,
   ApprovalResponsePayload, QuestionResponsePayload, HistoryEntry, ToolEventView,
-  DirectoryEntry, DirectoryListing,
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitChange, GitFileStatus, GitStatus,
   ToolCallView, ToolResultView, WorkspaceApi, WorkspaceId, WorkspaceView,
   SkillsApi, SkillEntry,
   ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning,
@@ -40,6 +41,8 @@ export {
 // controller remains package-internal.
 export type { ConnectionConfig, ConnectionSinks, ConnectionState }
 export type { ClientConnectionRpc } from '../rpc.ts'
+export { IpcApiClient } from './ipc-api-client.ts'
+export type { DshIpcFetchBridge } from './ipc-api-client.ts'
 
 /** Observable Host description published by each completed connection handshake. */
 export interface HostDescriptionSource {
@@ -77,6 +80,36 @@ export interface ConnectionHandle {
   start(sinks: ConnectionSinks, config?: ConnectionConfig): { stop(): void }
 }
 
+/** Desktop preload bridge installed as `window.__DSH_IPC__`. */
+interface DshIpcWindow {
+  __DSH_IPC__?: DshIpcFetchBridge & { loadBundle?(url: string): Promise<void> }
+}
+
+/** Build a fetch-compatible function over the desktop IPC bridge. */
+function ipcFetch(ipc: DshIpcFetchBridge): typeof fetch {
+  const client = new IpcApiClient(ipc)
+  return async (input, init) => {
+    const url = input instanceof Request
+      ? new URL(input.url)
+      : new URL(String(input), 'http://dsh.internal')
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    const method = init?.method ?? (input instanceof Request ? input.method : undefined)
+    let body: string | undefined
+    if (typeof init?.body === 'string') body = init.body
+    else if (input instanceof Request) {
+      // Connection RPC only posts JSON strings; Request bodies are not replayed here.
+      body = undefined
+    }
+    const requestInit: RequestInit = { headers }
+    if (method !== undefined) requestInit.method = method
+    if (body !== undefined) requestInit.body = body
+    if (init?.signal !== undefined) requestInit.signal = init.signal
+    return (client as unknown as {
+      doFetch(input: URL, init?: RequestInit): Promise<Response>
+    }).doFetch(url, requestInit)
+  }
+}
+
 /**
  * Client plugin body: pick the api by page mode and provide ctx.connection.
  * @param ctx - client cordis context.
@@ -85,8 +118,11 @@ export function apply(ctx: Context): void {
   const pageLocation = typeof location === 'undefined' ? undefined : location
   const fixture = pageLocation !== undefined && new URLSearchParams(pageLocation.search).has('fixture')
   const fixtureClient = fixture ? new FixtureApiClient() : undefined
-  const api: IApiClient = fixtureClient ?? new WebApiClient()
-  const rpc = fixtureClient?.rpc ?? createWebConnectionRpc()
+  const ipc = (globalThis as DshIpcWindow).__DSH_IPC__
+  const api: IApiClient = fixtureClient
+    ?? (ipc !== undefined ? new IpcApiClient(ipc) : new WebApiClient())
+  const rpc = fixtureClient?.rpc
+    ?? createWebConnectionRpc(ipc !== undefined ? ipcFetch(ipc) : undefined)
   let started = false
   let description: HostDescription | undefined
   const descriptionListeners = new Set<() => void>()
@@ -103,7 +139,10 @@ export function apply(ctx: Context): void {
   }
   const handle: ConnectionHandle = {
     api,
-    isLoopback: pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    // Desktop IPC is always a local privileged surface (dsh:// / file://).
+    isLoopback: ipc !== undefined
+      || pageLocation === undefined
+      || isLoopbackHostname(pageLocation.hostname),
     hostDescription: {
       getSnapshot: () => description,
       subscribe: (listener) => {

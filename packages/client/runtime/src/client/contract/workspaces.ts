@@ -6,7 +6,7 @@
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
-import type { DirectoryListing, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing, FileListing, GitStatus, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
 
@@ -58,6 +58,32 @@ export interface IWorkspaces {
    * @param path - absolute or host-resolvable path.
    */
   openPath(path: string): Promise<void>
+  /**
+   * List one directory level including files (the in-app editor's tree feed).
+   * @param path - absolute directory to list.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the level's mixed file/directory listing.
+   */
+  listEntries(path: string, signal?: AbortSignal): Promise<FileListing>
+  /**
+   * Read one UTF-8 text file from the Host.
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the file's whole text content.
+   */
+  readFile(path: string, signal?: AbortSignal): Promise<string>
+  /**
+   * Write one UTF-8 text file on the Host (whole-content replacement).
+   * @param path - absolute file path (its parent directory must exist).
+   * @param content - the full replacement text.
+   */
+  writeFile(path: string, content: string): Promise<void>
+  /**
+   * Read git status for the repository containing `path` (editor SCM panel).
+   * @param path - absolute workspace path or any file inside it.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   */
+  gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus>
   /**
    * Rename a Workspace.
    * @param workspaceId - target workspace.

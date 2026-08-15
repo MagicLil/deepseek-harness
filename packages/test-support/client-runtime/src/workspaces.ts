@@ -1,7 +1,7 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
+  DirectoryListing, FileListing, GitStatus, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { workspaceListState } from './fixtures.ts'
 import type { Stabilizer } from './fixtures.ts'
@@ -148,6 +148,57 @@ export class TestWorkspaces implements IWorkspaces {
     const stub = this.stubs.get('createDirectory')
     if (stub !== undefined) return await (stub(path, name) as Promise<string>)
     return `${path}/${name}`
+  }
+
+  /**
+   * Editor tree listing (recorded). The default serves an empty level; stub
+   * to shape a tree.
+   * @param path - absolute directory to list.
+   * @param signal - forwarded like the production face passes it to the wire.
+   * @returns the level's mixed file/directory listing.
+   */
+  async listEntries(path: string, signal?: AbortSignal): Promise<FileListing> {
+    this.calls.push({ method: 'listEntries', args: [path, signal] })
+    const stub = this.stubs.get('listEntries')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<FileListing>)
+    return { path, entries: [], truncated: false }
+  }
+
+  /**
+   * Editor file read (recorded). The default serves empty content; stub to
+   * shape file bodies or failures.
+   * @param path - absolute file path.
+   * @param signal - forwarded like the production face passes it to the wire.
+   * @returns the file's whole text content.
+   */
+  async readFile(path: string, signal?: AbortSignal): Promise<string> {
+    this.calls.push({ method: 'readFile', args: [path, signal] })
+    const stub = this.stubs.get('readFile')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<string>)
+    return ''
+  }
+
+  /**
+   * Editor file write (recorded; default no-op).
+   * @param path - absolute file path.
+   * @param content - the full replacement text.
+   */
+  async writeFile(path: string, content: string): Promise<void> {
+    this.calls.push({ method: 'writeFile', args: [path, content] })
+    await (this.stubs.get('writeFile')?.(path, content) as Promise<void> | undefined)
+  }
+
+  /**
+   * Editor git status (recorded). The default serves a clean main branch
+   * rooted at `path`; stub to shape SCM rows or failures.
+   * @param path - absolute workspace path.
+   * @param signal - forwarded like the production face passes it to the wire.
+   */
+  async gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus> {
+    this.calls.push({ method: 'gitStatus', args: [path, signal] })
+    const stub = this.stubs.get('gitStatus')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<GitStatus>)
+    return { root: path, branch: 'main', ahead: 0, behind: 0, detached: false, changes: [] }
   }
 
   /**

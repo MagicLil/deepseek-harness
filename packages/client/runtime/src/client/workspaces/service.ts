@@ -2,7 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, IApiClient, RpcError,
+  DirectoryListing, FileListing, GitStatus, IApiClient, RpcError,
   SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
@@ -44,6 +44,22 @@ export class DirectoryBrowseError extends Error {
   constructor(readonly rpcError: RpcError) {
     super(`directory browse failed: ${rpcError.code}: ${rpcError.message}`)
     this.name = 'DirectoryBrowseError'
+  }
+}
+
+/** Structured file access failure so the editor can branch on Host business codes. */
+export class FileAccessError extends Error {
+  constructor(readonly rpcError: RpcError) {
+    super(`file access failed: ${rpcError.code}: ${rpcError.message}`)
+    this.name = 'FileAccessError'
+  }
+}
+
+/** Structured git failure so the editor SCM panel can branch on Host business codes. */
+export class GitAccessError extends Error {
+  constructor(readonly rpcError: RpcError) {
+    super(`git access failed: ${rpcError.code}: ${rpcError.message}`)
+    this.name = 'GitAccessError'
   }
 }
 
@@ -247,6 +263,51 @@ export class WorkspaceRuntime implements IWorkspaces {
     if (!response.result.ok) {
       throw new Error(`path open failed: ${response.result.error.message}`)
     }
+  }
+
+  /**
+   * List one directory level including files (the in-app editor's tree feed).
+   * @param path - absolute directory to list.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the level's mixed file/directory listing.
+   */
+  async listEntries(path: string, signal?: AbortSignal): Promise<FileListing> {
+    const response = await this.api.host.listEntries({ path }, signal)
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Read one UTF-8 text file from the Host.
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the file's whole text content.
+   */
+  async readFile(path: string, signal?: AbortSignal): Promise<string> {
+    const response = await this.api.host.readFile({ path }, signal)
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+    return response.result.value.content
+  }
+
+  /**
+   * Write one UTF-8 text file on the Host (whole-content replacement).
+   * @param path - absolute file path (its parent directory must exist).
+   * @param content - the full replacement text.
+   */
+  async writeFile(path: string, content: string): Promise<void> {
+    const response = await this.api.host.writeFile({ path, content })
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+  }
+
+  /**
+   * Read git status for the repository containing `path`.
+   * @param path - absolute workspace path or any file inside it.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   */
+  async gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus> {
+    const response = await this.api.host.gitStatus({ path }, signal)
+    if (!response.result.ok) throw new GitAccessError(response.result.error)
+    return response.result.value
   }
 
   /**

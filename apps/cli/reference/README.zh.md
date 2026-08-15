@@ -61,6 +61,16 @@ dsh web --dump-config
 dsh web --help
 ```
 
+## Desktop 别名
+
+`dsh desktop` 是 `--profile desktop` 的硬编码别名。Node CLI 会在 Electron 下重新执行，使 Cordis 拥有 main 进程；desktop 组合包打开 `dsh://` 窗口，并通过 IPC 承载 `/api`（不挂载 `webserver`）。
+
+```sh
+dsh desktop
+dsh desktop --dump-config
+dsh desktop --help
+```
+
 生产 Web 运行器需要已构建的包和前端产物（`pnpm run build`）。默认服务地址是 `http://127.0.0.1:3080`。CLI 目前有意不支持 `--host 0.0.0.0`，并会以用法错误退出；`--trusted-host` 可添加 `/api` 浏览器信任围栏接受的具名 authority。
 
 进程关闭时，插件树最多有 5 秒完成 dispose。首次收到 `SIGINT` 或 `SIGTERM` 时会开始优雅排空：`SIGTERM` 是监督进程发出的常规停止请求，在所有运行模式下都以 0 退出；`SIGINT` 则报告 130。第二次收到信号时会立即强制退出。如果一次性运行在正常结束时已经卡在 dispose 阶段，第一次按下 `Ctrl+C` 就会直接升级为强制退出，而不会被忽略。

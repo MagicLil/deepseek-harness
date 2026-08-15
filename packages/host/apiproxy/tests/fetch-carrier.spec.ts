@@ -159,6 +159,21 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async openPath(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { opened: true as const } } }
       },
+      async listEntries(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w', entries: [], truncated: false } } }
+      },
+      async readFile(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/a.txt', content: '' } } }
+      },
+      async writeFile(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/a.txt' } } }
+      },
+      async gitStatus(request) {
+        return {
+          rpcId: request.rpcId,
+          result: { ok: true, value: { root: '/w', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [] } },
+        }
+      },
     },
     workspace: {
       async list(request) {

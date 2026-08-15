@@ -1,0 +1,55 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "Electron main/preload shell for the dsh desktop profile (file:// + IPC fetch carrier)",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "apps/desktop"
+  },
+  "type": "module",
+  "main": "lib/electron-main.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/electron-main.d.ts",
+      "default": "./lib/electron-main.js"
+    },
+    "./relaunch": {
+      "types": "./lib/types/relaunch.d.ts",
+      "default": "./lib/relaunch.js"
+    },
+    "./shell": {
+      "types": "./lib/types/shell.d.ts",
+      "default": "./lib/shell.js"
+    },
+    "./preload": "./preload.mjs",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/*.js",
+    "lib/types/**/*.d.ts",
+    "preload.mjs"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh": "workspace:^",
+    "@deepseek-ai/dsh-app-boot": "workspace:^",
+    "@deepseek-ai/dsh-client-modules": "workspace:^",
+    "@deepseek-ai/dsh-client-connection": "workspace:^",
+    "@deepseek-ai/dsh-host-apiproxy": "workspace:^",
+    "@deepseek-ai/dsh-launch-environment": "workspace:^",
+    "electron": "^37.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "typescript": "^6.0.3"
+  }
+}

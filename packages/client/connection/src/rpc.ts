@@ -2,6 +2,16 @@
 
 import type { RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api'
 
+/** Transport-independent request handler (HTTP bridge and desktop IPC). */
+export interface FetchHandler {
+  /**
+   * Handle one standard Fetch request.
+   * @param request - request produced by the active transport bridge.
+   * @returns complete or streaming Fetch response.
+   */
+  fetch(request: Request): Promise<Response>
+}
+
 /** Trust fence applied before a Host RPC channel reaches its handler. */
 export type ConnectionRpcAuthority = 'trusted-host' | 'loopback'
 
@@ -56,6 +66,11 @@ export interface HostConnectionRpc {
 export interface HostConnectionHandle {
   /** Generic RPC channel registry. */
   readonly rpc: HostConnectionRpc
+  /**
+   * Shared `/api` Fetch handler (remote interceptors + apiProxy fallback).
+   * Desktop IPC and the HTTP bridge both dispatch through this.
+   */
+  readonly apiFetch: FetchHandler
 }
 
 /** Client caller for logical RPC channels carried by the current transport. */

@@ -1,3 +1,4 @@
+import { cp } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
@@ -14,6 +15,30 @@ function rejectStandaloneServe(): Plugin {
     name: 'dsh-reject-standalone-web-serve',
     config(_config, env) {
       if (env.command === 'serve') throw new Error(STANDALONE_ERROR)
+    },
+  }
+}
+
+/**
+ * Ship Monaco's self-contained AMD build (`monaco-editor/min/vs`) into the
+ * dist under /monaco/vs. The ui-editor plugin boots it at runtime through
+ * `vs/loader.js`; both static servers (frontend-static over HTTP, the desktop
+ * dsh:// protocol) serve the dist verbatim, so one copy covers both surfaces.
+ * Assets stay out of the module graph deliberately: the AMD bundle carries
+ * its own chunk/worker/css/font layout that bundlers must not rewrite.
+ */
+function copyMonacoAssets(): Plugin {
+  return {
+    name: 'dsh-copy-monaco-assets',
+    apply: 'build',
+    async closeBundle() {
+      // Direct-dependency layout path (not require.resolve: monaco's exports
+      // map exposes no ./package.json and rewrites bare subpaths into esm/).
+      await cp(
+        fileURLToPath(new URL('./node_modules/monaco-editor/min/vs', import.meta.url)),
+        fileURLToPath(new URL('./dist/monaco/vs', import.meta.url)),
+        { recursive: true },
+      )
     },
   }
 }
@@ -90,7 +115,7 @@ function npmPackageOf(id: string): string | undefined {
 }
 
 export default defineConfig({
-  plugins: [rejectStandaloneServe(), react()],
+  plugins: [rejectStandaloneServe(), react(), copyMonacoAssets()],
   build: {
     sourcemap: true,
     rollupOptions: {

@@ -7,7 +7,9 @@ import { defineConfig } from 'tsdown'
  * Declarations come from `tsc -b` (dts: false), matching every package.
  */
 export default defineConfig({
-  entry: ['lib/types/bin.js'],
+  // `bin` is the CLI entry; `args` / `profile-boot` are also imported by the
+  // Electron main process, which cannot use `tsx` (esbuild ABI mismatch).
+  entry: ['lib/types/bin.js', 'lib/types/args.js', 'lib/types/profile-boot.js'],
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',
