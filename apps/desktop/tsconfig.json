@@ -24,6 +24,9 @@
       "path": "../../packages/host/apiproxy"
     },
     {
+      "path": "../../packages/util/home-paths"
+    },
+    {
       "path": "../../packages/util/launch-environment"
     }
   ]

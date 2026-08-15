@@ -373,6 +373,9 @@ importers:
       '@deepseek-ai/dsh-client-modules':
         specifier: workspace:^
         version: link:../../packages/client/modules
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../packages/util/home-paths
       '@deepseek-ai/dsh-host-apiproxy':
         specifier: workspace:^
         version: link:../../packages/host/apiproxy

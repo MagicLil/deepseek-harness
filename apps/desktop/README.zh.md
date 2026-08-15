@@ -9,10 +9,15 @@
 - `dsh desktop` / `dsh --profile desktop` — CLI 发现当前不是 Electron 进程后调用 [`relaunch`](src/relaunch.ts)。
 - 随后 Electron 运行 **已编译的** [`lib/electron-main.js`](lib/electron-main.js)（由 `pnpm run build:lib` 构建）。Electron 不能使用 `tsx` —— 其 Node ABI 无法加载 tsx 的原生 esbuild 二进制。
 - [`shell`](src/shell.ts) 在 `apiProxy` 与 `clientModules` 就绪后打开窗口。
+- 再次运行 `dsh desktop` 会聚焦已有窗口（单实例锁）。窗口位置与尺寸保存在 `$DSH_HOME/desktop-window.json`。
 
 ## Preload
 
-[`preload.mjs`](preload.mjs) 以纯 ESM 入库，因此 Electron 无需先做 TypeScript 构建即可加载。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `loadBundle`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
+[`preload.mjs`](preload.mjs) 以纯 ESM 入库，因此 Electron 无需先做 TypeScript 构建即可加载。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
+
+关闭窗口（或取消流式 `Response`）会在移除 IPC handler 之前中止进行中的 Host fetch。
+
+渲染进程对 `dsh://app/api/...` 的 `fetch` / `<a download>` 会转发到同一个 Host handler。会话日志导出打开原生另存为对话框。`http(s)` 链接在系统浏览器中打开。
 
 ## Smoke
 

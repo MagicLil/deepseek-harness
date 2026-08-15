@@ -10,9 +10,24 @@ import { app } from 'electron'
 import { loadLayeredEnv } from '@deepseek-ai/dsh-app-boot'
 import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
-import { registerDesktopSchemes } from './shell.ts'
+import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 
 registerDesktopSchemes()
+
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0)
+} else {
+  app.on('second-instance', () => {
+    focusDesktopWindow()
+  })
+  app.on('activate', () => {
+    focusDesktopWindow()
+  })
+  void main().catch((error: unknown) => {
+    console.error(error)
+    app.exit(1)
+  })
+}
 
 /**
  * Read this package's version for the launcher `--version` path.
@@ -48,8 +63,3 @@ async function main(): Promise<void> {
     void shutdown.shutdown(0)
   })
 }
-
-void main().catch((error: unknown) => {
-  console.error(error)
-  app.exit(1)
-})
