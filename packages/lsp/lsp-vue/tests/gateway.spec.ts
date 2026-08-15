@@ -45,6 +45,7 @@ function fakePool(): {
 }
 
 async function harness(): Promise<{
+  ctx: Context
   gw: VueLspGateway
   pool: VueLspPool
   open: ReturnType<typeof vi.fn>
@@ -61,7 +62,7 @@ async function harness(): Promise<{
   const gw = ctx.get('vueLsp') as VueLspGateway
   const created = fakePool()
   gw.poolOverride = created.pool
-  return { gw, ...created }
+  return { ctx, gw, ...created }
 }
 
 describe('VueLspGateway', () => {
@@ -110,15 +111,15 @@ describe('VueLspGateway', () => {
   })
 
   it('registers a .vue provider on ctx.lsp', async () => {
-    const { gw, query } = await harness()
-    await expect(gw.ctx.lsp.query({
+    const { ctx, query } = await harness()
+    await expect(ctx.lsp.query({
       operation: 'hover',
       filePath: 'A.vue',
       position: { line: 0, character: 0 },
       workspaceRoot: '/ws',
     })).resolves.toEqual({ kind: 'hover', hover: { contents: 'h' } })
     expect(query).toHaveBeenCalled()
-    await expect(gw.ctx.lsp.query({
+    await expect(ctx.lsp.query({
       operation: 'hover',
       filePath: 'A.ts',
       position: { line: 0, character: 0 },

@@ -227,6 +227,12 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
           },
         }
       },
+      async terminalWrite(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { written: true as const } } }
+      },
+      async terminalResize(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { resized: true as const } } }
+      },
       async terminalRead(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { text: '' } } }
       },
@@ -536,6 +542,10 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
         ok: true,
         value: { viewport: '', waitReason: 'inferred_idle', truncated: false, status: { kind: 'running' } },
       })
+    expect((await c.host.terminalWrite({ sessionId: 's1', id: 'pty-1', data: 'x' })).result)
+      .toEqual({ ok: true, value: { written: true } })
+    expect((await c.host.terminalResize({ sessionId: 's1', id: 'pty-1', cols: 80, rows: 24 })).result)
+      .toEqual({ ok: true, value: { resized: true } })
     expect((await c.host.terminalRead({ sessionId: 's1', id: 'pty-1' })).result)
       .toEqual({ ok: true, value: { text: '' } })
     expect((await c.host.terminalSignal({ sessionId: 's1', id: 'pty-1', signal: 'SIGINT' })).result)

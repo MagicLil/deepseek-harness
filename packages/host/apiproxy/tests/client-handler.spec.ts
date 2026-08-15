@@ -99,6 +99,8 @@ function scriptedApi(overrides: {
       terminalSend: r => ok(r, {
         viewport: '', waitReason: 'inferred_idle' as const, truncated: false, status: { kind: 'running' as const },
       }),
+      terminalWrite: r => ok(r, { written: true as const }),
+      terminalResize: r => ok(r, { resized: true as const }),
       terminalRead: r => ok(r, { text: '' }),
       terminalSignal: r => ok(r, { delivered: true }),
       terminalKill: r => ok(r, { closed: true }),

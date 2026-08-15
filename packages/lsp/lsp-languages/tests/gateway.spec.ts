@@ -45,6 +45,7 @@ function fakePool(): {
 }
 
 async function harness(which: 'ts' | 'java'): Promise<{
+  ctx: Context
   gw: TsLspGateway | JavaLspGateway
   pool: PersistentLspPool
   open: ReturnType<typeof vi.fn>
@@ -61,7 +62,7 @@ async function harness(which: 'ts' | 'java'): Promise<{
   const gw = ctx.get(which === 'ts' ? 'tsLsp' : 'javaLsp') as TsLspGateway | JavaLspGateway
   const created = fakePool()
   gw.poolOverride = created.pool
-  return { gw, ...created }
+  return { ctx, gw, ...created }
 }
 
 describe('TsLspGateway', () => {
@@ -110,15 +111,15 @@ describe('TsLspGateway', () => {
   })
 
   it('registers a TypeScript provider on ctx.lsp and leaves .vue unclaimed', async () => {
-    const { gw, query } = await harness('ts')
-    await expect(gw.ctx.lsp.query({
+    const { ctx, query } = await harness('ts')
+    await expect(ctx.lsp.query({
       operation: 'hover',
       filePath: 'a.ts',
       position: { line: 0, character: 0 },
       workspaceRoot: '/ws',
     })).resolves.toEqual({ kind: 'hover', hover: { contents: 'h' } })
     expect(query).toHaveBeenCalled()
-    await expect(gw.ctx.lsp.query({
+    await expect(ctx.lsp.query({
       operation: 'hover',
       filePath: 'A.vue',
       position: { line: 0, character: 0 },
@@ -156,8 +157,8 @@ describe('JavaLspGateway', () => {
   })
 
   it('registers a Java provider on ctx.lsp', async () => {
-    const { gw, query } = await harness('java')
-    await expect(gw.ctx.lsp.query({
+    const { ctx, query } = await harness('java')
+    await expect(ctx.lsp.query({
       operation: 'hover',
       filePath: 'Foo.java',
       position: { line: 0, character: 0 },

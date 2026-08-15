@@ -85,6 +85,7 @@ class FakeTerminalSandbox {
   readonly commands: string[] = []
   readonly commandOptions: CommandOptions[] = []
   readonly inputs: Array<{ pid: number; data: Buffer }> = []
+  readonly resizes: Array<{ pid: number; cols: number; rows: number }> = []
   readonly removed: string[] = []
   readonly directories: string[] = []
   readonly writes = new Map<string, string>()
@@ -204,6 +205,9 @@ class FakeTerminalSandbox {
         await options.onData(Buffer.from('buffered banner\n'))
         return this.handle.asHandle()
       },
+      resize: async (pid: number, size: { cols: number; rows: number }): Promise<void> => {
+        this.resizes.push({ pid, cols: size.cols, rows: size.rows })
+      },
       sendInput: async (pid: number, data: Uint8Array, options?: { signal?: AbortSignal }): Promise<void> => {
         options?.signal?.throwIfAborted()
         await this.sendInputRequest?.(options?.signal)
@@ -310,6 +314,10 @@ describe('E2B terminal allocation', () => {
 
     await terminal.write('echo ok\r')
     expect(fake.inputs.at(-1)?.data.toString()).toBe('echo ok\r')
+    terminal.resize(80, 24)
+    await Promise.resolve()
+    expect(fake.resizes).toEqual([{ pid: 123, cols: 80, rows: 24 }])
+    expect(() => { terminal.resize(0, 24) }).toThrow(/positive safe-integer/)
     await expect(terminal.inspectForeground()).resolves.toEqual({ processGroupId: 456, inputWaiting: false })
     await expect(terminal.signalForeground('SIGINT')).resolves.toBe(456)
     expect(fake.commands).toContain('kill -INT -- -456')
@@ -580,6 +588,8 @@ describe('E2B terminal lifecycle', () => {
     await expect(terminal.done).resolves.toEqual({ exitCode: 7, signal: null })
     await ended
     await expect(terminal.write('late')).rejects.toThrow('exited')
+    expect(() => { terminal.resize(80, 24) }).not.toThrow()
+    expect(fake.resizes).toEqual([])
     fake.foregroundFailure = commandError(1)
     await expect(terminal.inspectForeground()).resolves.toBeUndefined()
     await expect(terminal.signalForeground('SIGINT')).rejects.toThrow('cannot resolve foreground process group')

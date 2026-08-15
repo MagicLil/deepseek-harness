@@ -311,6 +311,18 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
   }
 
   /** @inheritdoc */
+  resize(cols: number, rows: number): void {
+    if (this.topLevelExited) return
+    if (!Number.isSafeInteger(cols) || cols < 1 || !Number.isSafeInteger(rows) || rows < 1) {
+      throw new Error('terminal resize requires positive safe-integer cols and rows')
+    }
+    void this.trackOperation(async (signal) => {
+      if (this.topLevelExited) return
+      await this.sandbox.pty.resize(this.pid, { cols, rows }, { signal })
+    })
+  }
+
+  /** @inheritdoc */
   inspectForeground(): Promise<SubprocessTerminalForeground | undefined> {
     return this.trackOperation(signal => this.inspectForegroundOnce(signal))
   }
