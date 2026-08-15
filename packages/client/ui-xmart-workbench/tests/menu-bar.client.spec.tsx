@@ -107,7 +107,8 @@ describe('MenuBar', () => {
   })
 
   it('runs web Edit via execCommand and shows About', () => {
-    const exec = vi.spyOn(document, 'execCommand').mockReturnValue(true)
+    const exec = vi.fn().mockReturnValue(true)
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: exec })
     const alert = vi.spyOn(window, 'alert').mockImplementation(() => {})
     mount()
     act(() => { screen.getByTestId('xmart-menu-edit').click() })
@@ -128,7 +129,6 @@ describe('MenuBar', () => {
       'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
     ])
     expect(alert).toHaveBeenCalledWith('万物智汇\n桌面 / Web AI Agent 工作台。')
-    exec.mockRestore()
     alert.mockRestore()
   })
 

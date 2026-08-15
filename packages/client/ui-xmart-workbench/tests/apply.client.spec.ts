@@ -610,9 +610,11 @@ describe('ui-xmart-workbench apply', () => {
       },
     }
     const dispatched: string[] = []
-    const onEvent = (event: Event): void => { dispatched.push(event.type) }
-    window.addEventListener('dsh:open-settings', onEvent)
-    window.addEventListener('dsh:workbench-save', onEvent)
+    const previousDispatch = (globalThis as { dispatchEvent?: (event: Event) => boolean }).dispatchEvent
+    ;(globalThis as { dispatchEvent: (event: Event) => boolean }).dispatchEvent = (event) => {
+      dispatched.push(event.type)
+      return true
+    }
     try {
       const b = await bench()
       declare(b.slots)
@@ -640,8 +642,8 @@ describe('ui-xmart-workbench apply', () => {
       listener?.('activity-tasks')
       expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('tasks')
     } finally {
-      window.removeEventListener('dsh:open-settings', onEvent)
-      window.removeEventListener('dsh:workbench-save', onEvent)
+      if (previousDispatch === undefined) delete (globalThis as { dispatchEvent?: unknown }).dispatchEvent
+      else (globalThis as { dispatchEvent: (event: Event) => boolean }).dispatchEvent = previousDispatch
       delete (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
     }
   })
@@ -677,6 +679,8 @@ describe('ui-xmart-workbench apply', () => {
     await Promise.resolve()
     expect(warn).toHaveBeenCalled()
     menu.run('file-close')
+    menu.run('file-save')
+    menu.run('settings-open')
     warn.mockRestore()
   })
 

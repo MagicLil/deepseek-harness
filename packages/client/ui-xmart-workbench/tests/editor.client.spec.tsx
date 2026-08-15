@@ -93,12 +93,18 @@ describe('EditorTab', () => {
     fireEvent.click(screen.getByText('save-hotkey'))
     await act(async () => { await Promise.resolve() })
     expect(write).toHaveBeenCalledWith('/a.ts', 'edited')
+    await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 520) }) })
+    expect(live.draftOf('/a.ts')).toBeUndefined()
+  })
+
+  it('saves from the application-menu event', async () => {
+    const writeFile = vi.fn(async () => {})
+    mount({ path: '/a.ts', writeFile })
+    await act(async () => { await Promise.resolve() })
     fireEvent.click(screen.getByText('edit-buffer'))
     act(() => { window.dispatchEvent(new Event('dsh:workbench-save')) })
     await act(async () => { await Promise.resolve() })
-    expect(write).toHaveBeenCalledTimes(2)
-    await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 520) }) })
-    expect(live.draftOf('/a.ts')).toBeUndefined()
+    expect(writeFile).toHaveBeenCalledWith('/a.ts', 'edited')
   })
 
   it('maps read errors and save errors', async () => {
