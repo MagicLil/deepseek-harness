@@ -284,7 +284,7 @@ export async function collectGitSync(
 }
 
 /**
- * Local branch list for the SCM picker.
+ * Local and remote-tracking branch list for the SCM picker.
  * @param path - any path inside the work tree.
  * @param signal - aborts the git child process.
  */
@@ -294,12 +294,22 @@ export async function collectGitBranches(
 ): Promise<GitOpsResult<{ root: string; branches: GitBranch[] }>> {
   const root = await resolveGitRoot(path, signal)
   if (!root.ok) return root
-  const ran = await runGit(
+  const heads = await runGit(
     ['-C', root.root, 'for-each-ref', `--format=${BRANCH_FORMAT}`, 'refs/heads'],
     signal,
   )
-  if (!ran.ok) return ran
-  return { ok: true, value: { root: root.root, branches: parseGitBranches(ran.stdout) } }
+  if (!heads.ok) return heads
+  const remotes = await runGit(
+    ['-C', root.root, 'for-each-ref', `--format=${BRANCH_FORMAT}`, 'refs/remotes'],
+    signal,
+  )
+  const remoteRows = remotes.ok
+    ? parseGitBranches(remotes.stdout, true).filter(row => !isGitRemoteSymbolicRef(row.name))
+    : []
+  return {
+    ok: true,
+    value: { root: root.root, branches: [...parseGitBranches(heads.stdout), ...remoteRows] },
+  }
 }
 
 /**
@@ -413,8 +423,17 @@ async function decorateGitLog(
 /**
  * Parse `for-each-ref` NUL fields into SCM branch rows.
  * @param stdout - ref listing.
+ * @param remote - mark rows as remote-tracking refs.
  */
-export function parseGitBranches(stdout: string): GitBranch[] {
+/**
+ * Remote symbolic names (`origin`, `origin/HEAD`) are not switchable branches.
+ * @param name - `for-each-ref` short name from `refs/remotes`.
+ */
+export function isGitRemoteSymbolicRef(name: string): boolean {
+  return name === 'HEAD' || name.endsWith('/HEAD') || !name.includes('/')
+}
+
+export function parseGitBranches(stdout: string, remote = false): GitBranch[] {
   const out: GitBranch[] = []
   for (const line of stdout.split(/\r?\n/)) {
     if (line.length === 0) continue
@@ -422,6 +441,7 @@ export function parseGitBranches(stdout: string): GitBranch[] {
     if (name === undefined || name.length === 0) continue
     const row: GitBranch = { name, current: head === '*' }
     if (upstream !== undefined && upstream.length > 0) row.upstream = upstream
+    if (remote) row.remote = true
     out.push(row)
   }
   return out

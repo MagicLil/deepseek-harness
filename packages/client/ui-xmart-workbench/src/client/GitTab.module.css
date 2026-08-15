@@ -28,6 +28,16 @@
   font-size: 13px;
 }
 
+.repo {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
 .picker {
   position: relative;
   min-width: 0;
@@ -79,6 +89,15 @@
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-3);
   box-shadow: var(--dsw-shadow-lv3);
+}
+
+.pickerHeading {
+  padding: 6px 8px 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  user-select: none;
 }
 
 .pickerItem {
@@ -442,7 +461,7 @@
 
 .graph line,
 .graph path {
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 
 .headRing {

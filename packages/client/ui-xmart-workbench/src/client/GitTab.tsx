@@ -28,8 +28,9 @@ import {
   mergeGitLogPage, observeGitHistorySentinel, shouldLoadMoreFromScroll,
 } from './git-log-page.ts'
 import {
-  gitActionMessage, gitChangeKey, gitDiffSideOf, gitMenuItemIds, gitSectionPaths,
-  isGitBranchName, localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
+  gitActionMessage, gitBranchPickerItems, gitChangeKey, gitCheckoutNameForPicker,
+  gitDiffSideOf, gitMenuItemIds, gitSectionPaths, isGitBranchName,
+  localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
 } from './git-scm.ts'
 import css from './GitTab.module.css'
 
@@ -47,7 +48,7 @@ function GitToolbarSelect(props: {
   value: string
   display: string
   disabled?: boolean
-  items: readonly { id: string; label: string }[]
+  items: readonly { id: string; label: string; heading?: boolean }[]
   onSelect: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -94,18 +95,24 @@ function GitToolbarSelect(props: {
         ? (
           <div className={css.pickerMenu} role="menu" data-testid={`${props.testId}-menu`}>
             {props.items.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                role="menuitem"
-                className={item.id === props.value ? `${css.pickerItem} ${css.pickerItemCurrent}` : css.pickerItem}
-                onClick={() => {
-                  setOpen(false)
-                  props.onSelect(item.id)
-                }}
-              >
-                {item.label}
-              </button>
+              item.heading === true
+                ? (
+                  <div key={item.id} className={css.pickerHeading} role="presentation">{item.label}</div>
+                )
+                : (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    className={item.id === props.value ? `${css.pickerItem} ${css.pickerItemCurrent}` : css.pickerItem}
+                    onClick={() => {
+                      setOpen(false)
+                      props.onSelect(item.id)
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                )
             ))}
           </div>
         )
@@ -321,6 +328,7 @@ export function GitTab({
   const canCommit = message.trim() !== '' && staged.length > 0
   const canSuggest = staged.length > 0 && !busy && !suggesting
   const graph = layoutGitGraph(log)
+  const graphWidth = graph.reduce((max, row) => Math.max(max, row.railCount), 1) * GRAPH_LANE + 8
   const suggest = () => {
     setSuggesting(true)
     setActionError(undefined)
@@ -350,7 +358,11 @@ export function GitTab({
               onSelect={(path) => { setSelected(path) }}
             />
           )
-          : null}
+          : (
+            <span className={css.repo} data-testid="xmart-workbench-git-repo-name" title={root}>
+              {basename(root)}
+            </span>
+          )}
         {branches.length > 0
           ? (
             <GitToolbarSelect
@@ -359,9 +371,13 @@ export function GitTab({
               value={status.detached ? '' : status.branch}
               display={status.detached ? t('git.detached') : status.branch}
               disabled={busy}
-              items={branches.map(row => ({ id: row.name, label: row.name }))}
-              onSelect={(name) => {
-                if (name === status.branch) return
+              items={gitBranchPickerItems(branches, {
+                local: t('git.localBranches'),
+                remote: t('git.remoteBranches'),
+              })}
+              onSelect={(id) => {
+                const name = gitCheckoutNameForPicker(id, branches)
+                if (name === undefined || name === status.branch) return
                 run(() => gitCheckout(root, name))
               }}
             />
@@ -581,7 +597,7 @@ export function GitTab({
                       >
                         <svg
                           className={css.graph}
-                          width={row.railCount * GRAPH_LANE + 8}
+                          width={graphWidth}
                           height={GRAPH_ROW}
                           aria-hidden
                         >
@@ -597,10 +613,12 @@ export function GitTab({
                           ))}
                           {row.merges.map(edge => (
                             <path
-                              key={`${edge.from}-${edge.to}`}
+                              key={`${edge.from}-${edge.to}-${edge.stub === true ? 'stub' : 'join'}`}
                               className={css[gitLaneClass(edge.to)]}
                               fill="none"
-                              d={`M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_ROW - 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW}`}
+                              d={edge.stub === true
+                                ? `M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID + 6}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID + 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW - 8}`
+                                : `M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_ROW - 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW}`}
                             />
                           ))}
                           {row.refs.some(ref => ref.kind === 'head')
@@ -927,7 +945,7 @@ function HoverClockIcon() {
   )
 }
 
-const GRAPH_ROW = 28
-const GRAPH_LANE = 12
-const GRAPH_MID = 14
+const GRAPH_ROW = 26
+const GRAPH_LANE = 10
+const GRAPH_MID = 13
 const HOVER_SHOW_MS = 400

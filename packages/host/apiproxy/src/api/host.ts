@@ -136,14 +136,16 @@ export interface GitCommitResult {
 /** User-clicked remote verb. Never exposed as an agent tool. */
 export type GitSyncMode = 'fetch' | 'pull' | 'push'
 
-/** One local branch from `git for-each-ref refs/heads`. */
+/** One local or remote-tracking branch from `git for-each-ref`. */
 export interface GitBranch {
-  /** Short branch name. */
+  /** Short ref name (`main`, or `origin/main` when `remote` is true). */
   name: string
   /** True when this ref is HEAD. */
   current: boolean
   /** Upstream short name when configured. */
   upstream?: string
+  /** True for `refs/remotes/*` (absent means a local `refs/heads/*` row). */
+  remote?: boolean
 }
 
 /** Signals the UI PTY bridge may deliver to the foreground group. */
@@ -388,7 +390,7 @@ export interface HostApi {
   ): Promise<RpcResponse<{ root: string }>>
 
   /**
-   * Local branches for the SCM branch picker.
+   * Local and remote-tracking branches for the SCM branch picker.
    */
   gitBranches(
     request: RpcRequest<{ path: string }>,

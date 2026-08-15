@@ -452,7 +452,7 @@ export class WorkspaceRuntime implements IWorkspaces {
   }
 
   /**
-   * Local branches for the SCM picker.
+   * Local and remote-tracking branches for the SCM picker.
    * @param path - absolute workspace path or any file inside it.
    * @param signal - aborts the wire request.
    * @returns branch rows.

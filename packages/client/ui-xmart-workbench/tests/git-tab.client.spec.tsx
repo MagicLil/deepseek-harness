@@ -41,7 +41,7 @@ function mount(opts?: {
   gitCommit?: (path: string, message: string) => Promise<unknown>
   gitStage?: (path: string, files: readonly string[]) => Promise<void>
   gitSync?: (path: string, mode: 'fetch' | 'pull' | 'push') => Promise<void>
-  gitBranches?: (path: string) => Promise<{ name: string; current: boolean }[]>
+  gitBranches?: (path: string) => Promise<{ name: string; current: boolean; remote?: boolean }[]>
   gitCheckout?: (path: string, name: string, create?: boolean) => Promise<void>
   gitCheckoutCommit?: (path: string, hash: string) => Promise<void>
   gitSuggestCommit?: (path: string, sessionId: string) => Promise<{ message: string }>
@@ -373,6 +373,53 @@ describe('GitTab', () => {
     expect(screen.queryByRole('menuitem', { name: 'loean7' })).toBeNull()
   })
 
+  it('lists remote-tracking branches and checks out the short name', async () => {
+    const { gitCheckout } = mount({
+      gitStatus: async () => ({
+        ...status, branch: 'anruisen', ahead: 0, behind: 0, changes: [],
+      }),
+      gitBranches: async () => [
+        { name: 'anruisen', current: true },
+        { name: 'main', current: false },
+        { name: 'sanaifu', current: false },
+        { name: 'origin/anruisen', current: false, remote: true },
+        { name: 'origin/dagen', current: false, remote: true },
+      ],
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    fireEvent.click(screen.getByTestId('xmart-workbench-git-branch'))
+    expect(screen.getByText('本地分支')).toBeTruthy()
+    expect(screen.getByText('远程分支')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'origin/dagen' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'origin/anruisen' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'origin/dagen' }))
+    await act(async () => { await Promise.resolve() })
+    expect(gitCheckout).toHaveBeenCalledWith('/ws', 'dagen')
+  })
+
+  it('still treats origin/* as remote when the wire omitted the flag', async () => {
+    const { gitCheckout } = mount({
+      gitStatus: async () => ({
+        ...status, branch: 'anruisen', ahead: 0, behind: 0, changes: [],
+      }),
+      gitBranches: async () => [
+        { name: 'anruisen', current: true },
+        { name: 'main', current: false },
+        { name: 'origin' },
+        { name: 'origin/anruisen' },
+        { name: 'origin/dagen' },
+      ],
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    fireEvent.click(screen.getByTestId('xmart-workbench-git-branch'))
+    expect(screen.getByText('远程分支')).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'origin' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'origin/anruisen' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'origin/dagen' }))
+    await act(async () => { await Promise.resolve() })
+    expect(gitCheckout).toHaveBeenCalledWith('/ws', 'dagen')
+  })
+
   it('keeps the branch label when listing branches fails', async () => {
     mount({ gitBranches: async () => { throw new Error('no refs') } })
     expect(await screen.findByText('main')).toBeTruthy()
@@ -394,6 +441,15 @@ describe('GitTab', () => {
     })
     expect(await screen.findByText('main')).toBeTruthy()
     expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↑1/)
+  })
+
+  it('shows the repo folder name when there is only one root', async () => {
+    mount({
+      gitStatus: async () => ({ ...status, root: '/code/deepseek-harness' }),
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.getByTestId('xmart-workbench-git-repo-name').textContent).toBe('deepseek-harness')
+    expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
   })
 
   it('discovers git repos in child folders and can switch between them', async () => {

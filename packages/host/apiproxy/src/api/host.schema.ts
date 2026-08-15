@@ -252,6 +252,7 @@ export const hostGitBranchesValueSchema = z.object({
     name: z.string(),
     current: z.boolean(),
     upstream: z.string().optional(),
+    remote: z.boolean().optional(),
   })),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.gitBranches'>>>
 

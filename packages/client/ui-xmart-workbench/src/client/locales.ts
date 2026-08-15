@@ -93,6 +93,8 @@ export type WorkbenchKey =
   | 'git.error'
   | 'git.repo'
   | 'git.branch'
+  | 'git.localBranches'
+  | 'git.remoteBranches'
   | 'git.sync'
   | 'git.syncing'
   | 'git.newBranch'
@@ -177,6 +179,7 @@ export type WorkbenchKey =
   | 'menu.view'
   | 'menu.view.primary'
   | 'menu.view.sessions'
+  | 'menu.view.conversation'
   | 'menu.terminal'
   | 'menu.terminal.new'
   | 'menu.terminal.toggle'
@@ -294,6 +297,8 @@ export const zh: Record<WorkbenchKey, string> = {
   'git.error': 'Git 状态读取失败。',
   'git.repo': '仓库',
   'git.branch': '分支',
+  'git.localBranches': '本地分支',
+  'git.remoteBranches': '远程分支',
   'git.sync': '同步',
   'git.syncing': '同步中',
   'git.newBranch': '新分支名',
@@ -378,6 +383,7 @@ export const zh: Record<WorkbenchKey, string> = {
   'menu.view': '视图',
   'menu.view.primary': '切换左侧边栏',
   'menu.view.sessions': '切换会话列表',
+  'menu.view.conversation': '切换对话',
   'menu.terminal': '终端',
   'menu.terminal.new': '新建终端',
   'menu.terminal.toggle': '切换终端',
@@ -483,6 +489,8 @@ export const en: Record<WorkbenchKey, string> = {
   'git.error': 'Could not read git status.',
   'git.repo': 'Repository',
   'git.branch': 'Branch',
+  'git.localBranches': 'Local branches',
+  'git.remoteBranches': 'Remote branches',
   'git.sync': 'Sync',
   'git.syncing': 'Syncing',
   'git.newBranch': 'New branch name',
@@ -567,6 +575,7 @@ export const en: Record<WorkbenchKey, string> = {
   'menu.view': 'View',
   'menu.view.primary': 'Toggle Primary Sidebar',
   'menu.view.sessions': 'Toggle Session List',
+  'menu.view.conversation': 'Toggle Chat',
   'menu.terminal': 'Terminal',
   'menu.terminal.new': 'New Terminal',
   'menu.terminal.toggle': 'Toggle Terminal',

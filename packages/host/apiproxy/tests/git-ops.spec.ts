@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyGitRefs, attachOriginUrl, collectGitBranches, collectGitCheckout, collectGitCommit,
   collectGitDiff, collectGitDiscard, collectGitLog, collectGitStage, collectGitSync,
-  collectGitUnstage, diffArgs, gitRefFromName, isGitCommitId, isNoUpstreamPushFailure,
-  isUntrackedRestoreFailure, parseGitBranches, parseGitLog, parseGitLogRecord, parseGitRefMap,
+  collectGitUnstage, diffArgs, gitRefFromName, isGitCommitId, isGitRemoteSymbolicRef,
+  isNoUpstreamPushFailure, isUntrackedRestoreFailure, parseGitBranches, parseGitLog,
+  parseGitLogRecord, parseGitRefMap,
 } from '../src/git-ops.ts'
 
 const { resolveGitRoot, runGit } = vi.hoisted(() => ({
@@ -231,9 +232,32 @@ describe('collect git sync / branches / checkout', () => {
       { name: 'main', current: true, upstream: 'origin/main' },
       { name: 'feat', current: false },
     ])
+    expect(parseGitBranches('origin/main\0\0\norigin/HEAD\0\0\n', true)).toEqual([
+      { name: 'origin/main', current: false, remote: true },
+      { name: 'origin/HEAD', current: false, remote: true },
+    ])
+    expect(isGitRemoteSymbolicRef('HEAD')).toBe(true)
+    expect(isGitRemoteSymbolicRef('origin/HEAD')).toBe(true)
+    expect(isGitRemoteSymbolicRef('origin')).toBe(true)
+    expect(isGitRemoteSymbolicRef('origin/dagen')).toBe(false)
     expect(isNoUpstreamPushFailure('fatal: The current branch has no upstream branch')).toBe(true)
     expect(isNoUpstreamPushFailure('auth failed')).toBe(false)
-    runGit.mockResolvedValue({ ok: true, stdout: 'main\0*\0\n' })
+    runGit
+      .mockResolvedValueOnce({ ok: true, stdout: 'main\0*\0\n' })
+      .mockResolvedValueOnce({ ok: true, stdout: 'origin\0\0\norigin/HEAD\0\0\norigin/dagen\0\0\n' })
+    await expect(collectGitBranches('/ws')).resolves.toEqual({
+      ok: true,
+      value: {
+        root: '/repo',
+        branches: [
+          { name: 'main', current: true },
+          { name: 'origin/dagen', current: false, remote: true },
+        ],
+      },
+    })
+    runGit
+      .mockResolvedValueOnce({ ok: true, stdout: 'main\0*\0\n' })
+      .mockResolvedValueOnce({ ok: false, code: 'git-failed', message: 'no remotes' })
     await expect(collectGitBranches('/ws')).resolves.toEqual({
       ok: true, value: { root: '/repo', branches: [{ name: 'main', current: true }] },
     })

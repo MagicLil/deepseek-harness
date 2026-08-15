@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GitChange } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  gitActionMessage, gitChangeKey, gitDiffSideOf, gitMenuItemIds, gitSectionPaths,
-  isGitBranchName, localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
+  gitActionMessage, gitBranchPickerItems, gitChangeKey, gitCheckoutNameForPicker,
+  gitDiffSideOf, gitMenuItemIds, gitSectionPaths, isGitBranchName, isRemoteTrackingRow,
+  localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
 } from '../src/client/git-scm.ts'
 
 const staged: GitChange = { path: 'a.ts', status: 'modified', area: 'index' }
@@ -45,6 +46,55 @@ describe('localBranchNameForRemote', () => {
     expect(localBranchNameForRemote('anruisen', locals)).toBeUndefined()
     expect(localBranchNameForRemote('origin/', locals)).toBeUndefined()
     expect(localBranchNameForRemote('/anruisen', locals)).toBeUndefined()
+  })
+})
+
+describe('gitBranchPickerItems / gitCheckoutNameForPicker', () => {
+  it('groups locals then remotes and maps a remote id to switch name', () => {
+    expect(gitBranchPickerItems([], { local: 'L', remote: 'R' })).toEqual([])
+    expect(gitBranchPickerItems([{ name: 'main' }], { local: 'L', remote: 'R' })).toEqual([
+      { id: 'heading-local', label: 'L', heading: true },
+      { id: 'main', label: 'main' },
+    ])
+    expect(gitBranchPickerItems(
+      [{ name: 'origin/dagen', remote: true }],
+      { local: 'L', remote: 'R' },
+    )).toEqual([
+      { id: 'heading-remote', label: 'R', heading: true },
+      { id: 'remote:origin/dagen', label: 'origin/dagen' },
+    ])
+    expect(gitBranchPickerItems(
+      [{ name: 'anruisen' }, { name: 'origin/anruisen', remote: true }, { name: 'origin/dagen', remote: true }],
+      { local: '本地分支', remote: '远程分支' },
+    ).map(row => row.id)).toEqual([
+      'heading-local', 'anruisen', 'heading-remote', 'remote:origin/dagen',
+    ])
+    expect(gitBranchPickerItems(
+      [{ name: 'anruisen' }, { name: 'origin' }, { name: 'origin/dagen' }, { name: 'feat/x' }],
+      { local: 'L', remote: 'R' },
+    ).map(row => row.id)).toEqual([
+      'heading-local', 'anruisen', 'feat/x', 'heading-remote', 'remote:origin/dagen',
+    ])
+    expect(isRemoteTrackingRow({ name: 'origin/dagen' }, ['origin'])).toBe(true)
+    expect(isRemoteTrackingRow({ name: 'feat/x' }, ['origin'])).toBe(false)
+    expect(gitCheckoutNameForPicker('anruisen', [{ name: 'anruisen' }])).toBe('anruisen')
+    expect(gitCheckoutNameForPicker('origin/anruisen', [{ name: 'anruisen' }])).toBe('anruisen')
+    expect(gitCheckoutNameForPicker('remote:origin/anruisen', [{ name: 'anruisen' }])).toBe('anruisen')
+    expect(gitCheckoutNameForPicker('remote:origin/dagen', [{ name: 'anruisen' }])).toBe('dagen')
+    expect(gitCheckoutNameForPicker('remote:origin', [{ name: 'anruisen' }])).toBeUndefined()
+    expect(gitCheckoutNameForPicker('remote:weird', [])).toBeUndefined()
+    expect(gitCheckoutNameForPicker('HEAD', [{ name: 'HEAD', remote: true }])).toBeUndefined()
+    expect(gitBranchPickerItems(
+      [
+        { name: 'main' },
+        { name: 'origin', remote: true },
+        { name: 'origin/HEAD', remote: true },
+        { name: 'origin/dagen', remote: true },
+      ],
+      { local: 'L', remote: 'R' },
+    ).map(row => row.id)).toEqual([
+      'heading-local', 'main', 'heading-remote', 'remote:origin/dagen',
+    ])
   })
 })
 
