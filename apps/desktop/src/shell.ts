@@ -394,7 +394,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
       nodeIntegration: false,
       sandbox: true,
     },
-    title: '万物智汇',
+    title: 'xmart',
   }
   if (!iconImage.isEmpty()) windowOptions.icon = iconImage
   if (restored !== undefined) {

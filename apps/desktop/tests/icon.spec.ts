@@ -18,12 +18,12 @@ afterEach(() => {
 })
 
 describe('desktop icon', () => {
-  it('paints a green X with a transparent center void and corners', () => {
+  it('paints a green X on a dark rounded plate with transparent corners', () => {
     const pixels = desktopIconRgba(DESKTOP_ICON_SIZE)
     const center = ((DESKTOP_ICON_SIZE * DESKTOP_ICON_SIZE + DESKTOP_ICON_SIZE) / 2) * 4
-    expect(pixels.subarray(center, center + 4)).toEqual(Buffer.from([0, 0, 0, 0]))
+    expect(pixels.subarray(center, center + 4)).toEqual(Buffer.from([20, 20, 20, 255]))
     expect(pixels.subarray(0, 4)).toEqual(Buffer.from([0, 0, 0, 0]))
-    const arm = (Math.floor(DESKTOP_ICON_SIZE * 0.28) * DESKTOP_ICON_SIZE + Math.floor(DESKTOP_ICON_SIZE * 0.22)) * 4
+    const arm = (91 * DESKTOP_ICON_SIZE + 78) * 4
     expect(pixels.subarray(arm, arm + 4)).toEqual(Buffer.from([91, 183, 59, 255]))
   })
 
@@ -52,7 +52,7 @@ describe('desktop icon', () => {
     expect([...ico.subarray(22, 30)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
   })
 
-  it('resolves build/icon.png and writes it only when unpackaged and missing', () => {
+  it('resolves build/icon.png and overwrites it when unpackaged', () => {
     expect(desktopIconFilePath('C:/app')).toBe(join('C:/app', 'build', 'icon.png'))
     const dir = mkdtempSync(join(tmpdir(), 'dsh-desktop-icon-ensure-'))
     dirs.push(dir)

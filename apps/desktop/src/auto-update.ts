@@ -13,7 +13,7 @@ import { isPortableInstall, resolveAutoUpdateGate, updatePromptSurface } from '.
 
 const { autoUpdater } = electronUpdater
 
-const APP_TITLE = '万物智汇'
+const APP_TITLE = 'xmart'
 
 let started = false
 /** True while a tray-initiated check owns the prompt (avoids a second dialog). */

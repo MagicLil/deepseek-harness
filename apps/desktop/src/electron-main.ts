@@ -15,7 +15,7 @@ import { markAppQuitting } from './lifecycle.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 
 registerDesktopSchemes()
-app.setName('万物智汇')
+app.setName('xmart')
 if (process.platform === 'win32') app.setAppUserModelId('ai.deepseek.harness')
 
 if (!app.requestSingleInstanceLock()) {

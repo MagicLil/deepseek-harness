@@ -4,7 +4,7 @@
  */
 
 import { deflateSync } from 'node:zlib'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /** Pixel size of the shipped PNG (Electron scales it for the tray). */
@@ -27,20 +27,23 @@ export function desktopIconIcoPath(packageRoot: string): string {
 }
 
 /**
- * Generate the PNG when missing and the tree is writable (dev / pack).
- * Packaged installs must already ship the file.
+ * Write the PNG when the tree is writable (dev / pack). Always overwrite so a
+ * stale DeepSeek disc cannot linger after a brand change. Packaged installs
+ * must already ship the file.
  * @param path - destination.
  * @param packaged - `app.isPackaged`.
  * @returns `path`.
  */
 export function ensureDesktopIconFile(path: string, packaged: boolean): string {
-  if (existsSync(path) || packaged) return path
+  if (packaged) return path
   writeDesktopIconPng(path)
   return path
 }
 
 /** Official lockup green (sampled from xmart-web default-logo.png). */
 const XMART_GREEN = { r: 91, g: 183, b: 59 }
+/** Dark plate behind the X so the tray / .exe icon reads on any wallpaper. */
+const XMART_PLATE = { r: 20, g: 20, b: 20 }
 
 /** Native mark box used by the SVG X (two bars, evenodd overlap = void). */
 const MARK_WIDTH = 40
@@ -51,13 +54,15 @@ const MARK_QUADS: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
 ]
 
 /**
- * Rasterize the green X: brand green bars, transparent corners and diamond void.
+ * Rasterize the app icon: dark rounded plate, green X, transparent corners.
  * @param size - width and height in pixels.
  * @returns tightly packed RGBA bytes.
  */
 export function desktopIconRgba(size: number): Buffer {
   const data = Buffer.alloc(size * size * 4)
-  const pad = size * 0.12
+  const inset = size * 0.06
+  const radius = size * 0.18
+  const pad = size * 0.18
   const avail = size - pad * 2
   const scale = Math.min(avail / MARK_WIDTH, avail / MARK_HEIGHT)
   const drawW = MARK_WIDTH * scale
@@ -66,17 +71,44 @@ export function desktopIconRgba(size: number): Buffer {
   const originY = (size - drawH) / 2
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
+      const onPlate = inRoundedRect(x + 0.5, y + 0.5, size, inset, radius)
       const mx = (x + 0.5 - originX) / scale
       const my = (y + 0.5 - originY) / scale
-      if (!inXMark(mx, my)) continue
+      const onMark = inXMark(mx, my)
+      if (!onPlate && !onMark) continue
       const offset = (y * size + x) * 4
-      data[offset] = XMART_GREEN.r
-      data[offset + 1] = XMART_GREEN.g
-      data[offset + 2] = XMART_GREEN.b
+      const ink = onMark ? XMART_GREEN : XMART_PLATE
+      data[offset] = ink.r
+      data[offset + 1] = ink.g
+      data[offset + 2] = ink.b
       data[offset + 3] = 255
     }
   }
   return data
+}
+
+/**
+ * Rounded-square plate used as the Windows icon background.
+ * @param x - pixel-center x.
+ * @param y - pixel-center y.
+ * @param size - canvas edge.
+ * @param inset - margin from the canvas edge.
+ * @param radius - corner radius.
+ */
+function inRoundedRect(
+  x: number,
+  y: number,
+  size: number,
+  inset: number,
+  radius: number,
+): boolean {
+  const min = inset
+  const max = size - inset
+  if (x < min || x > max || y < min || y > max) return false
+  const cornerX = x < min + radius ? min + radius : x > max - radius ? max - radius : x
+  const cornerY = y < min + radius ? min + radius : y > max - radius ? max - radius : y
+  if (x === cornerX || y === cornerY) return true
+  return Math.hypot(x - cornerX, y - cornerY) <= radius
 }
 
 /**

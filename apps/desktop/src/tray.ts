@@ -33,7 +33,7 @@ export function createDesktopTray(actions: DesktopTrayActions): DesktopTrayHandl
   const iconPath = ensureDesktopIconFile(desktopIconFilePath(packageRoot), app.isPackaged)
   const image = nativeImage.createFromPath(iconPath)
   const tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
-  tray.setToolTip('万物智汇')
+  tray.setToolTip('xmart')
   const spec = desktopTrayMenuSpec()
   tray.setContextMenu(Menu.buildFromTemplate(spec.map((item) => {
     if (item.id === 'separator') return { type: 'separator' as const }

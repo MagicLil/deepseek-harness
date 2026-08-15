@@ -10,16 +10,16 @@ describe('desktopElectronUserArgv', () => {
   })
 
   it('injects the desktop alias when a packaged exe is launched with no profile', () => {
-    expect(desktopElectronUserArgv(['C:\\Program Files\\万物智汇\\万物智汇.exe'], true))
+    expect(desktopElectronUserArgv(['C:\\Program Files\\xmart\\xmart.exe'], true))
       .toEqual(['desktop'])
   })
 
   it('keeps an explicit packaged profile and prepends desktop only when missing', () => {
-    expect(desktopElectronUserArgv(['万物智汇.exe', 'desktop', '--help'], true))
+    expect(desktopElectronUserArgv(['xmart.exe', 'desktop', '--help'], true))
       .toEqual(['desktop', '--help'])
-    expect(desktopElectronUserArgv(['万物智汇.exe', '--profile', 'desktop'], true))
+    expect(desktopElectronUserArgv(['xmart.exe', '--profile', 'desktop'], true))
       .toEqual(['--profile', 'desktop'])
-    expect(desktopElectronUserArgv(['万物智汇.exe', '--patch', 'extra.yml'], true))
+    expect(desktopElectronUserArgv(['xmart.exe', '--patch', 'extra.yml'], true))
       .toEqual(['desktop', '--patch', 'extra.yml'])
   })
 })

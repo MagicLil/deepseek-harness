@@ -14,7 +14,7 @@ export type TrayMenuItem =
  */
 export function desktopTrayMenuSpec(): TrayMenuItem[] {
   return [
-    { id: 'show', label: 'Show 万物智汇' },
+    { id: 'show', label: 'Show xmart' },
     { id: 'check-updates', label: 'Check for Updates' },
     { id: 'separator' },
     { id: 'quit', label: 'Quit' },
