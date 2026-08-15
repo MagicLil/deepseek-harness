@@ -1,0 +1,52 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #1e1e1e;
+}
+
+.note {
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cwd {
+  flex: none;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-base);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error {
+  flex: none;
+  padding: 4px 12px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-state-danger);
+  background: var(--dsw-alias-bg-base);
+}
+
+.xtermHost {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 8px 8px;
+  overflow: hidden;
+}
+
+.xtermHost :global(.xterm) {
+  height: 100%;
+}
+
+.xtermHost :global(.xterm-viewport) {
+  overflow-y: auto !important;
+}

@@ -119,15 +119,17 @@ describe('TasksTab', () => {
 })
 
 describe('TerminalTab', () => {
-  it('renders the reserved-seat copy', () => {
+  it('renders the unavailable copy when the host has no PTY bridge', async () => {
     render(
       <TerminalTab
         tab={{ id: 'term', type: 'terminal', title: '终端' }}
         visible
         sessionId="s1"
         t={t}
+        host={{}}
+        remote={{}}
       />,
     )
-    expect(screen.getByTestId('xmart-workbench-terminal').textContent).toContain('真终端需要主机 PTY')
+    expect((await screen.findByTestId('xmart-workbench-terminal')).textContent).toContain('还没有挂上主机终端')
   })
 })

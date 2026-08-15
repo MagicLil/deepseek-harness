@@ -95,6 +95,20 @@ describe('SettingsRoot trigger', () => {
     const { renderSlot } = mount({ wide: false })
     expect(renderSlot).toHaveBeenCalledWith('settings.trigger', { wide: false })
   })
+
+  it('opens from the workbench dsh:open-settings event and unhooks on unmount', () => {
+    const { view } = mount()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => {
+      window.dispatchEvent(new Event('dsh:open-settings'))
+    })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    view.unmount()
+    act(() => {
+      window.dispatchEvent(new Event('dsh:open-settings'))
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })
 
 describe('SettingsPanel chrome seats', () => {

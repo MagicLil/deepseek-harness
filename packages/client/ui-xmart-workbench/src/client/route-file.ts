@@ -71,6 +71,17 @@ export function absPath(root: string, relative: string): string {
  * @param root - workspace cwd.
  * @param abs - absolute path.
  */
+/**
+ * Whether `path` sits at or below `root`.
+ * @param path - candidate path.
+ * @param root - workspace or directory root.
+ */
+export function isUnder(path: string, root: string): boolean {
+  return path === root
+    || path.startsWith(`${root}/`)
+    || path.startsWith(`${root}\\`)
+}
+
 export function relativeTo(root: string, abs: string): string {
   const norm = root.replace(/[/\\]+$/, '')
   if (abs === norm) return ''

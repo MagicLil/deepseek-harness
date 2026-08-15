@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import type { FileEntry, FileListing, GitFileStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { letter, markKind } from './git-marks.ts'
+import { isUnder } from './route-file.ts'
 import css from './FileTree.module.css'
 
 /** One directory level's load state. */
@@ -146,6 +147,8 @@ export function FileTree({
               type="button"
               className={rowClass(entry.hidden, true, openFile === entry.path)}
               style={indent(depth)}
+              data-path={entry.path}
+              data-active={openFile === entry.path || undefined}
               onClick={() => { onOpenFile(entry) }}
               onContextMenu={(event) => { onContextMenu?.(entry, event) }}
             >
@@ -162,12 +165,7 @@ export function FileTree({
   return <div className={css.tree} data-testid="xmart-workbench-tree">{renderLevel(root, 0)}</div>
 }
 
-/** Whether `path` sits at or below `root`. */
-export function isUnder(path: string, root: string): boolean {
-  return path === root
-    || path.startsWith(`${root}/`)
-    || path.startsWith(`${root}\\`)
-}
+export { isUnder } from './route-file.ts'
 
 function indent(depth: number): { paddingLeft: string } {
   return { paddingLeft: `${8 + depth * 14}px` }

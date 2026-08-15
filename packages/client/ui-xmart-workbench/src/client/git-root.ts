@@ -63,7 +63,7 @@ export async function readGitSnapshot(
   }
   let log: GitLogEntry[] = []
   try {
-    const rows = await gitLog(root, 20)
+    const rows = await gitLog(root, 80)
     log = Array.isArray(rows) ? rows : []
   }
   catch {

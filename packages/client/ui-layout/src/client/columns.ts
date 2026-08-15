@@ -71,8 +71,7 @@ export const MENU_BAR_HEIGHT = 28
 
 /**
  * The in-frame HTML menu bar is web-only. Desktop already has a native
- * File / Edit / View row; Terminal lives there, so a second strip must not
- * appear underneath it.
+ * product application menu, so a second strip must not appear underneath it.
  * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
  */
 export function chromeMenuBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {

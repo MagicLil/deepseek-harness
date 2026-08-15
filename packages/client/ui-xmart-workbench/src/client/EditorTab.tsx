@@ -10,6 +10,8 @@ import type { WorkbenchFilesStore } from './files-store.ts'
 import { MonacoHost } from './MonacoHost.tsx'
 import { MarkdownPreview } from './MarkdownPreview.tsx'
 import { isMarkdownPath } from './language-from-path.ts'
+import { languageClientFor, type EditorLspRemote } from './editor-lsp.ts'
+import { WORKBENCH_SAVE_EVENT } from './app-menu-dispatch.ts'
 import css from './EditorTab.module.css'
 
 /** Locale thunk. */
@@ -33,10 +35,14 @@ export type EditorTabProps = TabBodyProps & {
   readFile: (path: string, signal?: AbortSignal) => Promise<string>
   writeFile: (path: string, content: string) => Promise<void>
   files: WorkbenchFilesStore
+  workspaceRoot?: string
+  vueLsp?: EditorLspRemote
+  tsLsp?: EditorLspRemote
+  javaLsp?: EditorLspRemote
 }
 
 /** Editor tab body (see module doc). */
-export function EditorTab({ tab, t, readFile, writeFile, files }: EditorTabProps) {
+export function EditorTab({ tab, t, readFile, writeFile, files, workspaceRoot, vueLsp, tsLsp, javaLsp }: EditorTabProps) {
   const path = tab.path
   const [open, setOpen] = useState<OpenState>({ phase: 'idle' })
   const [dirty, setDirty] = useState(false)
@@ -144,6 +150,12 @@ export function EditorTab({ tab, t, readFile, writeFile, files }: EditorTabProps
     )
   }, [files, writeFile])
 
+  useEffect(() => {
+    const onMenuSave = (): void => { handleSave() }
+    window.addEventListener(WORKBENCH_SAVE_EVENT, onMenuSave)
+    return () => { window.removeEventListener(WORKBENCH_SAVE_EVENT, onMenuSave) }
+  }, [handleSave])
+
   const reload = () => {
     /* v8 ignore next -- the reload control only renders for a pathed tab. */
     if (path === undefined) return
@@ -180,6 +192,7 @@ export function EditorTab({ tab, t, readFile, writeFile, files }: EditorTabProps
   const markdown = isMarkdownPath(path)
   const showEditor = previewMode !== 'preview'
   const showPreview = markdown && previewMode !== 'edit'
+  const languageClient = languageClientFor({ vueLsp, tsLsp, javaLsp }, workspaceRoot, path)
 
   return (
     <div className={css.root} data-testid="xmart-workbench-editor">
@@ -213,6 +226,7 @@ export function EditorTab({ tab, t, readFile, writeFile, files }: EditorTabProps
             labels={{ loading: t('editor.engineLoading'), error: t('editor.engineError') }}
             onChange={handleChange}
             onSave={handleSave}
+            {...(languageClient === undefined ? {} : { languageClient })}
           />
         )}
         {showPreview && <MarkdownPreview text={previewText} />}

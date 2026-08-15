@@ -26,6 +26,9 @@ export const DEFAULT_ACTIVITY_ORDER = 100
 /** Activity-bar views that live in the primary sidebar, not the editor tab bar. */
 export const SHELL_TAB_TYPES = ['explorer', 'git', 'tasks', 'terminal'] as const
 
+/** Max UI terminal tabs per session (host enforces the same cap). */
+export const TERMINAL_TAB_LIMIT = 3
+
 /**
  * Primary-sidebar activity id. Built-in ids stay `explorer` / `git` /
  * `tasks`; other plugins register more through `registerActivity`.
@@ -159,7 +162,7 @@ export type TabDescriptor = {
    * treated as disabled. Does not reject `openTab`.
    */
   available?: (scope: SessionScope, state: WorkbenchSessionState) => boolean
-  /** Sugar for `dedupeKey: () => id`. An explicit `dedupeKey` wins. */
+  /** Sugar for `dedupeKey: tab => tab.type`. An explicit `dedupeKey` wins. */
   single?: boolean
   /**
    * Dedupe key. `openTab` evaluates it on the incoming tab and again on

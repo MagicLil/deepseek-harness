@@ -1,7 +1,7 @@
 /**
  * X-Mart workbench plugin, browser half. Provides `ctx.xmartWorkbench`,
- * fills the Cursor-shell slots (activity bar, primary sidebar, editor
- * column, bottom panel), and contributes the Workbench settings section.
+ * fills the Cursor-shell slots (menu bar, activity bar, primary sidebar,
+ * editor column, bottom panel), and contributes the Workbench settings section.
  * Export discipline: packages/client/AGENTS.md.
  */
 import { createElement } from 'react'
@@ -14,38 +14,45 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  ActivityBarInjected, BottomPanelInjected, PrimarySidebarInjected,
+  ActivityBarInjected, BottomPanelInjected, MenuBarInjected, PrimarySidebarInjected,
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
 import { createWorkbenchStore } from './stores.ts'
 import { XmartWorkbenchController } from './service.ts'
 import { WorkbenchColumn } from './WorkbenchColumn.tsx'
 import { ActivityBar } from './ActivityBar.tsx'
+import { MenuBar } from './MenuBar.tsx'
 import { PrimarySidebar } from './PrimarySidebar.tsx'
 import { BottomPanel } from './BottomPanel.tsx'
 import { WorkbenchSettingsSection } from './WorkbenchSettingsSection.tsx'
 import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
 import { EditorTab } from './EditorTab.tsx'
+import type { EditorLspRemote } from './editor-lsp.ts'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
 import { GitTab } from './GitTab.tsx'
 import { DiffTab } from './DiffTab.tsx'
 import { readTaskTurn, TasksTab } from './TasksTab.tsx'
 import { TerminalTab } from './TerminalTab.tsx'
-import { encodeDiffPath } from './git-diff-path.ts'
+import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
+import { resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
 import { hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
+import { activeEditorPath } from './active-file.ts'
+import { activeFileTab, dispatchAppMenu, type AppMenuCommand } from './app-menu-dispatch.ts'
 import { en, NS, zh } from './locales.ts'
-import { clickSettingsTrigger } from './settings-trigger.ts'
+import { canCreateTerminal, countTerminalTabs, shouldCreateOnToggle } from './terminal-actions.ts'
+import { hostTerminalsOf, killTerminal } from './terminal-client.ts'
+import { clearTerminalSeat } from './terminal-seats.ts'
 import type { TabBodyProps } from './types.ts'
 
 export { XmartWorkbenchController } from './service.ts'
 export type { IXmartWorkbench } from './service.ts'
 export type {
   ActivityBarInjected, ActivityBarProps, BottomPanelInjected, BottomPanelProps,
-  PrimarySidebarInjected, PrimarySidebarProps,
+  MenuBarInjected, MenuBarProps, PrimarySidebarInjected, PrimarySidebarProps,
   WorkbenchColumnInjected, WorkbenchColumnProps, WorkbenchSettingsInjected, WorkbenchSettingsProps,
 } from './contract.ts'
 export type { WorkbenchKey } from './locales.ts'
@@ -69,6 +76,7 @@ declare module '@deepseek-ai/cordis' {
  */
 export const inject = [
   'slots', 'locale', 'layout', 'workspaces', 'sessions', 'conversation', 'conversationEvents',
+  'connection', 'remote',
 ]
 
 /** Empty viewer body (matching only; hidden tabs render the real UI). */
@@ -95,7 +103,38 @@ export function apply(ctx: ClientContext): void {
   }, 'ui-xmart-workbench: service')
 
   const t = ctx.locale.bind(NS)
-  const getCwd = (sessionId: string) => ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
+  const host = hostTerminalsOf(ctx.get('connection'))
+  const remote = ctx.get('remote')
+  const workspaceSnap = () => ctx.workspaces.list.getSnapshot()
+  const getCwd = (sessionId: string) => {
+    const snap = workspaceSnap()
+    return resolveSessionCwd(
+      sessionId,
+      ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd,
+      snap.items,
+      snap.recentWorkspaceId,
+    )
+  }
+  const getRoots = (sessionId: string) => {
+    const snap = workspaceSnap()
+    return resolveExplorerRoots(
+      sessionId,
+      ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd,
+      snap.items,
+      snap.recentWorkspaceId,
+    )
+  }
+  const getTerminalCwd = (sessionId: string) => resolveTerminalCwd(getRoots(sessionId), getCwd(sessionId))
+  const watchWorkspaceFacts = (fn: () => void) => {
+    const offSessions = ctx.sessions.list.subscribe(fn)
+    const offWorkspaces = ctx.workspaces.list.subscribe(fn)
+    return () => {
+      offSessions()
+      offWorkspaces()
+    }
+  }
+  const getActivePath = (sessionId: string) => activeEditorPath(workbench.getSnapshot(sessionId))
+  const watchWorkbench = (fn: () => void) => workbench.subscribe(fn)
   const mentionFile = (sessionId: string, path: string) => {
     const actx = ctx.sessions.scope(sessionId as SessionId)
     if (actx === undefined) return
@@ -114,16 +153,21 @@ export function apply(ctx: ClientContext): void {
     const component = (props: TabBodyProps) => createElement(ExplorerTab, {
       ...props,
       t,
-      getCwd,
-      watchSessions: fn => ctx.sessions.list.subscribe(fn),
+      getRoots,
+      watchSessions: watchWorkspaceFacts,
       listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
       gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
       writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
       createDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),
       openSystem: path => ctx.workspaces.openPath(path),
-      openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
+      openFile: (path) => {
+        workbench.bindSession(props.sessionId)
+        workbench.openFile(path, { sessionId: props.sessionId })
+      },
       mentionFile: (path) => { mentionFile(props.sessionId, path) },
       files,
+      getActivePath,
+      watchWorkbench,
     })
     const disposeTab = workbench.registerTab({
       id: 'explorer',
@@ -131,7 +175,7 @@ export function apply(ctx: ClientContext): void {
       order: 0,
       hidden: true,
       single: true,
-      available: scope => typeof getCwd(scope.sessionId) === 'string' && getCwd(scope.sessionId) !== '',
+      available: scope => getRoots(scope.sessionId).length > 0,
       component,
     })
     const disposeActivity = workbench.registerActivity({
@@ -151,7 +195,7 @@ export function apply(ctx: ClientContext): void {
       ...props,
       t,
       getCwd,
-      watchSessions: fn => ctx.sessions.list.subscribe(fn),
+      watchSessions: watchWorkspaceFacts,
       listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
       gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
       gitStage: (path, files) => ctx.workspaces.gitStage(path, files),
@@ -159,10 +203,22 @@ export function apply(ctx: ClientContext): void {
       gitDiscard: (path, files) => ctx.workspaces.gitDiscard(path, files),
       gitCommit: (path, message) => ctx.workspaces.gitCommit(path, message),
       gitLog: (path, limit) => ctx.workspaces.gitLog(path, limit),
+      gitSync: (path, mode) => ctx.workspaces.gitSync(path, mode),
+      gitBranches: (path, signal) => ctx.workspaces.gitBranches(path, signal),
+      gitCheckout: (path, name, create) => ctx.workspaces.gitCheckout(path, name, create),
+      gitCheckoutCommit: (path, hash) => ctx.workspaces.gitCheckoutCommit(path, hash),
+      gitSuggestCommit: (path, sid) => ctx.workspaces.gitSuggestCommit(path, sid),
       openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
       openDiff: (side, file) => {
         workbench.openTab({
           type: 'diff', path: encodeDiffPath(side, file), title: file,
+        }, { sessionId: props.sessionId })
+      },
+      openCommit: (hash, subject) => {
+        workbench.openTab({
+          type: 'diff',
+          path: encodeCommitDiffPath(hash),
+          title: commitDiffTitle(hash, subject),
         }, { sessionId: props.sessionId })
       },
       files,
@@ -259,7 +315,24 @@ export function apply(ctx: ClientContext): void {
     title: () => t('tab.terminal'),
     order: 30,
     hidden: true,
-    component: props => createElement(TerminalTab, { ...props, t }),
+    createTab: (state) => {
+      if (!canCreateTerminal(state.tabs)) return null
+      const seq = state.nextSeq
+      return {
+        tab: { id: `terminal:${seq}`, type: 'terminal', title: `${t('tab.terminal')} ${String(seq)}` },
+        patch: { nextSeq: seq + 1 },
+      }
+    },
+    component: (props) => {
+      const cwd = getTerminalCwd(props.sessionId)
+      return createElement(TerminalTab, {
+        ...props,
+        t,
+        host,
+        remote,
+        ...cwd === undefined ? {} : { cwd },
+      })
+    },
   }), 'ui-xmart-workbench: terminal tab')
   ctx.effect(() => workbench.registerTab({
     id: 'demo',
@@ -280,13 +353,23 @@ export function apply(ctx: ClientContext): void {
     title: () => t('tab.editor'),
     hidden: true,
     dedupeKey: tab => tab.path,
-    component: props => createElement(EditorTab, {
-      ...props,
-      t,
-      readFile: (path, signal) => ctx.workspaces.readFile(path, signal),
-      writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
-      files,
-    }),
+    component: (props) => {
+      const workspaceRoot = getCwd(props.sessionId)
+      const remotes = (ctx as {
+        remote?: { vueLsp?: EditorLspRemote; tsLsp?: EditorLspRemote; javaLsp?: EditorLspRemote }
+      }).remote
+      return createElement(EditorTab, {
+        ...props,
+        t,
+        readFile: (path, signal) => ctx.workspaces.readFile(path, signal),
+        writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
+        files,
+        ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
+        ...(remotes?.vueLsp === undefined ? {} : { vueLsp: remotes.vueLsp }),
+        ...(remotes?.tsLsp === undefined ? {} : { tsLsp: remotes.tsLsp }),
+        ...(remotes?.javaLsp === undefined ? {} : { javaLsp: remotes.javaLsp }),
+      })
+    },
   }), 'ui-xmart-workbench: editor tab')
   ctx.effect(() => workbench.registerTab({
     id: 'image',
@@ -307,6 +390,7 @@ export function apply(ctx: ClientContext): void {
       t,
       getCwd,
       gitDiff: (path, side, file, signal) => ctx.workspaces.gitDiff(path, side, file, signal),
+      gitCommitDiff: (path, commit, signal) => ctx.workspaces.gitCommitDiff(path, commit, signal),
     }),
   }), 'ui-xmart-workbench: diff tab')
   ctx.effect(() => workbench.registerTab({
@@ -359,6 +443,66 @@ export function apply(ctx: ClientContext): void {
   })), 'ui-xmart-workbench: fs events')
 
   const persist = createWorkbenchStore()
+  const dispatchWindow = (name: string): void => {
+    const target = globalThis as { dispatchEvent?: (event: Event) => boolean }
+    target.dispatchEvent?.(new Event(name))
+  }
+  const openWorkspace = (): void => {
+    void ctx.workspaces.pickDirectory()
+      .then((path) => {
+        if (path === null || path === '') return
+        return ctx.workspaces.create({ path })
+      })
+      .catch((reason: unknown) => { console.warn('open workspace failed:', reason) })
+  }
+  const closeActiveEditor = (sessionId: SessionId): void => {
+    const tab = activeFileTab(workbench.getSnapshot(sessionId))
+    if (tab !== undefined) workbench.closeTab(tab.id, { sessionId })
+  }
+  const showActivity = (sessionId: SessionId, id: 'explorer' | 'git' | 'tasks'): void => {
+    workbench.setActivity(id, { sessionId })
+    ctx.layout.openWorkbench()
+  }
+  const openTerminalTab = (sessionId: SessionId): string | undefined => {
+    const id = workbench.openTab({ type: 'terminal' }, { sessionId })
+    if (id !== undefined) ctx.layout.openBottom()
+    return id
+  }
+  const closeTerminalTab = (sessionId: SessionId, tabId: string): void => {
+    const ptyId = clearTerminalSeat(sessionId, tabId)
+    if (ptyId !== undefined) void killTerminal(host, sessionId, ptyId)
+    workbench.closeTab(tabId, { sessionId })
+    if (countTerminalTabs(workbench.getSnapshot(sessionId).tabs) === 0) ctx.layout.closeBottom()
+  }
+  const toggleTerminalPanel = (sessionId: SessionId): void => {
+    if (shouldCreateOnToggle(countTerminalTabs(workbench.getSnapshot(sessionId).tabs))) {
+      openTerminalTab(sessionId)
+      return
+    }
+    ctx.layout.toggleBottom()
+  }
+  const runMenu = (sessionId: SessionId | undefined, command: AppMenuCommand): void => {
+    dispatchAppMenu(command, {
+      sessionId,
+      newSession: () => { ctx.workspaces.startSession() },
+      openWorkspace,
+      closeActiveEditor,
+      showActivity,
+      togglePrimary: () => { ctx.layout.toggleWorkbench() },
+      toggleSessions: () => { ctx.layout.toggleSidebar() },
+      newTerminal: openTerminalTab,
+      toggleTerminal: toggleTerminalPanel,
+      dispatch: dispatchWindow,
+    })
+  }
+  const onAppMenu = (globalThis as {
+    __DSH_IPC__?: { onAppMenu?: (listener: (command: AppMenuCommand) => void) => () => void }
+  }).__DSH_IPC__?.onAppMenu
+  if (onAppMenu !== undefined) {
+    ctx.effect(() => onAppMenu((command) => {
+      runMenu(ctx.sessions.list.getSnapshot().current, command)
+    }), 'ui-xmart-workbench: desktop app menu')
+  }
   const columnInjected = (sessionId: SessionId): WorkbenchColumnInjected => {
     workbench.bindSession(sessionId)
     return {
@@ -377,8 +521,6 @@ export function apply(ctx: ClientContext): void {
     resolveIcon: id => workbench.getActivity(id)?.icon,
     openPrimary: () => { ctx.layout.openWorkbench() },
     closePrimary: () => { ctx.layout.closeWorkbench() },
-    toggleBottom: () => { ctx.layout.toggleBottom() },
-    openSettings: () => { clickSettingsTrigger(globalThis.document) },
     hooks: {
       workbenchSession: workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),
@@ -394,8 +536,16 @@ export function apply(ctx: ClientContext): void {
       workbenchRegistry: workbench.observeRegistry(),
     },
   })
-  const bottomInjected = (): BottomPanelInjected => ({
+  const menuInjected = (sessionId: SessionId): MenuBarInjected => ({
+    run: (command) => { runMenu(sessionId, command) },
+    hooks: { workbenchSession: workbench.observeSession(sessionId) },
+  })
+  const bottomInjected = (sessionId: SessionId): BottomPanelInjected => ({
     resolveBody: type => workbench.getTab(type)?.component,
+    activateTab: (id) => { workbench.activateTab(id, { sessionId }) },
+    closeTab: (id) => { closeTerminalTab(sessionId, id) },
+    newTerminal: () => { openTerminalTab(sessionId) },
+    hooks: { workbenchSession: workbench.observeSession(sessionId) },
   })
   const settingsInjected = (): WorkbenchSettingsInjected => ({
     setTabEnabled: (id, enabled) => { workbench.setTabEnabled(id, enabled) },
@@ -403,6 +553,10 @@ export function apply(ctx: ClientContext): void {
     hooks: { workbenchRegistry: workbench.observeRegistry() },
   })
 
+  ctx.slots.inject('menuBar', () => ctx.slots.register(
+    { name: 'menuBar', inject: menuInjected, locale: NS },
+    MenuBar,
+  ))
   ctx.slots.inject('activityBar', () => ctx.slots.register(
     { name: 'activityBar', inject: activityInjected, locale: NS },
     ActivityBar,

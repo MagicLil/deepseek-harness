@@ -9,6 +9,7 @@ import type { TabBodyProps } from './types.ts'
 import type { WorkbenchKey } from './locales.ts'
 import type { WorkbenchFilesStore } from './files-store.ts'
 import { FileTree } from './FileTree.tsx'
+import { homeOf, type ExplorerRoot } from './explorer-roots.ts'
 import { indexGitChanges } from './git-marks.ts'
 import { dirname, isSingleSegment, joinPath, relativeTo } from './route-file.ts'
 import css from './ExplorerTab.module.css'
@@ -25,7 +26,7 @@ type MenuTarget = { entry: FileEntry; x: number; y: number }
 /** Explorer callbacks closed over from apply. */
 export type ExplorerTabProps = TabBodyProps & {
   t: Translate
-  getCwd: (sessionId: string) => string | undefined
+  getRoots: (sessionId: string) => readonly ExplorerRoot[]
   watchSessions: (fn: () => void) => () => void
   listEntries: (path: string, signal?: AbortSignal) => Promise<FileListing>
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>
@@ -35,42 +36,51 @@ export type ExplorerTabProps = TabBodyProps & {
   openFile: (path: string) => void
   mentionFile: (path: string) => void
   files: WorkbenchFilesStore
+  getActivePath?: (sessionId: string) => string | undefined
+  watchWorkbench?: (fn: () => void) => () => void
 }
 
 /** Explorer tab body (see module doc). */
 export function ExplorerTab({
-  sessionId, t, getCwd, watchSessions, listEntries, gitStatus,
+  sessionId, t, getRoots, watchSessions, listEntries, gitStatus,
   writeFile, createDirectory, openSystem, openFile, mentionFile, files,
+  getActivePath, watchWorkbench,
 }: ExplorerTabProps) {
-  const [cwd, setCwd] = useState(() => getCwd(sessionId))
+  const [roots, setRoots] = useState(() => getRoots(sessionId))
   const [snap, setSnap] = useState(() => files.getSnapshot())
+  const [activePath, setActivePath] = useState(() => getActivePath?.(sessionId))
   const [gitByPath, setGitByPath] = useState<Readonly<Record<string, GitFileStatus>>>({})
   const [create, setCreate] = useState<CreateState>(null)
   const [name, setName] = useState('')
   const [menu, setMenu] = useState<MenuTarget | null>(null)
+  const rootsKey = roots.map(root => root.path).join('\0')
 
-  useEffect(() => watchSessions(() => { setCwd(getCwd(sessionId)) }), [getCwd, sessionId, watchSessions])
+  useEffect(() => watchSessions(() => { setRoots(getRoots(sessionId)) }), [getRoots, sessionId, watchSessions])
   useEffect(() => files.subscribe(() => { setSnap(files.getSnapshot()) }), [files])
+  useEffect(() => {
+    if (watchWorkbench === undefined) return
+    return watchWorkbench(() => { setActivePath(getActivePath?.(sessionId)) })
+  }, [getActivePath, sessionId, watchWorkbench])
 
   useEffect(() => {
-    if (cwd === undefined || cwd === '') {
+    if (roots.length === 0) {
       setGitByPath({})
       return
     }
     const controller = new AbortController()
-    gitStatus(cwd, controller.signal).then(
-      (status) => {
-        if (!controller.signal.aborted) setGitByPath(indexGitChanges(status))
-      },
-      () => {
-        if (controller.signal.aborted) return
-        setGitByPath({})
-      },
-    )
+    void Promise.all(roots.map(root => gitStatus(root.path, controller.signal).then(
+      indexGitChanges,
+      () => ({}) as Record<string, GitFileStatus>,
+    ))).then((maps) => {
+      if (controller.signal.aborted) return
+      const merged: Record<string, GitFileStatus> = {}
+      for (const map of maps) Object.assign(merged, map)
+      setGitByPath(merged)
+    })
     return () => { controller.abort() }
-  }, [cwd, snap.refreshNonce, gitStatus])
+  }, [roots, rootsKey, snap.refreshNonce, gitStatus])
 
-  if (cwd === undefined || cwd === '') {
+  if (roots.length === 0) {
     return <div className={css.note} data-testid="xmart-workbench-explorer">{t('explorer.noWorkspace')}</div>
   }
 
@@ -113,28 +123,33 @@ export function ExplorerTab({
         </form>
       )}
       <div className={css.treeWrap}>
-        <FileTree
-          root={cwd}
-          expanded={expanded}
-          openFile={undefined}
-          dirtyPaths={snap.drafts}
-          gitByPath={gitByPath}
-          refreshNonce={snap.refreshNonce}
-          listEntries={listEntries}
-          onToggleDir={(path, next) => { files.setExpanded(sessionId, path, next) }}
-          onOpenFile={(entry) => { openFile(entry.path) }}
-          onContextMenu={(entry, event) => {
-            event.preventDefault()
-            setMenu({ entry, x: event.clientX, y: event.clientY })
-          }}
-          labels={{
-            loading: t('explorer.loading'),
-            empty: t('explorer.empty'),
-            error: t('explorer.error'),
-            retry: t('explorer.retry'),
-            truncated: t('explorer.truncated'),
-          }}
-        />
+        {roots.map(root => (
+          <div key={root.path} data-testid={`xmart-workbench-root-${root.title}`}>
+            {roots.length > 1 && <div className={css.section}>{root.title}</div>}
+            <FileTree
+              root={root.path}
+              expanded={expanded}
+              openFile={activePath}
+              dirtyPaths={snap.drafts}
+              gitByPath={gitByPath}
+              refreshNonce={snap.refreshNonce}
+              listEntries={listEntries}
+              onToggleDir={(path, next) => { files.setExpanded(sessionId, path, next) }}
+              onOpenFile={(entry) => { openFile(entry.path) }}
+              onContextMenu={(entry, event) => {
+                event.preventDefault()
+                setMenu({ entry, x: event.clientX, y: event.clientY })
+              }}
+              labels={{
+                loading: t('explorer.loading'),
+                empty: t('explorer.empty'),
+                error: t('explorer.error'),
+                retry: t('explorer.retry'),
+                truncated: t('explorer.truncated'),
+              }}
+            />
+          </div>
+        ))}
       </div>
       <Menu
         open={menu !== null}
@@ -158,7 +173,7 @@ export function ExplorerTab({
             return
           }
           if (id === 'copy-rel') {
-            void navigator.clipboard.writeText(relativeTo(cwd, target.path))
+            void navigator.clipboard.writeText(relativeTo(homeOf(target.path, roots), target.path))
             return
           }
           if (id === 'mention' && target.kind !== 'directory') mentionFile(target.path)

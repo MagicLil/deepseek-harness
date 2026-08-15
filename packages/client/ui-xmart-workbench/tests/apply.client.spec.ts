@@ -5,12 +5,13 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject, XmartWorkbenchController } from '@deepseek-ai/dsh-client-ui-xmart-workbench/client'
 import type {
-  ActivityBarInjected, BottomPanelInjected, PrimarySidebarInjected,
+  ActivityBarInjected, BottomPanelInjected, MenuBarInjected, PrimarySidebarInjected,
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from '@deepseek-ai/dsh-client-ui-xmart-workbench/client'
 import { WorkbenchColumn } from '../src/client/WorkbenchColumn.tsx'
 import { ActivityBar } from '../src/client/ActivityBar.tsx'
 import { PrimarySidebar } from '../src/client/PrimarySidebar.tsx'
+import { MenuBar } from '../src/client/MenuBar.tsx'
 import { BottomPanel } from '../src/client/BottomPanel.tsx'
 import { WorkbenchSettingsSection } from '../src/client/WorkbenchSettingsSection.tsx'
 import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-xmart-workbench'
@@ -27,6 +28,7 @@ async function bench() {
     setWorkbench: vi.fn(),
     toggleWorkbench: vi.fn(),
     toggleBottom: vi.fn(),
+    toggleSidebar: vi.fn(),
     openBottom: vi.fn(),
     closeBottom: vi.fn(),
     setBottomHeight: vi.fn(),
@@ -38,10 +40,18 @@ async function bench() {
   const setDraft = vi.fn()
   const cancel = vi.fn()
   const openSubagent = vi.fn()
+  const sessionById: Record<string, { cwd?: string; running?: boolean }> = {
+    s1: { cwd: '/ws', running: true },
+  }
+  const workspaceState = {
+    items: [] as { workspaceId: string; path: string; title: string; sessionIds: string[] }[],
+    recentWorkspaceId: undefined as string | undefined,
+  }
   const sessions = {
     list: {
       getSnapshot: () => ({
-        byId: { s1: { cwd: '/ws', running: true } },
+        current: 's1',
+        byId: sessionById,
         jobsBySession: { s1: [{ id: 'bash-1', kind: 'bash', label: 'ls', status: 'running' }] },
         subagentsByParent: {
           s1: {
@@ -77,6 +87,13 @@ async function bench() {
     openSubagent,
   }
   const workspaces = {
+    list: {
+      getSnapshot: () => workspaceState,
+      subscribe: (fn?: () => void) => {
+        fn?.()
+        return () => {}
+      },
+    },
     listEntries: vi.fn(async () => ({ path: '/ws', entries: [], truncated: false })),
     gitStatus: vi.fn(async () => ({
       root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
@@ -87,10 +104,19 @@ async function bench() {
     gitDiscard: vi.fn(async () => {}),
     gitCommit: vi.fn(async () => ({ root: '/ws', hash: 'abc' })),
     gitLog: vi.fn(async () => []),
+    gitSync: vi.fn(async () => {}),
+    gitBranches: vi.fn(async () => []),
+    gitCheckout: vi.fn(async () => {}),
+    gitCheckoutCommit: vi.fn(async () => {}),
+    gitSuggestCommit: vi.fn(async () => ({ message: 'chore: generated' })),
+    gitCommitDiff: vi.fn(async () => ({ root: '/ws', side: 'worktree' as const, text: '' })),
     readFile: vi.fn(async () => 'hi'),
     writeFile: vi.fn(async () => {}),
     createDirectory: vi.fn(async () => '/ws/n'),
     openPath: vi.fn(async () => {}),
+    startSession: vi.fn(),
+    pickDirectory: vi.fn(async () => '/ws/picked'),
+    create: vi.fn(async (input: { path: string }) => ({ path: input.path })),
   }
   const conversation = {
     input: {
@@ -105,9 +131,12 @@ async function bench() {
   ctx.provide('workspaces', workspaces)
   ctx.provide('conversation', conversation)
   ctx.provide('conversationEvents', conversationEvents)
+  ctx.provide('connection', { api: { host: {} } })
+  ctx.provide('remote', { $on: () => () => {} })
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
     setDraft, conversationEvents, sessions, cancel, openSubagent,
+    sessionById, workspaceState,
   }
 }
 
@@ -119,6 +148,7 @@ function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
     children: {
+      menuBar: { kind: 'single', scope: 'session' },
       activityBar: { kind: 'single', scope: 'session' },
       primarySidebar: { kind: 'single', scope: 'session' },
       workbench: { kind: 'single', scope: 'session' },
@@ -132,6 +162,7 @@ describe('ui-xmart-workbench apply', () => {
   it('declares the services it drives', () => {
     expect(inject).toEqual([
       'slots', 'locale', 'layout', 'workspaces', 'sessions', 'conversation', 'conversationEvents',
+      'connection', 'remote',
     ])
   })
 
@@ -186,6 +217,7 @@ describe('ui-xmart-workbench apply', () => {
     expect(b.slots.entries('workbench')[0]!.component).toBe(WorkbenchColumn)
     expect(b.slots.entries('workbench')[0]!.locale).toBe('workbench')
     expect(b.locale.bind('workbench')('column.title')).toBe('工作台')
+    expect(b.slots.entries('menuBar')[0]!.component).toBe(MenuBar)
     expect(b.slots.entries('activityBar')[0]!.component).toBe(ActivityBar)
     expect(b.slots.entries('primarySidebar')[0]!.component).toBe(PrimarySidebar)
     expect(b.slots.entries('bottomPanel')[0]!.component).toBe(BottomPanel)
@@ -195,6 +227,33 @@ describe('ui-xmart-workbench apply', () => {
     expect(section?.options.order).toBe(25)
     const label = section?.options.label
     expect(typeof label === 'function' ? label() : label).toBe('工作台')
+  })
+
+  it('uses the current session folder as the only explorer root when cwd is missing', async () => {
+    const b = await bench()
+    delete b.sessionById.s1.cwd
+    b.workspaceState.items = [
+      { workspaceId: 'w1', path: 'D:\\hmdp', title: 'hmdp', sessionIds: ['s1'] },
+      { workspaceId: 'w2', path: 'D:\\tool', title: 'tool', sessionIds: [] },
+    ]
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const service = workbench(b.ctx)
+    const empty = { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' as const }
+    expect(service.getTab('explorer')?.available?.({ sessionId: 's1' }, empty)).toBe(true)
+    expect(service.getTab('git')?.available?.({ sessionId: 's1' }, empty)).toBe(true)
+    const column = (
+      b.slots.entries('workbench')[0]!.inject as unknown as (id: string) => WorkbenchColumnInjected
+    )('s1')
+    const Explorer = column.resolveBody('explorer')
+    expect(Explorer).toBeTypeOf('function')
+    if (typeof Explorer !== 'function') return
+    const explorerEl = Explorer({
+      tab: { id: 'e', type: 'explorer', title: '资源管理器' }, visible: true, sessionId: 's1',
+    }) as { props: { getRoots: (id: string) => { path: string; title: string }[] } }
+    expect(explorerEl.props.getRoots('s1')).toEqual([
+      { path: 'D:\\hmdp', title: 'hmdp' },
+    ])
   })
 
   it('routes column and toggle inject callbacks to ctx.layout and the service', async () => {
@@ -210,9 +269,12 @@ describe('ui-xmart-workbench apply', () => {
     const activity = (
       b.slots.entries('activityBar')[0]!.inject as unknown as (id: string) => ActivityBarInjected
     )('s1')
+    const menu = (
+      b.slots.entries('menuBar')[0]!.inject as unknown as (id: string) => MenuBarInjected
+    )('s1')
     const bottom = (
-      b.slots.entries('bottomPanel')[0]!.inject as unknown as () => BottomPanelInjected
-    )()
+      b.slots.entries('bottomPanel')[0]!.inject as unknown as (id: string) => BottomPanelInjected
+    )('s1')
     primary.closeWorkbench()
     primary.setWorkbench(480)
     expect(b.layout.closeWorkbench).toHaveBeenCalledOnce()
@@ -220,7 +282,19 @@ describe('ui-xmart-workbench apply', () => {
     activity.setActivity('git')
     activity.openPrimary()
     activity.closePrimary()
-    activity.toggleBottom()
+    menu.run('terminal-toggle')
+    menu.run('terminal-toggle')
+    expect(b.layout.toggleBottom).toHaveBeenCalledOnce()
+    menu.run('terminal-new')
+    menu.run('terminal-new')
+    expect(workbench(b.ctx).getSnapshot('s1').tabs.filter(row => row.type === 'terminal')).toHaveLength(3)
+    const firstTerm = workbench(b.ctx).getSnapshot('s1').tabs.find(row => row.type === 'terminal')
+    expect(firstTerm).toBeDefined()
+    if (firstTerm !== undefined) {
+      bottom.activateTab(firstTerm.id)
+      bottom.closeTab(firstTerm.id)
+    }
+    bottom.newTerminal()
     expect(activity.resolveIcon('explorer')).toBeTypeOf('function')
     expect(activity.resolveIcon('missing')).toBeUndefined()
     expect(activity.hooks.workbenchRegistry.getSnapshot().activities.map(row => row.id))
@@ -232,8 +306,7 @@ describe('ui-xmart-workbench apply', () => {
     expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
     expect(b.layout.openWorkbench).toHaveBeenCalled()
     expect(b.layout.closeWorkbench).toHaveBeenCalledTimes(2)
-    expect(b.layout.toggleBottom).toHaveBeenCalledOnce()
-    activity.openSettings()
+    expect(b.layout.openBottom).toHaveBeenCalled()
     expect(activity.resolveIcon('git')).toBeTypeOf('function')
     expect(activity.resolveIcon('missing')).toBeUndefined()
     expect(primary.resolveBody('explorer')).toBeTypeOf('function')
@@ -241,13 +314,13 @@ describe('ui-xmart-workbench apply', () => {
     expect(bottom.resolveBody('terminal')).toBeTypeOf('function')
     column.openTab('demo')
     const service = workbench(b.ctx)
-    const opened = service.getSnapshot('s1').tabs[0]
+    const opened = service.getSnapshot('s1').tabs.find(row => row.type === 'demo')
     expect(opened?.type).toBe('demo')
     expect(opened).toBeDefined()
     if (opened === undefined) return
     column.activateTab(opened.id)
     column.closeTab(opened.id)
-    expect(service.getSnapshot('s1').tabs).toHaveLength(0)
+    expect(service.getSnapshot('s1').tabs.some(row => row.type === 'demo')).toBe(false)
     const Demo = column.resolveBody('demo')
     const File = column.resolveBody('file')
     const Explorer = column.resolveBody('explorer')
@@ -277,6 +350,19 @@ describe('ui-xmart-workbench apply', () => {
     expect((Editor as typeof renderFile)({
       tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
     })).toBeTruthy()
+    const lspRemote = {
+      open: async () => ({ ok: true as const, value: undefined }),
+      change: async () => ({ ok: true as const, value: undefined }),
+      close: async () => ({ ok: true as const, value: undefined }),
+      complete: async () => ({ ok: true as const, value: { items: [] } }),
+      diagnostics: async () => ({ ok: true as const, value: { items: [] } }),
+    }
+    Object.assign(b.ctx.get('remote') as object, {
+      vueLsp: lspRemote, tsLsp: lspRemote, javaLsp: lspRemote,
+    })
+    expect((Editor as typeof renderFile)({
+      tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
+    })).toBeTruthy()
     expect((Image as typeof renderFile)({
       tab: { id: 'im', type: 'image', title: 'a.png', path: '/p/a.png' }, visible: true, sessionId: 's1',
     })).toBeTruthy()
@@ -294,7 +380,9 @@ describe('ui-xmart-workbench apply', () => {
       openSystem: (path: string) => Promise<void>
       openFile: (path: string) => void
       watchSessions: (fn: () => void) => () => void
-      getCwd: (id: string) => string | undefined
+      getRoots: (id: string) => { path: string; title: string }[]
+      getActivePath: (id: string) => string | undefined
+      watchWorkbench: (fn: () => void) => () => void
     } }
     await explorerEl.props.listEntries('/ws')
     await explorerEl.props.gitStatus('/ws')
@@ -303,7 +391,10 @@ describe('ui-xmart-workbench apply', () => {
     await explorerEl.props.openSystem('/ws/a.ts')
     explorerEl.props.openFile('/ws/a.ts')
     explorerEl.props.watchSessions(() => {})()
-    expect(explorerEl.props.getCwd('s1')).toBe('/ws')
+    expect(explorerEl.props.getRoots('s1')).toEqual([{ path: '/ws', title: 'ws' }])
+    expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.path === '/ws/a.ts' && row.type === 'editor')).toBe(true)
+    expect(explorerEl.props.getActivePath('s1')).toBe('/ws/a.ts')
+    explorerEl.props.watchWorkbench(() => {})()
     const editorEl = (Editor as typeof renderFile)({
       tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
     }) as { props: { readFile: (path: string) => Promise<string>; writeFile: (path: string, content: string) => Promise<void> } }
@@ -342,8 +433,14 @@ describe('ui-xmart-workbench apply', () => {
       gitDiscard: (path: string, files: string[]) => Promise<void>
       gitCommit: (path: string, message: string) => Promise<unknown>
       gitLog: (path: string, limit?: number) => Promise<unknown>
+      gitSync: (path: string, mode: 'fetch' | 'pull' | 'push') => Promise<void>
+      gitBranches: (path: string) => Promise<unknown>
+      gitCheckout: (path: string, name: string, create?: boolean) => Promise<void>
+      gitCheckoutCommit: (path: string, hash: string) => Promise<void>
+      gitSuggestCommit: (path: string, sessionId: string) => Promise<{ message: string }>
       openFile: (path: string) => void
       openDiff: (side: 'worktree' | 'staged', file: string) => void
+      openCommit: (hash: string, subject: string) => void
       watchSessions: (fn: () => void) => () => void
       getCwd: (id: string) => string | undefined
     } }
@@ -354,15 +451,26 @@ describe('ui-xmart-workbench apply', () => {
     await gitEl.props.gitDiscard('/ws', ['a.ts'])
     await gitEl.props.gitCommit('/ws', 'm')
     await gitEl.props.gitLog('/ws', 5)
+    await gitEl.props.gitSync('/ws', 'fetch')
+    await gitEl.props.gitBranches('/ws')
+    await gitEl.props.gitCheckout('/ws', 'feat', true)
+    await gitEl.props.gitCheckoutCommit('/ws', 'abcdef1')
+    await gitEl.props.gitSuggestCommit('/ws', 's1')
     gitEl.props.openFile('/ws/a.ts')
     gitEl.props.openDiff('worktree', 'a.ts')
+    gitEl.props.openCommit('abcdef1', 'init')
     gitEl.props.watchSessions(() => {})()
     expect(gitEl.props.getCwd('s1')).toBe('/ws')
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'diff')).toBe(true)
+    expect(service.getSnapshot('s1').tabs.some(row => row.path === 'commit:abcdef1')).toBe(true)
     const diffEl = (Diff as typeof renderFile)({
       tab: { id: 'df', type: 'diff', title: 'a.ts', path: 'worktree:a.ts' }, visible: true, sessionId: 's1',
-    }) as { props: { gitDiff: (path: string, side: 'worktree', file?: string) => Promise<unknown> } }
+    }) as { props: {
+      gitDiff: (path: string, side: 'worktree', file?: string) => Promise<unknown>
+      gitCommitDiff: (path: string, commit: string) => Promise<unknown>
+    } }
     await diffEl.props.gitDiff('/ws', 'worktree', 'a.ts')
+    await diffEl.props.gitCommitDiff('/ws', 'abcdef1')
     const tasksEl = (Tasks as typeof renderFile)({
       tab: { id: 'tk', type: 'tasks', title: '任务' }, visible: true, sessionId: 's1',
     }) as { props: {
@@ -466,6 +574,134 @@ describe('ui-xmart-workbench apply', () => {
     expect(workbench(b.ctx).isViewerEnabled('missing')).toBe(false)
   })
 
+  it('opens and toggles the terminal from the desktop application menu', async () => {
+    let listener: ((command: 'terminal-new' | 'terminal-toggle') => void) | undefined
+    const onAppMenu = vi.fn((fn: (command: 'terminal-new' | 'terminal-toggle') => void) => {
+      listener = fn
+      return () => { listener = undefined }
+    })
+    const previous = (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
+    ;(globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__ = { onAppMenu }
+    try {
+      const b = await bench()
+      declare(b.slots)
+      const fiber = b.ctx.plugin({ inject: [...inject], apply })
+      await fiber.await()
+      expect(onAppMenu).toHaveBeenCalledOnce()
+      listener?.('terminal-new')
+      expect(b.layout.openBottom).toHaveBeenCalledOnce()
+      expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.type === 'terminal')).toBe(true)
+      listener?.('terminal-toggle')
+      expect(b.layout.toggleBottom).toHaveBeenCalledOnce()
+      await fiber.dispose()
+      expect(listener).toBeUndefined()
+    } finally {
+      if (previous === undefined) delete (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
+      else (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__ = previous
+    }
+  })
+
+  it('routes product menu commands from the desktop application menu', async () => {
+    let listener: ((command: string) => void) | undefined
+    ;(globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__ = {
+      onAppMenu: (fn: (command: string) => void) => {
+        listener = fn
+        return () => {}
+      },
+    }
+    const dispatched: string[] = []
+    const onEvent = (event: Event): void => { dispatched.push(event.type) }
+    window.addEventListener('dsh:open-settings', onEvent)
+    window.addEventListener('dsh:workbench-save', onEvent)
+    try {
+      const b = await bench()
+      declare(b.slots)
+      await b.ctx.plugin({ inject: [...inject], apply }).await()
+      workbench(b.ctx).openFile('/ws/a.ts', { sessionId: 's1' })
+      listener?.('session-new')
+      listener?.('workspace-open')
+      listener?.('file-save')
+      listener?.('file-close')
+      listener?.('settings-open')
+      listener?.('activity-git')
+      listener?.('sidebar-primary')
+      listener?.('sidebar-sessions')
+      expect(b.ctx.get('workspaces').startSession).toHaveBeenCalledOnce()
+      expect(b.ctx.get('workspaces').pickDirectory).toHaveBeenCalledOnce()
+      await Promise.resolve()
+      expect(b.ctx.get('workspaces').create).toHaveBeenCalledWith({ path: '/ws/picked' })
+      expect(dispatched).toEqual(['dsh:workbench-save', 'dsh:open-settings'])
+      expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.path === '/ws/a.ts')).toBe(false)
+      expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
+      expect(b.layout.openWorkbench).toHaveBeenCalled()
+      expect(b.layout.toggleWorkbench).toHaveBeenCalledOnce()
+      expect(b.layout.toggleSidebar).toHaveBeenCalledOnce()
+      listener?.('activity-explorer')
+      listener?.('activity-tasks')
+      expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('tasks')
+    } finally {
+      window.removeEventListener('dsh:open-settings', onEvent)
+      window.removeEventListener('dsh:workbench-save', onEvent)
+      delete (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
+    }
+  })
+
+  it('skips or warns when Open Workspace is cancelled or the picker fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const menu = (
+      b.slots.entries('menuBar')[0]!.inject as unknown as (id: string) => MenuBarInjected
+    )('s1')
+    const workspaces = b.ctx.get('workspaces') as {
+      pickDirectory: ReturnType<typeof vi.fn>
+      create: ReturnType<typeof vi.fn>
+    }
+    workspaces.pickDirectory.mockResolvedValueOnce(null)
+    menu.run('workspace-open')
+    await Promise.resolve()
+    workspaces.pickDirectory.mockResolvedValueOnce('')
+    menu.run('workspace-open')
+    await Promise.resolve()
+    expect(workspaces.create).not.toHaveBeenCalled()
+    workspaces.pickDirectory.mockRejectedValueOnce(new Error('no chooser'))
+    menu.run('workspace-open')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(warn).toHaveBeenCalled()
+    workspaces.pickDirectory.mockResolvedValueOnce('/ws/x')
+    workspaces.create.mockRejectedValueOnce(new Error('exists'))
+    menu.run('workspace-open')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(warn).toHaveBeenCalled()
+    menu.run('file-close')
+    warn.mockRestore()
+  })
+
+  it('ignores session-scoped desktop menu commands when no session is current', async () => {
+    let listener: ((command: 'terminal-new' | 'terminal-toggle') => void) | undefined
+    ;(globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__ = {
+      onAppMenu: (fn: (command: 'terminal-new' | 'terminal-toggle') => void) => {
+        listener = fn
+        return () => {}
+      },
+    }
+    try {
+      const b = await bench()
+      b.sessions.list.getSnapshot = () => ({ current: undefined, byId: {} })
+      declare(b.slots)
+      await b.ctx.plugin({ inject: [...inject], apply }).await()
+      listener?.('terminal-new')
+      listener?.('terminal-toggle')
+      expect(b.layout.openBottom).not.toHaveBeenCalled()
+      expect(b.layout.toggleBottom).not.toHaveBeenCalled()
+    } finally {
+      delete (globalThis as { __DSH_IPC__?: unknown }).__DSH_IPC__
+    }
+  })
+
   it('unregisters slot entries on teardown', async () => {
     const b = await bench()
     declare(b.slots)
@@ -473,6 +709,7 @@ describe('ui-xmart-workbench apply', () => {
     await fiber.await()
     await fiber.dispose()
     expect(b.slots.entries('workbench')).toHaveLength(0)
+    expect(b.slots.entries('menuBar')).toHaveLength(0)
     expect(b.slots.entries('activityBar')).toHaveLength(0)
     expect(b.slots.entries('primarySidebar')).toHaveLength(0)
     expect(b.slots.entries('bottomPanel')).toHaveLength(0)

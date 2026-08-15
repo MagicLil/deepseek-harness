@@ -65,6 +65,12 @@ describe('WorkbenchColumn', () => {
     expect(screen.queryByLabelText('关闭工作台')).toBeNull()
   })
 
+  it('keeps the tab strip when the session view omits menu or tabs', () => {
+    mount({ ...EMPTY_WORKBENCH_VIEW, menu: undefined as never, tabs: undefined as never })
+    expect(screen.getByTestId('xmart-workbench-tabbar')).toBeTruthy()
+    expect(screen.getByText('从资源管理器打开文件后，会显示在这里。')).toBeTruthy()
+  })
+
   it('renders a registered tab body and a placeholder for an unknown type', () => {
     mount(viewOf({
       tabs: [{ id: 'demo:1', type: 'demo', title: '演示' }],
@@ -95,6 +101,21 @@ describe('WorkbenchColumn', () => {
     expect(screen.queryByRole('tab', { name: '资源管理器' })).toBeNull()
     expect(screen.getByRole('tab', { name: 'a.ts' })).toBeTruthy()
     expect(screen.getByTestId('xmart-workbench-stub').textContent).toBe('a.ts')
+  })
+
+  it('keeps the tab strip when the file body throws', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    function Boom(): never {
+      throw new Error('boom')
+    }
+    mount(viewOf({
+      tabs: [{ id: 'ed', type: 'editor', title: 'B.java', path: '/B.java' }],
+      activeTabId: 'ed',
+      nextSeq: 2,
+    }), () => Boom)
+    expect(screen.getByRole('tab', { name: 'B.java' })).toBeTruthy()
+    expect(screen.getByTestId('xmart-workbench-crashed').textContent).toBe('这个文件打不开。关掉标签再点一次，或换一个文件。')
+    spy.mockRestore()
   })
 
   it('activates and closes tabs from the strip', () => {

@@ -579,7 +579,7 @@ export class XmartWorkbenchController implements IXmartWorkbench {
     const byId = tabs.find(tab => tab.id === incoming.id)
     if (byId !== undefined) return byId
     const keyFn = descriptor.dedupeKey ?? (descriptor.single === true
-      ? () => descriptor.id
+      ? opened => opened.type
       : undefined)
     if (keyFn === undefined) return undefined
     const incomingKey = keyFn(incoming)

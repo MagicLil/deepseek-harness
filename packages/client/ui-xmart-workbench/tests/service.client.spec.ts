@@ -354,12 +354,15 @@ describe('openTab dedupe and minting', () => {
     })
   })
 
-  it('treats single: true as dedupeKey: () => id', () => {
+  it('treats single: true as one instance per type, not across types', () => {
     const service = new XmartWorkbenchController()
     service.registerTab(tab({ id: 'singleton', title: 'Singleton', single: true }))
+    service.registerTab(tab({ id: 'other', title: 'Other', single: true }))
     service.openTab({ type: 'singleton' }, { sessionId: 's1' })
     service.openTab({ type: 'singleton', id: 'singleton:extra' }, { sessionId: 's1' })
     expect(service.getSnapshot('s1').tabs).toHaveLength(1)
+    service.openTab({ type: 'other' }, { sessionId: 's1' })
+    expect(service.getSnapshot('s1').tabs.map(row => row.type)).toEqual(['singleton', 'other'])
   })
 
   it('lets an explicit dedupeKey win over single: true', () => {

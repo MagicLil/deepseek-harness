@@ -31,7 +31,13 @@ const { contentFns, existing, editor, monaco, loadImpl } = vi.hoisted(() => {
       setModelLanguage: vi.fn(),
       create: vi.fn(() => editor),
       setTheme: vi.fn(),
+      setModelMarkers: vi.fn(),
     },
+    languages: {
+      CompletionItemKind: { Text: 1 },
+      registerCompletionItemProvider: vi.fn(() => ({ dispose: vi.fn() })),
+    },
+    MarkerSeverity: { Error: 8, Warning: 4, Info: 2, Hint: 1 },
     KeyMod: { CtrlCmd: 1 },
     KeyCode: { KeyS: 2 },
   }
@@ -157,5 +163,77 @@ describe('MonacoHost', () => {
     )
     dying.unmount()
     await act(async () => { fail(new Error('late')); await Promise.resolve() })
+  })
+
+  it('opens a Vue buffer, paints diagnostics, and completes', async () => {
+    vi.useFakeTimers()
+    const languageClient = {
+      open: vi.fn(async () => {}),
+      change: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+      complete: vi.fn(async () => [{ label: 'div', detail: 'tag' }, { label: 'span', insertText: 'span', kind: 1 }]),
+      diagnostics: vi.fn(async () => [{
+        message: 'oops',
+        severity: 1,
+        source: 'vue',
+        startLine: 0,
+        startCharacter: 0,
+        endLine: 0,
+        endCharacter: 3,
+      }, {
+        message: 'warn',
+        severity: 2,
+        startLine: 1,
+        startCharacter: 0,
+        endLine: 1,
+        endCharacter: 1,
+      }, {
+        message: 'info',
+        severity: 3,
+        startLine: 2,
+        startCharacter: 0,
+        endLine: 2,
+        endCharacter: 1,
+      }, {
+        message: 'hint',
+        severity: 4,
+        startLine: 3,
+        startCharacter: 0,
+        endLine: 3,
+        endCharacter: 1,
+      }]),
+    }
+    render(
+      <MonacoHost
+        initialValue="<template />"
+        filePath="/a.vue"
+        labels={{ loading: '加载内核', error: '内核失败' }}
+        onChange={() => {}}
+        onSave={() => {}}
+        languageClient={languageClient}
+      />,
+    )
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(languageClient.open).toHaveBeenCalledWith('/a.vue', 'next')
+    expect(monaco.languages.registerCompletionItemProvider).toHaveBeenCalled()
+    await act(async () => { await Promise.resolve() })
+    expect(monaco.editor.setModelMarkers).toHaveBeenCalled()
+    languageClient.diagnostics.mockRejectedValueOnce(new Error('diag'))
+    await act(async () => { vi.advanceTimersByTime(1500); await Promise.resolve(); await Promise.resolve() })
+    contentFns[1]?.()
+    contentFns[1]?.()
+    await act(async () => { vi.advanceTimersByTime(300); await Promise.resolve(); await Promise.resolve() })
+    expect(languageClient.change).toHaveBeenCalled()
+    const provide = monaco.languages.registerCompletionItemProvider.mock.calls[0]?.[1] as {
+      provideCompletionItems: (model: unknown, position: { lineNumber: number; column: number }) => Promise<{ suggestions: unknown[] }>
+    }
+    const suggestions = await provide.provideCompletionItems({}, { lineNumber: 1, column: 2 })
+    expect(suggestions.suggestions).toHaveLength(2)
+    languageClient.complete.mockRejectedValueOnce(new Error('nope'))
+    expect(await provide.provideCompletionItems({}, { lineNumber: 1, column: 2 })).toEqual({ suggestions: [] })
+    await act(async () => { vi.advanceTimersByTime(1500); await Promise.resolve() })
+    cleanup()
+    expect(languageClient.close).toHaveBeenCalledWith('/a.vue')
+    vi.useRealTimers()
   })
 })

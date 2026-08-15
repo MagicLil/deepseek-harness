@@ -132,6 +132,12 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     setCompletedOnboarding(new Set())
   }, [onboardingActive])
 
+  useEffect(() => {
+    const onOpen = (): void => { setOpen(true) }
+    window.addEventListener('dsh:open-settings', onOpen)
+    return () => { window.removeEventListener('dsh:open-settings', onOpen) }
+  }, [])
+
   const completeOnboardingStep = useCallback((id: string) => {
     setCompletedOnboarding((previous) => {
       if (previous.has(id)) return previous

@@ -8,19 +8,29 @@ import { EditorTab } from '../src/client/EditorTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { zh } from '../src/client/locales.ts'
 
+const lastHost = vi.hoisted(() => ({ languageClient: undefined as unknown }))
+
 vi.mock('../src/client/MonacoHost.tsx', () => ({
-  MonacoHost: ({ onChange, onSave }: { onChange: (text: string) => void; onSave: () => void }) => (
-    <div>
-      <button type="button" onClick={() => { onChange('edited') }}>edit-buffer</button>
-      <button type="button" onClick={() => { onChange('hello') }}>reset-buffer</button>
-      <button type="button" onClick={() => { onSave() }}>save-hotkey</button>
-    </div>
-  ),
+  MonacoHost: ({ onChange, onSave, languageClient }: {
+    onChange: (text: string) => void
+    onSave: () => void
+    languageClient?: unknown
+  }) => {
+    lastHost.languageClient = languageClient
+    return (
+      <div>
+        <button type="button" onClick={() => { onChange('edited') }}>edit-buffer</button>
+        <button type="button" onClick={() => { onChange('hello') }}>reset-buffer</button>
+        <button type="button" onClick={() => { onSave() }}>save-hotkey</button>
+      </div>
+    )
+  },
 }))
 
 beforeEach(() => { localStorage.clear() })
 afterEach(() => {
   localStorage.clear()
+  lastHost.languageClient = undefined
   cleanup()
 })
 
@@ -83,6 +93,10 @@ describe('EditorTab', () => {
     fireEvent.click(screen.getByText('save-hotkey'))
     await act(async () => { await Promise.resolve() })
     expect(write).toHaveBeenCalledWith('/a.ts', 'edited')
+    fireEvent.click(screen.getByText('edit-buffer'))
+    act(() => { window.dispatchEvent(new Event('dsh:workbench-save')) })
+    await act(async () => { await Promise.resolve() })
+    expect(write).toHaveBeenCalledTimes(2)
     await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 520) }) })
     expect(live.draftOf('/a.ts')).toBeUndefined()
   })
@@ -224,5 +238,80 @@ describe('EditorTab', () => {
     mount({ files: idle })
     act(() => { idle.markReload(['/nope']) })
     expect(screen.getByText('这个标签没有文件路径。')).toBeTruthy()
+  })
+
+  it('binds a language client for the Remote that owns the extension', async () => {
+    const vueLsp = {
+      open: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      change: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      close: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      complete: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+    }
+    const tsLsp = { ...vueLsp }
+    const javaLsp = { ...vueLsp }
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'A.vue', path: '/A.vue' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => '<template />'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        vueLsp={vueLsp}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(lastHost.languageClient).toBeDefined()
+    cleanup()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'a.ts', path: '/a.ts' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'x'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        vueLsp={vueLsp}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(lastHost.languageClient).toBeUndefined()
+    cleanup()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'a.ts', path: '/a.ts' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'x'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        tsLsp={tsLsp}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(lastHost.languageClient).toBeDefined()
+    cleanup()
+    render(
+      <EditorTab
+        tab={{ id: 'ed', type: 'editor', title: 'Foo.java', path: '/Foo.java' }}
+        visible
+        sessionId="s1"
+        t={t}
+        readFile={async () => 'class Foo {}'}
+        writeFile={async () => {}}
+        files={createWorkbenchFilesStore()}
+        workspaceRoot="/ws"
+        javaLsp={javaLsp}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(lastHost.languageClient).toBeDefined()
   })
 })

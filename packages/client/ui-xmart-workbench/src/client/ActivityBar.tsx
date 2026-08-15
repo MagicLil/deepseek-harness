@@ -1,12 +1,10 @@
 /**
  * Far-left activity bar: registered activities switch the primary sidebar;
- * clicking the active icon again collapses it. Terminal toggles the bottom
- * panel. Settings clicks the existing `sidebar.settings` trigger.
- * Components never see ctx.
+ * clicking the active icon again collapses it. The Terminal menu lives on
+ * the top bar. Components never see ctx.
  */
 import {
-  IconBranchOutline16, IconChecklistOutline14, IconCodeOutline16, IconFolderOpenOutline16,
-  IconSettingsOutline16,
+  IconBranchOutline16, IconChecklistOutline14, IconFolderOpenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ActivityBarProps, ActivityIcon } from './contract.ts'
 import { PRIMARY_ACTIVITIES } from './types.ts'
@@ -27,13 +25,10 @@ const FALLBACK_LABEL = {
 /** Activity-bar icon rail (see module doc). */
 export function ActivityBar({
   primaryOpen,
-  bottomOpen,
   setActivity,
   resolveIcon,
   openPrimary,
   closePrimary,
-  toggleBottom,
-  openSettings,
   useWorkbenchSession,
   useWorkbenchRegistry,
   t,
@@ -72,27 +67,6 @@ export function ActivityBar({
             </button>
           )
         })}
-      </div>
-      <div className={css.group}>
-        <button
-          type="button"
-          className={css.icon}
-          aria-label={t('activity.terminal')}
-          aria-pressed={bottomOpen}
-          data-testid="xmart-activity-terminal"
-          onClick={() => { toggleBottom() }}
-        >
-          <IconCodeOutline16 />
-        </button>
-        <button
-          type="button"
-          className={css.icon}
-          aria-label={t('activity.settings')}
-          data-testid="xmart-activity-settings"
-          onClick={() => { openSettings() }}
-        >
-          <IconSettingsOutline16 />
-        </button>
       </div>
     </div>
   )

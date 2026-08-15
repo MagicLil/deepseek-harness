@@ -1,0 +1,25 @@
+.root {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.item {
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.item:hover,
+.item[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}

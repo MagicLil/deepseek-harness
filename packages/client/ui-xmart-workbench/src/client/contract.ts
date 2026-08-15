@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ComponentType } from 'react'
 import type { createWorkbenchStore } from './stores.ts'
 import type { WorkbenchKey } from './locales.ts'
+import type { AppMenuCommand } from './app-menu-dispatch.ts'
 import type {
   ActivityId, TabBodyProps, WorkbenchRegistrySnapshot, WorkbenchView,
 } from './types.ts'
@@ -70,10 +71,6 @@ export interface ActivityBarInjected {
   openPrimary: () => void
   /** Close the primary sidebar. */
   closePrimary: () => void
-  /** Toggle the editor bottom panel. */
-  toggleBottom: () => void
-  /** Open the existing settings dialog (clicks the `sidebar.settings` trigger). */
-  openSettings: () => void
   hooks: {
     /** Per-session activity and tab list. */
     workbenchSession: HostObservable<WorkbenchView>
@@ -119,13 +116,48 @@ export type PrimarySidebarProps =
   & PropsLocale<'workbench'>
   & InjectFace<PrimarySidebarInjected>
 
-/** Injected body lookup for the bottom panel. */
+/** Injected actions for the product application menu (web HTML bar). */
+export interface MenuBarInjected {
+  /**
+   * Run one renderer-bound menu command.
+   * @param command - id shared with the desktop native menu.
+   */
+  run: (command: AppMenuCommand) => void
+  hooks: {
+    /** Per-session tabs (quota and Close Editor read this snapshot). */
+    workbenchSession: HostObservable<WorkbenchView>
+  }
+}
+
+/** Full composed props for the top menu bar. */
+export type MenuBarProps =
+  & PropsRuntime<'menuBar'>
+  & PropsLocale<'workbench'>
+  & InjectFace<MenuBarInjected>
+
+/** Injected body lookup and tab writes for the bottom panel. */
 export interface BottomPanelInjected {
   /**
    * Look up the registered body for a tab type.
    * @param type - tab type id.
    */
   resolveBody: (type: string) => ComponentType<TabBodyProps> | undefined
+  /**
+   * Focus a terminal tab instance.
+   * @param tabId - instance id.
+   */
+  activateTab: (tabId: string) => void
+  /**
+   * Close a terminal tab (and its host PTY). The last close also hides the panel.
+   * @param tabId - instance id.
+   */
+  closeTab: (tabId: string) => void
+  /** Mint another terminal tab when under the session quota. */
+  newTerminal: () => void
+  hooks: {
+    /** Per-session tabs (bottom panel filters `type === 'terminal'`). */
+    workbenchSession: HostObservable<WorkbenchView>
+  }
 }
 
 /** Full composed props for the bottom panel. */

@@ -18,6 +18,7 @@ const t = makeTranslate(zh, commonZh)
 
 function mount(opts?: {
   cwd?: string
+  roots?: { path: string; title: string }[]
   listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
   gitStatus?: () => Promise<unknown>
   writeFile?: (path: string, content: string) => Promise<void>
@@ -41,7 +42,7 @@ function mount(opts?: {
   }))
   const gitStatus = opts?.gitStatus ?? vi.fn(async () => ({
     root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false,
-    changes: [{ path: 'a.ts', status: 'modified' }],
+    changes: [{ path: 'a.ts', status: 'modified', area: 'worktree' }],
   }))
   render(
     <ExplorerTab
@@ -49,7 +50,7 @@ function mount(opts?: {
       visible
       sessionId="s1"
       t={t}
-      getCwd={() => opts?.cwd === undefined ? '/ws' : opts.cwd}
+      getRoots={() => opts?.roots ?? (opts?.cwd === undefined ? [{ path: '/ws', title: 'ws' }] : opts.cwd === '' ? [] : [{ path: opts.cwd, title: 'ws' }])}
       watchSessions={(fn) => {
         fn()
         return () => {}
@@ -83,7 +84,84 @@ describe('parentOf', () => {
 describe('ExplorerTab', () => {
   it('shows the empty-workspace copy', () => {
     mount({ cwd: '' })
-    expect(screen.getByText('当前会话没有工作区目录。')).toBeTruthy()
+    expect(screen.getByText('还没有可显示的工作区目录。请在最右列添加工作区。')).toBeTruthy()
+  })
+
+  it('loads the current session folder on mount without a section title', async () => {
+    const listEntries = vi.fn(async (path: string) => ({
+      path,
+      truncated: false,
+      entries: [{ name: 'a.ts', path: 'D:\\hmdp\\a.ts', kind: 'file' as const, hidden: false }],
+    }))
+    mount({
+      roots: [{ path: 'D:\\hmdp', title: 'hmdp' }],
+      listEntries,
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('xmart-workbench-root-hmdp')).toBeTruthy()
+    expect(screen.getByText('a.ts')).toBeTruthy()
+    expect(screen.queryByText('hmdp')).toBeNull()
+    expect(listEntries.mock.calls.some(call => call[0] === 'D:\\hmdp')).toBe(true)
+  })
+
+  it('labels each tree when more than one root is supplied', async () => {
+    const listEntries = vi.fn(async (path: string) => ({
+      path,
+      truncated: false,
+      entries: path === 'D:\\hmdp'
+        ? [{ name: 'a.ts', path: 'D:\\hmdp\\a.ts', kind: 'file' as const, hidden: false }]
+        : [{ name: 'b.ts', path: 'D:\\tool\\b.ts', kind: 'file' as const, hidden: false }],
+    }))
+    mount({
+      roots: [
+        { path: 'D:\\hmdp', title: 'hmdp' },
+        { path: 'D:\\tool', title: 'tool' },
+      ],
+      listEntries,
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('hmdp')).toBeTruthy()
+    expect(screen.getByText('tool')).toBeTruthy()
+    expect(screen.getByText('a.ts')).toBeTruthy()
+    expect(screen.getByText('b.ts')).toBeTruthy()
+  })
+
+  it('picks up workspace roots when the registry arrives', async () => {
+    let roots: { path: string; title: string }[] = []
+    let notify = () => {}
+    render(
+      <ExplorerTab
+        tab={{ id: 'ex', type: 'explorer', title: '资源管理器' }}
+        visible
+        sessionId="s1"
+        t={t}
+        getRoots={() => roots}
+        watchSessions={(fn) => {
+          notify = fn
+          return () => {}
+        }}
+        listEntries={async () => ({
+          path: '/ws',
+          truncated: false,
+          entries: [{ name: 'a.ts', path: '/ws/a.ts', kind: 'file', hidden: false }],
+        })}
+        gitStatus={async () => ({
+          root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
+        })}
+        writeFile={async () => {}}
+        createDirectory={async () => '/ws/n'}
+        openSystem={async () => {}}
+        openFile={() => {}}
+        mentionFile={() => {}}
+        files={createWorkbenchFilesStore()}
+      />,
+    )
+    expect(screen.getByText('还没有可显示的工作区目录。请在最右列添加工作区。')).toBeTruthy()
+    roots = [{ path: '/ws', title: 'ws' }]
+    act(() => { notify() })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('xmart-workbench-root-ws')).toBeTruthy()
+    expect(screen.getByText('a.ts')).toBeTruthy()
   })
 
   it('relists the workspace when the refresh nonce is bumped', async () => {
@@ -148,6 +226,48 @@ describe('ExplorerTab', () => {
     await act(async () => { await Promise.resolve() })
   })
 
+  it('keeps the opened file row selected', async () => {
+    let opened: string | undefined
+    const listeners = new Set<() => void>()
+    render(
+      <ExplorerTab
+        tab={{ id: 'ex', type: 'explorer', title: '资源管理器' }}
+        visible
+        sessionId="s1"
+        t={t}
+        getRoots={() => [{ path: '/ws', title: 'ws' }]}
+        watchSessions={() => () => {}}
+        listEntries={async path => ({
+          path,
+          truncated: false,
+          entries: path === '/ws'
+            ? [{ name: 'a.ts', path: '/ws/a.ts', kind: 'file' as const, hidden: false }]
+            : [],
+        })}
+        gitStatus={async () => ({
+          root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
+        })}
+        writeFile={async () => {}}
+        createDirectory={async () => '/ws/n'}
+        openSystem={async () => {}}
+        openFile={(path) => {
+          opened = path
+          for (const fn of listeners) fn()
+        }}
+        mentionFile={() => {}}
+        files={createWorkbenchFilesStore()}
+        getActivePath={() => opened}
+        watchWorkbench={(fn) => {
+          listeners.add(fn)
+          return () => { listeners.delete(fn) }
+        }}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    fireEvent.click(screen.getByText('a.ts'))
+    expect(screen.getByText('a.ts').closest('button')?.getAttribute('data-active')).toBe('true')
+  })
+
   it('opens a file and runs context-menu actions', async () => {
     const writeText = vi.fn()
     Object.assign(navigator, { clipboard: { writeText } })
@@ -204,7 +324,7 @@ describe('ExplorerTab', () => {
         visible
         sessionId="s1"
         t={t}
-        getCwd={() => '/ws'}
+        getRoots={() => [{ path: '/ws', title: 'ws' }]}
         watchSessions={() => () => {}}
         listEntries={async () => ({ path: '/ws', entries: [], truncated: false })}
         gitStatus={() => new Promise<GitStatus>((resolve) => { settle = resolve })}
@@ -228,7 +348,7 @@ describe('ExplorerTab', () => {
         visible
         sessionId="s1"
         t={t}
-        getCwd={() => '/ws'}
+        getRoots={() => [{ path: '/ws', title: 'ws' }]}
         watchSessions={() => () => {}}
         listEntries={async () => ({ path: '/ws', entries: [], truncated: false })}
         gitStatus={() => new Promise((_, reject) => { fail = reject })}

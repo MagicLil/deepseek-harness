@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ActivityBar: icon toggles for the primary sidebar, bottom panel, and settings.
+ * ActivityBar: icon toggles for the primary sidebar. Terminal lives on the menu bar.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
@@ -23,15 +23,12 @@ function constantHook<T>(value: T) {
   }
 }
 
-function mount(opts: { primaryOpen?: boolean; bottomOpen?: boolean; view?: WorkbenchView }) {
+function mount(opts: { primaryOpen?: boolean; view?: WorkbenchView }) {
   const setActivity = vi.fn()
   const openPrimary = vi.fn()
   const closePrimary = vi.fn()
-  const toggleBottom = vi.fn()
-  const openSettings = vi.fn()
   const props = {
     primaryOpen: opts.primaryOpen ?? true,
-    bottomOpen: opts.bottomOpen ?? false,
     sessionId: 's1' as SessionId,
     useSession: (() => null) as never,
     useSessions: (() => null) as never,
@@ -39,15 +36,13 @@ function mount(opts: { primaryOpen?: boolean; bottomOpen?: boolean; view?: Workb
     setActivity,
     openPrimary,
     closePrimary,
-    toggleBottom,
-    openSettings,
     useWorkbenchSession: constantHook(opts.view ?? EMPTY_WORKBENCH_VIEW),
     useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
     resolveIcon: () => undefined,
     t,
   } as ActivityBarProps
   render(<ActivityBar {...props} />)
-  return { setActivity, openPrimary, closePrimary, toggleBottom, openSettings }
+  return { setActivity, openPrimary, closePrimary }
 }
 
 describe('ActivityBar', () => {
@@ -95,8 +90,6 @@ describe('ActivityBar', () => {
       resolveIcon: (id: string) => id === 'plugins' ? Icon : undefined,
       openPrimary: vi.fn(),
       closePrimary: vi.fn(),
-      toggleBottom: vi.fn(),
-      openSettings: vi.fn(),
       useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'explorer' }),
       useWorkbenchRegistry: constantHook({
         tabs: [],
@@ -127,8 +120,6 @@ describe('ActivityBar', () => {
       resolveIcon: () => undefined,
       openPrimary: vi.fn(),
       closePrimary: vi.fn(),
-      toggleBottom: vi.fn(),
-      openSettings: vi.fn(),
       useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
       useWorkbenchRegistry: constantHook({
         tabs: [],
@@ -141,13 +132,9 @@ describe('ActivityBar', () => {
     expect(screen.queryByTestId('xmart-activity-ghost')).toBeNull()
   })
 
-  it('toggles the bottom panel and opens settings', () => {
-    const { toggleBottom, openSettings } = mount({ bottomOpen: true })
-    expect(screen.getByTestId('xmart-activity-terminal').getAttribute('aria-pressed')).toBe('true')
-    act(() => { screen.getByTestId('xmart-activity-terminal').click() })
-    expect(toggleBottom).toHaveBeenCalledOnce()
-    act(() => { screen.getByTestId('xmart-activity-settings').click() })
-    expect(openSettings).toHaveBeenCalledOnce()
-    expect(screen.getByLabelText('设置')).toBeTruthy()
+  it('has no settings or terminal icon on the activity rail', () => {
+    mount({})
+    expect(screen.queryByTestId('xmart-activity-settings')).toBeNull()
+    expect(screen.queryByTestId('xmart-activity-terminal')).toBeNull()
   })
 })

@@ -56,6 +56,8 @@ describe('FileTree', () => {
     expect(screen.getByText('加载中…')).toBeTruthy()
     await act(async () => { await Promise.resolve() })
     expect(screen.getByText('a.ts')).toBeTruthy()
+    expect(screen.getByText('a.ts').closest('button')?.getAttribute('data-path')).toBe('/ws/a.ts')
+    expect(screen.getByText('a.ts').closest('button')?.getAttribute('data-active')).toBe('true')
     expect(screen.getByText('截断')).toBeTruthy()
     fireEvent.click(screen.getByText('a.ts'))
     expect(onOpenFile).toHaveBeenCalled()

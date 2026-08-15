@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  absPath, basename, dirname, hasNulByte, isSingleSegment, joinPath, relativeTo, tabTypeForViewer,
+  absPath, basename, dirname, hasNulByte, isSingleSegment, isUnder, joinPath, relativeTo, tabTypeForViewer,
 } from '../src/client/route-file.ts'
 import { isMarkdownPath, languageFromPath } from '../src/client/language-from-path.ts'
 import { indexGitChanges, letter, markKind } from '../src/client/git-marks.ts'
@@ -30,6 +30,10 @@ describe('route-file helpers', () => {
     expect(relativeTo('/ws', '/ws/a.ts')).toBe('a.ts')
     expect(relativeTo('C:\\ws', 'C:\\ws\\a.ts')).toBe('a.ts')
     expect(relativeTo('/ws', '/other')).toBe('/other')
+    expect(isUnder('/ws', '/ws')).toBe(true)
+    expect(isUnder('/ws/a', '/ws')).toBe(true)
+    expect(isUnder('C:\\ws\\a', 'C:\\ws')).toBe(true)
+    expect(isUnder('/other', '/ws')).toBe(false)
     expect(isSingleSegment('a.ts')).toBe(true)
     expect(isSingleSegment('  ')).toBe(false)
     expect(isSingleSegment('a/b')).toBe(false)
@@ -67,7 +71,10 @@ describe('git-marks', () => {
     expect(markKind('renamed')).toBe('renamed')
     expect(indexGitChanges({
       root: '/repo', branch: 'main', ahead: 0, behind: 0, detached: false,
-      changes: [{ path: 'a.ts', status: 'modified' }],
+      changes: [
+        { path: 'a.ts', status: 'added', area: 'index' },
+        { path: 'a.ts', status: 'modified', area: 'worktree' },
+      ],
     })).toEqual({ '/repo/a.ts': 'modified' })
   })
 })
