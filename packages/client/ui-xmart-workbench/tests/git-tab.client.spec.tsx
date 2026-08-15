@@ -97,8 +97,7 @@ describe('GitTab', () => {
     expect(files.getSnapshot().refreshNonce).toBeGreaterThan(0)
     cleanup()
     mount({ gitStatus: async () => { throw new Error('plain') } })
-    await act(async () => { await Promise.resolve() })
-    expect(screen.getByText(/main ↑1 ↓0/)).toBeTruthy()
+    expect(await screen.findByText('Git 状态读取失败。')).toBeTruthy()
   })
 
   it('renders changes, commits, and opens a file', async () => {

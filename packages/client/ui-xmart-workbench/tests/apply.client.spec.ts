@@ -53,7 +53,10 @@ async function bench() {
           },
         },
       }),
-      subscribe: () => () => {},
+      subscribe: (fn?: () => void) => {
+        fn?.()
+        return () => {}
+      },
     },
     scope: (id: string) => id === 's1' ? ({}) : undefined,
     binding: (id: string) => {
