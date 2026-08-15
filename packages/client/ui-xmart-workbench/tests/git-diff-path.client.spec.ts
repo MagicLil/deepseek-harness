@@ -3,7 +3,9 @@ import {
   commitDiffTitle, encodeCommitDiffPath, encodeDiffPath, parseDiffPath,
 } from '../src/client/git-diff-path.ts'
 import { diffLineKind } from '../src/client/diff-line.ts'
-import { paintDiffLines, splitUnifiedPatch } from '../src/client/diff-patch.ts'
+import {
+  attachTokens, newGutter, oldGutter, paintDiffLines, sourceSides, splitUnifiedPatch,
+} from '../src/client/diff-patch.ts'
 
 describe('git-diff-path', () => {
   it('encodes and parses a side:file seed', () => {
@@ -33,6 +35,21 @@ describe('git-diff-path', () => {
     expect(commitDiffTitle('abcdef1234', '')).toBe('abcdef1')
     expect(commitDiffTitle('abcdef1234', '  init  ')).toBe('abcdef1 init')
     expect(commitDiffTitle('abcdef1', 'x'.repeat(49))).toBe(`abcdef1 ${'x'.repeat(47)}…`)
+  })
+
+  it('pins an optional repository root onto the seed', () => {
+    expect(encodeDiffPath('worktree', 'a.ts', 'D:\\work\\child')).toBe('worktree:a.ts\x1eD:\\work\\child')
+    expect(parseDiffPath('worktree:a.ts\x1eD:\\work\\child')).toEqual({
+      kind: 'side', side: 'worktree', file: 'a.ts', root: 'D:\\work\\child',
+    })
+    expect(encodeCommitDiffPath('abcdef1', '/child')).toBe('commit:abcdef1\x1e/child')
+    expect(parseDiffPath('commit:abcdef1\x1e/child')).toEqual({
+      kind: 'commit', commit: 'abcdef1', root: '/child',
+    })
+    expect(encodeDiffPath('staged', 'a.ts')).toBe('staged:a.ts')
+    expect(encodeCommitDiffPath('abcdef1')).toBe('commit:abcdef1')
+    expect(parseDiffPath('worktree:a.ts\x1e')).toEqual({ kind: 'side', side: 'worktree', file: 'a.ts' })
+    expect(parseDiffPath('other:a.ts\x1e/child')).toBeUndefined()
   })
 })
 
@@ -102,5 +119,39 @@ describe('splitUnifiedPatch / paintDiffLines', () => {
     expect(painted.some(line => line.kind === 'ctx' && line.newNo === 1)).toBe(true)
     expect(paintDiffLines(['@@ junk @@', ' keep'])[1]?.kind).toBe('ctx')
     expect(splitUnifiedPatch('diff --git weird')[0]?.path).toBe('weird')
+  })
+
+  it('rebuilds old/new sides and keeps Shiki tokens off the +/- prefix', () => {
+    const painted = paintDiffLines([
+      'diff --git a/a.ts b/a.ts',
+      '@@ -1,2 +1,2 @@',
+      ' keep',
+      '-old',
+      '+new',
+    ])
+    expect(sourceSides(painted)).toEqual({ oldLines: ['keep', 'old'], newLines: ['keep', 'new'] })
+    const rows = attachTokens(painted, [[{ text: 'keep' }], [{ text: 'old', color: '#f00' }]], [
+      [{ text: 'keep' }], [{ text: 'new', color: '#0f0' }],
+    ])
+    expect(rows.find(row => row.kind === 'add')?.tokens).toEqual([{ text: 'new', color: '#0f0' }])
+    expect(rows.find(row => row.kind === 'del')?.tokens).toEqual([{ text: 'old', color: '#f00' }])
+    expect(rows.find(row => row.kind === 'hunk')?.tokens[0]?.text).toContain('@@')
+    const add = painted.find(line => line.kind === 'add')
+    const del = painted.find(line => line.kind === 'del')
+    const ctx = painted.find(line => line.kind === 'ctx')
+    const hunk = painted.find(line => line.kind === 'hunk')
+    expect(oldGutter(add!)).toBe('')
+    expect(newGutter(add!)).toBe('2+')
+    expect(oldGutter(del!)).toBe('2')
+    expect(newGutter(del!)).toBe('')
+    expect(oldGutter(ctx!)).toBe('1')
+    expect(newGutter(ctx!)).toBe('1')
+    expect(oldGutter(hunk!)).toBe('')
+    expect(newGutter(hunk!)).toBe('')
+    expect(attachTokens([{ kind: 'add', text: '+x' }], [], [])[0]?.tokens).toEqual([{ text: 'x' }])
+    expect(attachTokens([{ kind: 'ctx', text: ' x' }], [[{ text: 'from-old' }]], [])[0]?.tokens)
+      .toEqual([{ text: 'from-old' }])
+    expect(oldGutter({ kind: 'del', text: '-x' })).toBe('')
+    expect(newGutter({ kind: 'add', text: '+x' })).toBe('')
   })
 })

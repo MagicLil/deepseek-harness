@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { DiffTab } from '../src/client/DiffTab.tsx'
+import { encodeCommitDiffPath, encodeDiffPath } from '../src/client/git-diff-path.ts'
 import { zh } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -52,6 +53,44 @@ describe('DiffTab', () => {
     expect(screen.getByText('这个差异标签没有路径。')).toBeTruthy()
   })
 
+  it('reads the diff from the seed root, not the session cwd', async () => {
+    const gitDiff = vi.fn(async () => ({ root: '/child', side: 'worktree' as const, text: '' }))
+    const gitCommitDiff = vi.fn(async () => ({ root: '/child', side: 'worktree' as const, text: '' }))
+    render(
+      <DiffTab
+        tab={{
+          id: 'd', type: 'diff', title: 'a.ts',
+          path: encodeDiffPath('worktree', 'a.ts', '/child'),
+        }}
+        visible
+        sessionId="s1"
+        t={t}
+        getCwd={() => '/parent'}
+        gitDiff={gitDiff}
+        gitCommitDiff={vi.fn()}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(gitDiff).toHaveBeenCalledWith('/child', 'worktree', 'a.ts', expect.any(AbortSignal))
+    cleanup()
+    render(
+      <DiffTab
+        tab={{
+          id: 'd', type: 'diff', title: 'abcdef1',
+          path: encodeCommitDiffPath('abcdef1', '/child'),
+        }}
+        visible
+        sessionId="s1"
+        t={t}
+        getCwd={() => ''}
+        gitDiff={vi.fn()}
+        gitCommitDiff={gitCommitDiff}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(gitCommitDiff).toHaveBeenCalledWith('/child', 'abcdef1', expect.any(AbortSignal))
+  })
+
   it('renders empty, error, and colored lines', async () => {
     render(
       <DiffTab
@@ -97,8 +136,9 @@ describe('DiffTab', () => {
       />,
     )
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByTestId('xmart-workbench-diff').querySelector('[data-kind="add"]')?.textContent).toMatch(/\+new/)
-    expect(screen.getByTestId('xmart-workbench-diff').querySelector('[data-kind="del"]')?.textContent).toMatch(/-old/)
+    expect(screen.getByTestId('xmart-workbench-diff').querySelector('[data-kind="add"]')?.textContent).toMatch(/new/)
+    expect(screen.getByTestId('xmart-workbench-diff').querySelector('[data-kind="del"]')?.textContent).toMatch(/old/)
+    expect(screen.getByTestId('xmart-workbench-diff').querySelector('[data-kind="add"] [data-token]')).toBeTruthy()
   })
 
   it('opens a commit as collapsible per-file sections', async () => {

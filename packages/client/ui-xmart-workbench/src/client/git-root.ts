@@ -6,6 +6,7 @@
  */
 import { GitAccessError } from '@deepseek-ai/dsh-client-runtime/client'
 import type { FileListing, GitLogEntry, GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
+import { GIT_LOG_PAGE_SIZE } from './git-log-page.ts'
 
 /** Host / wire error code on a thrown git failure, when any. */
 export function gitErrorCode(reason: unknown): string | undefined {
@@ -47,7 +48,7 @@ export type GitSnapshot =
 export async function readGitSnapshot(
   root: string,
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>,
-  gitLog: (path: string, limit?: number) => Promise<GitLogEntry[]>,
+  gitLog: (path: string, limit?: number, signal?: AbortSignal, skip?: number) => Promise<GitLogEntry[]>,
   signal?: AbortSignal,
 ): Promise<GitSnapshot> {
   let status: GitStatus
@@ -63,7 +64,7 @@ export async function readGitSnapshot(
   }
   let log: GitLogEntry[] = []
   try {
-    const rows = await gitLog(root, 80)
+    const rows = await gitLog(root, GIT_LOG_PAGE_SIZE)
     log = Array.isArray(rows) ? rows : []
   }
   catch {

@@ -51,6 +51,20 @@ export function gitMenuItemIds(area: GitChange['area'] | undefined): readonly st
   return ['stage', 'discard', 'diff-work', 'open']
 }
 
+/**
+ * If `origin/foo` already has a local `foo`, return that name so a remote
+ * pill attaches HEAD instead of detaching it.
+ */
+export function localBranchNameForRemote(
+  remoteName: string,
+  locals: readonly { name: string }[],
+): string | undefined {
+  const slash = remoteName.indexOf('/')
+  if (slash <= 0 || slash === remoteName.length - 1) return undefined
+  const short = remoteName.slice(slash + 1)
+  return locals.some(row => row.name === short) ? short : undefined
+}
+
 /** Same constraints as host.gitCheckout's branch-name schema. */
 export function isGitBranchName(value: string): boolean {
   return (

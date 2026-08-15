@@ -424,7 +424,7 @@ describe('ui-xmart-workbench apply', () => {
       tab: { id: 'ed', type: 'editor', title: 'a.ts', path: '/p/a.ts' }, visible: true, sessionId: 's1',
     }) as { props: { getRemotes: () => { tsLsp?: unknown }; getWorkspaceRoot: () => string | undefined } }
     expect(withBag.props.getRemotes().tsLsp).toBe(lspRemote)
-    expect(withBag.props.getWorkspaceRoot()).toBe('/ws')
+    expect(withBag.props.getWorkspaceRoot()).toBe('/p')
     b.ctx.provide('remote.javaLsp', lspRemote)
     const withService = (Editor as typeof renderFile)({
       tab: { id: 'ed', type: 'editor', title: 'F.java', path: '/ws/src/main/java/F.java' },
@@ -506,15 +506,15 @@ describe('ui-xmart-workbench apply', () => {
       gitUnstage: (path: string, files: string[]) => Promise<void>
       gitDiscard: (path: string, files: string[]) => Promise<void>
       gitCommit: (path: string, message: string) => Promise<unknown>
-      gitLog: (path: string, limit?: number) => Promise<unknown>
+      gitLog: (path: string, limit?: number, signal?: AbortSignal, skip?: number) => Promise<unknown>
       gitSync: (path: string, mode: 'fetch' | 'pull' | 'push') => Promise<void>
       gitBranches: (path: string) => Promise<unknown>
       gitCheckout: (path: string, name: string, create?: boolean) => Promise<void>
       gitCheckoutCommit: (path: string, hash: string) => Promise<void>
       gitSuggestCommit: (path: string, sessionId: string) => Promise<{ message: string }>
       openFile: (path: string) => void
-      openDiff: (side: 'worktree' | 'staged', file: string) => void
-      openCommit: (hash: string, subject: string) => void
+      openDiff: (side: 'worktree' | 'staged', file: string, root?: string) => void
+      openCommit: (hash: string, subject: string, root?: string) => void
       watchSessions: (fn: () => void) => () => void
       getCwd: (id: string) => string | undefined
     } }
@@ -525,6 +525,7 @@ describe('ui-xmart-workbench apply', () => {
     await gitEl.props.gitDiscard('/ws', ['a.ts'])
     await gitEl.props.gitCommit('/ws', 'm')
     await gitEl.props.gitLog('/ws', 5)
+    await gitEl.props.gitLog('/ws', 80, undefined, 80)
     await gitEl.props.gitSync('/ws', 'fetch')
     await gitEl.props.gitBranches('/ws')
     await gitEl.props.gitCheckout('/ws', 'feat', true)
@@ -532,11 +533,15 @@ describe('ui-xmart-workbench apply', () => {
     await gitEl.props.gitSuggestCommit('/ws', 's1')
     gitEl.props.openFile('/ws/a.ts')
     gitEl.props.openDiff('worktree', 'a.ts')
+    gitEl.props.openDiff('worktree', 'a.ts', '/child')
     gitEl.props.openCommit('abcdef1', 'init')
+    gitEl.props.openCommit('abcdef1', 'init', '/child')
     gitEl.props.watchSessions(() => {})()
     expect(gitEl.props.getCwd('s1')).toBe('/ws')
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'diff')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.path === 'commit:abcdef1')).toBe(true)
+    expect(service.getSnapshot('s1').tabs.some(row => row.path === 'worktree:a.ts\x1e/child')).toBe(true)
+    expect(service.getSnapshot('s1').tabs.some(row => row.path === 'commit:abcdef1\x1e/child')).toBe(true)
     const diffEl = (Diff as typeof renderFile)({
       tab: { id: 'df', type: 'diff', title: 'a.ts', path: 'worktree:a.ts' }, visible: true, sessionId: 's1',
     }) as { props: {

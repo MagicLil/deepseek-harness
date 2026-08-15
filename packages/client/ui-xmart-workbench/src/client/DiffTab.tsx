@@ -6,7 +6,13 @@ import type { GitDiff, GitDiffSide } from '@deepseek-ai/dsh-client-runtime/clien
 import type { TabBodyProps } from './types.ts'
 import type { WorkbenchKey } from './locales.ts'
 import { parseDiffPath } from './git-diff-path.ts'
-import { paintDiffLines, splitUnifiedPatch, type DiffFileSection } from './diff-patch.ts'
+import {
+  attachTokens, newGutter, oldGutter, paintDiffLines, sourceSides, splitUnifiedPatch,
+  type DiffFileSection, type DiffPaintRow,
+} from './diff-patch.ts'
+import { highlightSource } from './monaco-highlight.ts'
+import { languageFromPath } from './language-from-path.ts'
+import { darkTheme } from './MonacoHost.tsx'
 import { gitPathParts } from './git-display.ts'
 import { letter, markKind } from './git-marks.ts'
 import css from './DiffTab.module.css'
@@ -23,7 +29,7 @@ export type DiffTabProps = TabBodyProps & {
 /** Unified-diff viewer with Cursor-style per-file sections. */
 export function DiffTab({ tab, sessionId, t, getCwd, gitDiff, gitCommitDiff }: DiffTabProps) {
   const seed = parseDiffPath(tab.path)
-  const cwd = getCwd(sessionId)
+  const cwd = seed?.root ?? getCwd(sessionId)
   const [text, setText] = useState<string | undefined>()
   const [error, setError] = useState(false)
   const [closed, setClosed] = useState<ReadonlySet<number>>(new Set())
@@ -97,6 +103,20 @@ function DiffFileBlock(props: {
 }) {
   const parts = gitPathParts(props.section.path)
   const painted = paintDiffLines(props.section.lines).filter(line => line.kind !== 'meta')
+  const [rows, setRows] = useState<DiffPaintRow[]>(() => attachTokens(painted, [], []))
+  useEffect(() => {
+    const { oldLines, newLines } = sourceSides(painted)
+    const language = languageFromPath(props.section.path)
+    const dark = darkTheme()
+    const controller = new AbortController()
+    void Promise.all([
+      highlightSource(oldLines.join('\n'), language, dark),
+      highlightSource(newLines.join('\n'), language, dark),
+    ]).then(([oldTokens, newTokens]) => {
+      if (!controller.signal.aborted) setRows(attachTokens(painted, oldTokens, newTokens))
+    })
+    return () => { controller.abort() }
+  }, [props.section.path, props.section.lines])
   return (
     <section className={css.file}>
       <button
@@ -114,14 +134,27 @@ function DiffFileBlock(props: {
       {props.open
         ? (
           <pre className={css.body}>
-            {painted.map((line, index) => (
+            {rows.map((line, index) => (
               <div
                 key={index}
                 className={`${css.line} ${css[line.kind]}`}
                 data-kind={line.kind}
               >
-                <span className={css.gutter}>{lineNumber(line)}</span>
-                <span className={css.text}>{line.text === '' ? ' ' : line.text}</span>
+                <span className={css.gutterOld}>{oldGutter(line)}</span>
+                <span className={css.gutterNew}>{newGutter(line)}</span>
+                <span className={css.text}>
+                  {line.tokens.length === 0
+                    ? ' '
+                    : line.tokens.map((token, tokenIndex) => (
+                      <span
+                        key={tokenIndex}
+                        data-token
+                        style={token.color === undefined ? undefined : { color: token.color }}
+                      >
+                        {token.text === '' ? ' ' : token.text}
+                      </span>
+                    ))}
+                </span>
               </div>
             ))}
           </pre>
@@ -129,11 +162,4 @@ function DiffFileBlock(props: {
         : null}
     </section>
   )
-}
-
-function lineNumber(line: { kind: string; oldNo?: number; newNo?: number }): string {
-  if (line.kind === 'del' && line.oldNo !== undefined) return String(line.oldNo)
-  if (line.kind === 'add' && line.newNo !== undefined) return String(line.newNo)
-  if (line.kind === 'ctx' && line.newNo !== undefined) return String(line.newNo)
-  return ''
 }

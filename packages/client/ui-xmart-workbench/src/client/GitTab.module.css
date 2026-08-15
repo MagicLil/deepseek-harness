@@ -416,7 +416,8 @@
 
 .history:hover,
 .historyActive {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: rgb(255 255 255 / 8%);
+  border-radius: 4px;
 }
 
 .historyHit {
@@ -566,9 +567,41 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+/* Plate lives on HoverCard's portaled #2C2C2E card. Theme tokens resolve
+ * against the app chrome, not this plate — colors are local, like Cursor. */
+.hoverPlate {
+  --dsw-hovercard-width: 360px;
+  --dsw-hovercard-bg: #252526;
+  padding: 12px 14px 14px;
+  border: 1px solid #3e3e42;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.hoverPlate::before,
+.hoverPlate::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  border-style: solid;
+  border-color: transparent;
+}
+
+.hoverPlate::before {
+  left: -7px;
+  border-width: 7px 7px 7px 0;
+  border-right-color: #3e3e42;
+}
+
+.hoverPlate::after {
+  left: -6px;
+  border-width: 6px 6px 6px 0;
+  border-right-color: #252526;
+}
+
 .hover {
   box-sizing: border-box;
-  color: #fff;
+  color: #c8c8c8;
   font-size: 12px;
   line-height: 18px;
 }
@@ -578,7 +611,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  color: var(--dsw-alias-label-secondary);
+  color: #9d9d9d;
 }
 
 .hoverAuthor,
@@ -590,14 +623,15 @@
 }
 
 .hoverExact {
-  color: var(--dsw-alias-label-tertiary);
+  color: #858585;
 }
 
 .hoverSubject {
   margin-top: 8px;
   font-size: 13px;
   line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+  color: #f3f3f3;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -605,25 +639,34 @@
 .hoverBody,
 .hoverCoauthor {
   margin-top: 4px;
-  color: var(--dsw-alias-label-secondary);
+  color: #b0b0b0;
   overflow-wrap: anywhere;
 }
 
 .hoverCoauthor {
-  color: var(--dsw-alias-brand-primary);
+  color: #8b949e;
+}
+
+.hoverRule {
+  height: 0;
+  margin: 10px 0 8px;
+  border: none;
+  border-top: 1px solid #3e3e42;
 }
 
 .hoverStats {
-  margin-top: 8px;
-  color: var(--dsw-alias-label-secondary);
+  margin: 0 0 8px;
+  color: #c8c8c8;
 }
 
 .hoverIns {
-  color: var(--dsw-alias-state-success-primary);
+  color: #3fb950;
+  font-weight: 500;
 }
 
 .hoverDel {
-  color: var(--dsw-alias-state-error-primary);
+  color: #f85149;
+  font-weight: 500;
 }
 
 .hoverRefs {
@@ -642,7 +685,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 14px;
-  margin-top: 10px;
 }
 
 .hoverHash,
@@ -653,17 +695,17 @@
   border: none;
   background: none;
   padding: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: #9d9d9d;
   font: inherit;
   text-decoration: none;
   cursor: pointer;
 }
 
 .hoverLink {
-  color: var(--dsw-alias-brand-primary);
+  color: #58a6ff;
 }
 
 .hoverHash:hover,
 .hoverLink:hover {
-  color: var(--dsw-alias-label-primary);
+  color: #f3f3f3;
 }

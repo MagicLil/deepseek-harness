@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { GitChange } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   gitActionMessage, gitChangeKey, gitDiffSideOf, gitMenuItemIds, gitSectionPaths,
-  isGitBranchName, partitionGitChanges, runGitSyncSequence,
+  isGitBranchName, localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
 } from '../src/client/git-scm.ts'
 
 const staged: GitChange = { path: 'a.ts', status: 'modified', area: 'index' }
@@ -33,6 +33,18 @@ describe('gitDiffSideOf / gitChangeKey / gitMenuItemIds', () => {
     expect(gitMenuItemIds('index')).toEqual(['unstage', 'diff-staged', 'open'])
     expect(gitMenuItemIds('worktree')).toEqual(['stage', 'discard', 'diff-work', 'open'])
     expect(gitMenuItemIds(undefined)).toEqual(['stage', 'discard', 'diff-work', 'open'])
+  })
+})
+
+describe('localBranchNameForRemote', () => {
+  it('maps origin/foo to a local foo and rejects a remote-only name', () => {
+    const locals = [{ name: 'anruisen' }, { name: 'feat/x' }]
+    expect(localBranchNameForRemote('origin/anruisen', locals)).toBe('anruisen')
+    expect(localBranchNameForRemote('origin/feat/x', locals)).toBe('feat/x')
+    expect(localBranchNameForRemote('origin/missing', locals)).toBeUndefined()
+    expect(localBranchNameForRemote('anruisen', locals)).toBeUndefined()
+    expect(localBranchNameForRemote('origin/', locals)).toBeUndefined()
+    expect(localBranchNameForRemote('/anruisen', locals)).toBeUndefined()
   })
 })
 

@@ -29,7 +29,7 @@ import {
 } from './git-log-page.ts'
 import {
   gitActionMessage, gitChangeKey, gitDiffSideOf, gitMenuItemIds, gitSectionPaths,
-  isGitBranchName, partitionGitChanges, runGitSyncSequence,
+  isGitBranchName, localBranchNameForRemote, partitionGitChanges, runGitSyncSequence,
 } from './git-scm.ts'
 import css from './GitTab.module.css'
 
@@ -55,8 +55,11 @@ function GitToolbarSelect(props: {
 
   useEffect(() => {
     if (!open) return
+    const root = rootRef.current
+    /* v8 ignore next -- the trigger span is committed before this effect */
+    if (root === null) return
     const onPointerDown = (event: PointerEvent) => {
-      if (event.composedPath().includes(rootRef.current as EventTarget)) return
+      if (root.contains(event.target as Node)) return
       setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -355,7 +358,7 @@ export function GitTab({
               testId="xmart-workbench-git-branch"
               value={status.detached ? '' : status.branch}
               display={status.detached ? t('git.detached') : status.branch}
-              disabled={busy || status.detached}
+              disabled={busy}
               items={branches.map(row => ({ id: row.name, label: row.name }))}
               onSelect={(name) => {
                 if (name === status.branch) return
@@ -559,6 +562,7 @@ export function GitTab({
                 <HoverCard
                   key={row.hash}
                   openDelayMs={HOVER_SHOW_MS}
+                  cardClassName={css.hoverPlate}
                   content={<GitCommitHover row={row} t={t} />}
                   anchor={(
                     <div
@@ -636,6 +640,13 @@ export function GitTab({
                                   if (ref.kind === 'branch') {
                                     run(() => gitCheckout(root, ref.name))
                                     return
+                                  }
+                                  if (ref.kind === 'remote') {
+                                    const local = localBranchNameForRemote(ref.name, branches)
+                                    if (local !== undefined) {
+                                      run(() => gitCheckout(root, local))
+                                      return
+                                    }
                                   }
                                   run(() => gitCheckoutCommit(root, row.hash))
                                 }}
@@ -850,19 +861,6 @@ function GitCommitHover(props: { row: GitGraphNode; t: Translate }) {
       {model.coAuthors.map(line => (
         <div key={line} className={css.hoverCoauthor}>Co-authored-by: {line}</div>
       ))}
-      {model.stats !== undefined
-        ? (
-          <div className={css.hoverStats}>
-            {model.stats.files}
-            {model.stats.insertions !== undefined
-              ? <span className={css.hoverIns}>, {model.stats.insertions}</span>
-              : null}
-            {model.stats.deletions !== undefined
-              ? <span className={css.hoverDel}>, {model.stats.deletions}</span>
-              : null}
-          </div>
-        )
-        : null}
       {model.refs.length > 0
         ? (
           <div className={css.hoverRefs}>
@@ -871,6 +869,20 @@ function GitCommitHover(props: { row: GitGraphNode; t: Translate }) {
                 {ref.name}
               </span>
             ))}
+          </div>
+        )
+        : null}
+      <div className={css.hoverRule} role="separator" />
+      {model.stats !== undefined
+        ? (
+          <div className={css.hoverStats} data-testid="xmart-git-hover-stats">
+            {model.stats.files}
+            {model.stats.insertions !== undefined
+              ? <span className={css.hoverIns} data-testid="xmart-git-hover-ins">, {model.stats.insertions}</span>
+              : null}
+            {model.stats.deletions !== undefined
+              ? <span className={css.hoverDel} data-testid="xmart-git-hover-del">, {model.stats.deletions}</span>
+              : null}
           </div>
         )
         : null}

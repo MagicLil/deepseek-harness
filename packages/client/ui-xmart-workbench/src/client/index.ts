@@ -235,22 +235,22 @@ export function apply(ctx: ClientContext): void {
       gitUnstage: (path, files) => ctx.workspaces.gitUnstage(path, files),
       gitDiscard: (path, files) => ctx.workspaces.gitDiscard(path, files),
       gitCommit: (path, message) => ctx.workspaces.gitCommit(path, message),
-      gitLog: (path, limit) => ctx.workspaces.gitLog(path, limit),
+      gitLog: (path, limit, signal, skip) => ctx.workspaces.gitLog(path, limit, signal, skip),
       gitSync: (path, mode) => ctx.workspaces.gitSync(path, mode),
       gitBranches: (path, signal) => ctx.workspaces.gitBranches(path, signal),
       gitCheckout: (path, name, create) => ctx.workspaces.gitCheckout(path, name, create),
       gitCheckoutCommit: (path, hash) => ctx.workspaces.gitCheckoutCommit(path, hash),
       gitSuggestCommit: (path, sid) => ctx.workspaces.gitSuggestCommit(path, sid),
       openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
-      openDiff: (side, file) => {
+      openDiff: (side, file, root) => {
         workbench.openTab({
-          type: 'diff', path: encodeDiffPath(side, file), title: file,
+          type: 'diff', path: encodeDiffPath(side, file, root), title: file,
         }, { sessionId: props.sessionId })
       },
-      openCommit: (hash, subject) => {
+      openCommit: (hash, subject, root) => {
         workbench.openTab({
           type: 'diff',
-          path: encodeCommitDiffPath(hash),
+          path: encodeCommitDiffPath(hash, root),
           title: commitDiffTitle(hash, subject),
         }, { sessionId: props.sessionId })
       },

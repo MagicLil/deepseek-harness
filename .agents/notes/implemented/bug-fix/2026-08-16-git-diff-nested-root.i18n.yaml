@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-16-git-diff-nested-root.md
+2026-08-16-git-diff-nested-root.md: 23013a6958fe39551b621bef21119433125ed335
+2026-08-16-git-diff-nested-root.zh.md: 925bcbb9ea50e958ab5e8aedf1e9541c46267633

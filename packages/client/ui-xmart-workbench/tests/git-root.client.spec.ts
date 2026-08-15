@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   gitErrorCode, gitErrorMessage, isGitUnavailable, probeGitRoots,
@@ -50,11 +50,13 @@ describe('git-root helpers', () => {
       async () => status('/ws'),
       async () => undefined as never,
     )).resolves.toEqual({ ok: true, status: status('/ws'), log: [] })
+    const gitLog = vi.fn(async () => [{ hash: 'abc', subject: 's', author: 'a', timestamp: 1 }])
     await expect(readGitSnapshot(
       '/ws',
       async () => status('/ws'),
-      async () => [{ hash: 'abc', subject: 's', author: 'a', timestamp: 1 }],
+      gitLog,
     )).resolves.toMatchObject({ ok: true, log: [{ hash: 'abc' }] })
+    expect(gitLog).toHaveBeenCalledWith('/ws', 80)
   })
 
   it('classifies status failures', async () => {

@@ -36,6 +36,8 @@ describe('layoutGitGraph', () => {
     const rows = layoutGitGraph([
       {
         hash: 'c', subject: 'tip', author: 'A', timestamp: 1,
+        body: 'why', files: 2, insertions: 3, deletions: 1,
+        originUrl: 'git@github.com:acme/app.git',
         refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'branch', name: 'main' }],
       },
     ])
@@ -43,6 +45,10 @@ describe('layoutGitGraph', () => {
       { kind: 'head', name: 'HEAD' },
       { kind: 'branch', name: 'main' },
     ])
+    expect(rows[0]).toMatchObject({
+      body: 'why', files: 2, insertions: 3, deletions: 1,
+      originUrl: 'git@github.com:acme/app.git',
+    })
   })
 
   it('skips a hole in the input list', () => {

@@ -30,6 +30,7 @@ import langBat from '@shikijs/langs/bat'
 import themeDark from '@shikijs/themes/one-dark-pro'
 import themeLight from '@shikijs/themes/min-light'
 import type { Monaco } from './monaco-loader.ts'
+import type { DiffToken } from './diff-patch.ts'
 import { languageFromPath } from './language-from-path.ts'
 
 /** Shiki / Monaco theme id used while the app is in dark appearance. */
@@ -85,6 +86,38 @@ export async function prepareMonacoHighlight(monaco: Monaco, filePath: string): 
   }
   shikiToMonaco(core, monaco)
   return language
+}
+
+/**
+ * Tokenize source with the same Shiki pack the editor uses.
+ * Unknown languages stay plaintext so a missing grammar never blanks the diff.
+ * @param code - old-side or new-side snippet (no `+`/`-` prefixes).
+ * @param language - {@link languageFromPath} id.
+ * @param dark - app appearance.
+ */
+export async function highlightSource(
+  code: string,
+  language: string,
+  dark: boolean,
+): Promise<DiffToken[][]> {
+  if (code === '') return []
+  if (!SHIKI_IDS.has(language)) {
+    return code.split('\n').map(line => [{ text: line }])
+  }
+  try {
+    const core = await ensureHighlighter()
+    const result = core.codeToTokens(code, {
+      lang: language,
+      theme: dark ? EDITOR_DARK_THEME : EDITOR_LIGHT_THEME,
+    })
+    return result.tokens.map(row => row.map(token => ({
+      text: token.content,
+      ...token.color === undefined ? {} : { color: token.color },
+    })))
+  }
+  catch {
+    return code.split('\n').map(line => [{ text: line }])
+  }
 }
 
 /**

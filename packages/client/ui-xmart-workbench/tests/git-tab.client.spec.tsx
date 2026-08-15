@@ -247,6 +247,33 @@ describe('GitTab', () => {
     expect(gitCheckout).toHaveBeenCalledTimes(1)
   })
 
+  it('attaches HEAD when a remote pill already has a local branch', async () => {
+    const { gitCheckout, gitCheckoutCommit } = mount({
+      gitStatus: async () => ({
+        ...status, branch: 'HEAD', detached: true, ahead: 0, behind: 0, changes: [],
+      }),
+      gitBranches: async () => [{ name: 'anruisen', current: false }],
+      gitLog: async () => [
+        {
+          hash: 'abcdef1',
+          subject: 'fix',
+          author: 'lx',
+          timestamp: 1,
+          refs: [
+            { kind: 'head', name: 'HEAD' },
+            { kind: 'branch', name: 'anruisen' },
+            { kind: 'remote', name: 'origin/anruisen' },
+          ],
+        },
+      ],
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    fireEvent.click(within(screen.getByTestId('xmart-git-graph-abcdef1')).getByText('origin/anruisen'))
+    await act(async () => { await Promise.resolve() })
+    expect(gitCheckout).toHaveBeenCalledWith('/ws', 'anruisen')
+    expect(gitCheckoutCommit).not.toHaveBeenCalled()
+  })
+
   it('hides the author when the log row has none', async () => {
     mount({
       gitLog: async () => [{ hash: 'deadbee', subject: 'solo', author: '', timestamp: 1 }],
@@ -334,6 +361,8 @@ describe('GitTab', () => {
     fireEvent.click(trigger)
     expect(screen.getByTestId('xmart-workbench-git-branch-menu')).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'feat/xmart-workbench-phase0' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'loean7' })).toBeTruthy()
+    fireEvent.pointerDown(trigger)
     expect(screen.getByRole('menuitem', { name: 'loean7' })).toBeTruthy()
     fireEvent.keyDown(document, { key: 'a' })
     expect(screen.getByRole('menuitem', { name: 'loean7' })).toBeTruthy()
@@ -688,19 +717,26 @@ describe('GitTab', () => {
     expect(gitCheckout).toHaveBeenCalledWith('/ws', 'ok-branch', true)
   })
 
-  it('disables the branch picker while detached and shows syncing copy', async () => {
+  it('keeps the branch picker usable while detached and disables it while syncing', async () => {
     let release: () => void = () => {}
-    mount({
+    const { gitCheckout } = mount({
       gitStatus: async () => ({
         ...status, branch: 'HEAD', detached: true, ahead: 0, behind: 0, changes: [],
       }),
       gitLog: async () => [],
-      gitBranches: async () => [{ name: 'main', current: false }],
+      gitBranches: async () => [{ name: 'anruisen', current: false }, { name: 'main', current: false }],
       gitSync: () => new Promise((resolve) => { release = () => { resolve() } }),
     })
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(screen.getByTestId('xmart-workbench-git-branch')).toHaveProperty('disabled', true)
+    const picker = screen.getByTestId('xmart-workbench-git-branch')
+    expect(picker).toHaveProperty('disabled', false)
+    expect(picker.textContent).toMatch(/分离 HEAD/)
+    fireEvent.click(picker)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'anruisen' }))
+    await act(async () => { await Promise.resolve() })
+    expect(gitCheckout).toHaveBeenCalledWith('/ws', 'anruisen')
     fireEvent.click(screen.getByTestId('xmart-workbench-git-sync'))
+    expect(screen.getByTestId('xmart-workbench-git-branch')).toHaveProperty('disabled', true)
     expect(screen.getByText(/同步中/)).toBeTruthy()
     await act(async () => { release(); await Promise.resolve() })
   })
@@ -851,9 +887,12 @@ describe('GitTab hover card', () => {
     expect(card.textContent).toMatch(/feat\(ui\): keep widths/)
     expect(card.textContent).toMatch(/why this/)
     expect(card.textContent).toMatch(/Co-authored-by: Cursor/)
+    expect(card.parentElement?.className).toMatch(/hoverPlate/)
     expect(card.textContent).toMatch(/16 files changed/)
     expect(card.textContent).toMatch(/442 insertions/)
     expect(card.textContent).toMatch(/8 deletions/)
+    expect(within(card).getByTestId('xmart-git-hover-ins').textContent).toMatch(/442 insertions/)
+    expect(within(card).getByTestId('xmart-git-hover-del').textContent).toMatch(/8 deletions/)
     expect(within(card).getByText('feat/x')).toBeTruthy()
     expect(within(card).getByText('origin/feat/x')).toBeTruthy()
     expect(card.textContent).toMatch(/5120bf4/)
