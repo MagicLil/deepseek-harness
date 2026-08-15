@@ -79,6 +79,8 @@ export type WorkbenchFilesStore = {
   subscribe: (fn: () => void) => () => void
   expandedOf: (sessionId: string) => Record<string, boolean>
   setExpanded: (sessionId: string, path: string, expanded: boolean) => void
+  /** Copy expanded directories onto another session (same-project switch). */
+  cloneExpanded: (fromId: string, toId: string) => void
   bumpRefresh: () => void
   markReload: (paths: readonly string[]) => void
   reloadToken: (path: string) => number
@@ -107,6 +109,13 @@ export function createWorkbenchFilesStore(): WorkbenchFilesStore {
         draft.expanded[sessionId] = expanded
           ? { ...current, [path]: true }
           : omitKey(current, path)
+      })
+    },
+    cloneExpanded: (fromId, toId) => {
+      if (fromId === toId) return
+      store.update((draft) => {
+        const src = draft.expanded[fromId]
+        draft.expanded[toId] = src === undefined ? {} : { ...src }
       })
     },
     bumpRefresh: () => {

@@ -54,6 +54,8 @@ function mount(
     setWorkbench,
     resolveBody,
     refreshExplorer,
+    projectKey: () => undefined,
+    keepLiveWidth: () => false,
     useWorkbenchSession: constantHook(view),
     useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
     t: ((key: string) => key) as never,
@@ -220,6 +222,86 @@ describe('PrimarySidebar', () => {
     act(() => { rerender({ width: 260 }) })
     act(() => { rerender({ width: 0 }) })
     expect(instance.getSnapshot()).toEqual({ open: false, width: 260 })
+  })
+
+  it('keeps the live width when switching to a same-project session', () => {
+    const first = createWorkbenchStore().create('s-a')
+    first.actions.rememberOpen(300)
+    const next = createWorkbenchStore().create('s-b')
+    const setWorkbench = vi.fn()
+    const closeWorkbench = vi.fn()
+    const projectKey = (id: string) => id === 's-a' || id === 's-b' ? '/ws' : undefined
+    const shared = {
+      closeWorkbench,
+      setWorkbench,
+      resolveBody: () => Stub,
+      refreshExplorer: vi.fn(),
+      projectKey,
+      keepLiveWidth: () => false,
+      useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+      useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+      useSession: (() => null) as never,
+      useSessions: (() => null) as never,
+      useWorkspaces: (() => null) as never,
+      t: ((key: string) => key) as never,
+    }
+    const firstProps = {
+      ...shared,
+      width: 300,
+      sessionId: 's-a' as SessionId,
+      useStore: hookOf(first),
+      actions: first.actions,
+    } as PrimarySidebarProps
+    const utils = render(<PrimarySidebar {...firstProps} />)
+    expect(setWorkbench).toHaveBeenCalledWith(300)
+    setWorkbench.mockClear()
+    act(() => {
+      utils.rerender(
+        <PrimarySidebar
+          {...firstProps}
+          sessionId={'s-b' as SessionId}
+          useStore={hookOf(next)}
+          actions={next.actions}
+        />,
+      )
+    })
+    expect(setWorkbench).not.toHaveBeenCalled()
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(next.store.getSnapshot()).toEqual({ open: true, width: 300 })
+  })
+
+  it('keeps the live width on remount when apply marks the same-project inherit', () => {
+    const dest = createWorkbenchStore().create('s-remount')
+    dest.actions.rememberOpen(260)
+    const setWorkbench = vi.fn()
+    const closeWorkbench = vi.fn()
+    render(
+      <PrimarySidebar
+        {
+          ...{
+            width: 400,
+            sessionId: 's-remount' as SessionId,
+            useStore: hookOf(dest),
+            actions: dest.actions,
+            closeWorkbench,
+            setWorkbench,
+            resolveBody: () => Stub,
+            refreshExplorer: vi.fn(),
+            projectKey: () => '/ws',
+            keepLiveWidth: () => true,
+            useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+            useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+            useSession: (() => null) as never,
+            useSessions: (() => null) as never,
+            useWorkspaces: (() => null) as never,
+            t: ((key: string) => key) as never,
+          } as PrimarySidebarProps
+        }
+      />,
+    )
+    expect(setWorkbench).not.toHaveBeenCalled()
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(dest.store.getSnapshot()).toEqual({ open: true, width: 400 })
   })
 
   it('does not rewrite a closed persist when the leftover preference is already zero', () => {

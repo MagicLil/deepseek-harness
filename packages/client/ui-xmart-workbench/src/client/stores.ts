@@ -45,3 +45,24 @@ export function createWorkbenchStore(): EngineStoreHandle<WorkbenchPersistState,
     },
   })
 }
+
+/**
+ * Copy open/width onto another session so a same-project remount
+ * restores the live explorer size instead of the destination default.
+ * @param persist - workbench persist handle.
+ * @param fromId - session that currently has the live width.
+ * @param toId - session that should keep that width.
+ * @returns the copied snapshot, or undefined when the ids match.
+ */
+export function inheritWorkbenchPersist(
+  persist: EngineStoreHandle<WorkbenchPersistState, WorkbenchPersistActions>,
+  fromId: string,
+  toId: string,
+): WorkbenchPersistState | undefined {
+  if (fromId === toId) return undefined
+  const from = persist.create(fromId).getSnapshot()
+  const to = persist.create(toId)
+  to.actions.rememberOpen(from.width)
+  if (!from.open) to.actions.rememberClosed()
+  return from
+}

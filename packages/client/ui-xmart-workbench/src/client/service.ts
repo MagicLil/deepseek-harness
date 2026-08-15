@@ -530,6 +530,31 @@ export class XmartWorkbenchController implements IXmartWorkbench {
     })
   }
 
+  /**
+   * Copy explorer activity and editor tabs onto another session in the
+   * same project. Terminal tabs stay behind — their PTY is bound to the
+   * source session. An existing target list is overwritten so switching
+   * chats in the folder keeps the live editor.
+   * @param fromId - session that currently has the open files.
+   * @param toId - session that should show the same editor chrome.
+   * @returns true when the target was written.
+   */
+  inheritSession(fromId: string, toId: string): boolean {
+    if (fromId === toId) return false
+    const from = this.#ensure(fromId).getSnapshot()
+    const tabs = from.tabs.filter(tab => tab.type !== 'terminal').map(tab => ({ ...tab }))
+    const active = tabs.some(tab => tab.id === from.activeTabId)
+      ? from.activeTabId
+      : (tabs[tabs.length - 1]?.id ?? null)
+    this.#write(toId, (draft) => {
+      draft.tabs = tabs
+      draft.activeTabId = active
+      draft.nextSeq = from.nextSeq
+      draft.activity = from.activity
+    })
+    return true
+  }
+
   /** @inheritdoc */
   matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined {
     return matchViewer(

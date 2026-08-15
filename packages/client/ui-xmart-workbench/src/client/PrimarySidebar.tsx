@@ -45,6 +45,8 @@ export function PrimarySidebar({
   setWorkbench,
   resolveBody,
   refreshExplorer,
+  projectKey,
+  keepLiveWidth,
   useWorkbenchSession,
   useWorkbenchRegistry,
   t,
@@ -61,13 +63,25 @@ export function PrimarySidebar({
   const ids = registered.length > 0 ? registered.map(row => row.id) : [...PRIMARY_ACTIVITIES]
   const title = registered.find(row => row.id === activity)?.title
     ?? (isPrimaryActivity(activity) ? t(TITLE_KEY[activity]) : activity)
+  const prevSession = useRef(sessionId)
 
   useLayoutEffect(() => {
+    const prev = prevSession.current
+    prevSession.current = sessionId
+    const from = projectKey(prev)
+    const sameProject = prev !== sessionId && from !== undefined && from === projectKey(sessionId)
+    if (sameProject || keepLiveWidth()) {
+      syncGen.current += 1
+      seenGen.current = syncGen.current
+      if (width > 0) writes.current.actions.rememberOpen(width)
+      else writes.current.actions.rememberClosed()
+      return
+    }
     syncGen.current += 1
     const snap = persistRef.current
     if (snap.open) writes.current.setWorkbench(snap.width)
     else if (width > 0) writes.current.closeWorkbench()
-  }, [sessionId])
+  }, [keepLiveWidth, projectKey, sessionId])
 
   useEffect(() => {
     if (seenGen.current !== syncGen.current) {

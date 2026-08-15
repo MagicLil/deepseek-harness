@@ -40,17 +40,19 @@ async function bench() {
   const setDraft = vi.fn()
   const cancel = vi.fn()
   const openSubagent = vi.fn()
-  const sessionById: Record<string, { cwd?: string; running?: boolean }> = {
+  const sessionById: Record<string, { cwd?: string; running?: boolean; blank?: boolean }> = {
     s1: { cwd: '/ws', running: true },
   }
   const workspaceState = {
     items: [] as { workspaceId: string; path: string; title: string; sessionIds: string[] }[],
     recentWorkspaceId: undefined as string | undefined,
   }
+  const sessionList = { current: 's1' as string }
+  const sessionListeners = new Set<() => void>()
   const sessions = {
     list: {
       getSnapshot: () => ({
-        current: 's1',
+        current: sessionList.current,
         byId: sessionById,
         jobsBySession: { s1: [{ id: 'bash-1', kind: 'bash', label: 'ls', status: 'running' }] },
         subagentsByParent: {
@@ -64,8 +66,9 @@ async function bench() {
         },
       }),
       subscribe: (fn?: () => void) => {
+        if (fn !== undefined) sessionListeners.add(fn)
         fn?.()
-        return () => {}
+        return () => { if (fn !== undefined) sessionListeners.delete(fn) }
       },
     },
     scope: (id: string) => id === 's1' ? ({}) : undefined,
@@ -136,7 +139,7 @@ async function bench() {
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
     setDraft, conversationEvents, sessions, cancel, openSubagent,
-    sessionById, workspaceState,
+    sessionById, workspaceState, sessionList, sessionListeners,
   }
 }
 
@@ -260,6 +263,43 @@ describe('ui-xmart-workbench apply', () => {
     expect(explorerEl.props.getRoots('s1')).toEqual([
       { path: 'D:\\hmdp', title: 'hmdp' },
     ])
+  })
+
+  it('inherits editor tabs when switching chats in the same project', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const service = workbench(b.ctx)
+    service.openFile('/ws/a.ts', { sessionId: 's1' })
+    service.setActivity('git', { sessionId: 's1' })
+    b.sessionById.s2 = { cwd: '/ws', blank: false }
+    service.openFile('/ws/old.ts', { sessionId: 's2' })
+    b.sessionList.current = 's2'
+    for (const fn of b.sessionListeners) fn()
+    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts'])
+    expect(service.getSnapshot('s2').activity).toBe('git')
+    expect(b.layout.setWorkbench).toHaveBeenCalledWith(260)
+    const primary = (
+      b.slots.entries('primarySidebar')[0]!.inject as unknown as (id: string) => PrimarySidebarInjected
+    )('s2')
+    expect(primary.keepLiveWidth()).toBe(true)
+  })
+
+  it('does not inherit into another project', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const service = workbench(b.ctx)
+    service.openFile('/ws/a.ts', { sessionId: 's1' })
+    b.sessionById.s2 = { cwd: '/other', blank: true }
+    b.sessionList.current = 's2'
+    for (const fn of b.sessionListeners) fn()
+    expect(service.getSnapshot('s2').tabs).toEqual([])
+    expect(b.layout.setWorkbench).not.toHaveBeenCalled()
+    const primary = (
+      b.slots.entries('primarySidebar')[0]!.inject as unknown as (id: string) => PrimarySidebarInjected
+    )('s2')
+    expect(primary.keepLiveWidth()).toBe(false)
   })
 
   it('routes column and toggle inject callbacks to ctx.layout and the service', async () => {

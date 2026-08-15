@@ -101,6 +101,18 @@ export interface PrimarySidebarInjected {
   resolveBody: (type: string) => ComponentType<TabBodyProps> | undefined
   /** Re-list the explorer tree from disk (title-row refresh). */
   refreshExplorer: () => void
+  /**
+   * Project folder key for a session (workspace path or cwd). Same-project
+   * session switches keep the live explorer width instead of restoring
+   * the new session's persist default.
+   */
+  projectKey: (sessionId: string) => string | undefined
+  /**
+   * True when `apply` just inherited into this session. The session-scoped
+   * sidebar remounts, so `projectKey` alone cannot see the previous id;
+   * this flag skips persist restore and keeps the live width.
+   */
+  keepLiveWidth: () => boolean
   hooks: {
     /** Per-session activity and tab list. */
     workbenchSession: HostObservable<WorkbenchView>

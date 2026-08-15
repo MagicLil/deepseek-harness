@@ -56,6 +56,20 @@ describe('createWorkbenchFilesStore', () => {
     off()
   })
 
+  it('cloneExpanded overwrites the target and ignores a same id', () => {
+    const files = createWorkbenchFilesStore()
+    files.cloneExpanded('s1', 's1')
+    expect(files.expandedOf('s1')).toEqual({})
+    files.setExpanded('s1', '/ws/src', true)
+    files.cloneExpanded('s1', 's2')
+    expect(files.expandedOf('s2')).toEqual({ '/ws/src': true })
+    files.setExpanded('s3', '/keep', true)
+    files.cloneExpanded('s1', 's3')
+    expect(files.expandedOf('s3')).toEqual({ '/ws/src': true })
+    files.cloneExpanded('missing', 's4')
+    expect(files.expandedOf('s4')).toEqual({})
+  })
+
   it('restores sanitized persist', () => {
     localStorage.setItem(FILES_PERSIST, JSON.stringify({
       expanded: { s1: { '/a': true } }, drafts: { '/a': 'z' }, refreshNonce: 4, reloadAt: { '/a': 2 },

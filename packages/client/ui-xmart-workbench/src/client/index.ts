@@ -17,7 +17,8 @@ import type {
   ActivityBarInjected, BottomPanelInjected, MenuBarInjected, PrimarySidebarInjected,
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
-import { createWorkbenchStore } from './stores.ts'
+import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
+import { createWorkbenchStore, inheritWorkbenchPersist } from './stores.ts'
 import { XmartWorkbenchController } from './service.ts'
 import { WorkbenchColumn } from './WorkbenchColumn.tsx'
 import { ActivityBar } from './ActivityBar.tsx'
@@ -96,7 +97,33 @@ export function apply(ctx: ClientContext): void {
 
   const workbench = new XmartWorkbenchController()
   const files = createWorkbenchFilesStore()
+  const persist = createWorkbenchStore()
   workbench.attachPanel(() => { ctx.layout.openWorkbench() })
+  const projectKey = (sessionId: string): string | undefined => projectKeyOf(
+    sessionId,
+    ctx.sessions.list.getSnapshot(),
+    ctx.workspaces.list.getSnapshot(),
+  )
+  let lastSession = ctx.sessions.list.getSnapshot().current
+  let skipPersistRestoreFor: string | undefined
+  ctx.effect(() => ctx.sessions.list.subscribe(() => {
+    const snap = ctx.sessions.list.getSnapshot()
+    const next = snap.current
+    const prev = lastSession
+    if (prev === next) return
+    lastSession = next
+    skipPersistRestoreFor = undefined
+    if (prev === undefined || next === undefined) return
+    if (!shouldInheritSameProject(prev, next, snap, ctx.workspaces.list.getSnapshot())) return
+    workbench.inheritSession(prev, next)
+    files.cloneExpanded(prev, next)
+    const copied = inheritWorkbenchPersist(persist, prev, next)
+    if (copied !== undefined) {
+      if (copied.open) ctx.layout.setWorkbench(copied.width)
+      else ctx.layout.closeWorkbench()
+    }
+    skipPersistRestoreFor = next
+  }), 'ui-xmart-workbench: same-project inherit')
   ctx.effect(() => {
     const disposeService = ctx.reflect.provide('xmartWorkbench', workbench)
     return () => { void disposeService() }
@@ -448,7 +475,6 @@ export function apply(ctx: ClientContext): void {
     lastFsSeq = noteFsTouch(files, lastFsSeq, seq, refresh, reload)
   })), 'ui-xmart-workbench: fs events')
 
-  const persist = createWorkbenchStore()
   const dispatchWindow = (name: string): void => {
     const target = globalThis as { dispatchEvent?: (event: Event) => boolean }
     target.dispatchEvent?.(new Event(name))
@@ -537,6 +563,8 @@ export function apply(ctx: ClientContext): void {
     setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
     resolveBody: type => workbench.getActivity(type)?.component ?? workbench.getTab(type)?.component,
     refreshExplorer: () => { files.bumpRefresh() },
+    projectKey,
+    keepLiveWidth: () => skipPersistRestoreFor === sessionId,
     hooks: {
       workbenchSession: workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),

@@ -533,6 +533,23 @@ describe('openFile, persist, and observers', () => {
     expect(second.getSnapshot('keep').activeTabId).toBe('plain:1')
   })
 
+  it('inheritSession copies editor tabs, skips terminals, and overwrites a filled target', () => {
+    const service = new XmartWorkbenchController()
+    service.registerTab(tab({ id: 'editor', title: 'Editor', hidden: true, dedupeKey: opened => opened.path }))
+    service.registerTab(tab({ id: 'terminal', title: 'Terminal', hidden: true }))
+    service.openFile('/ws/a.ts', { sessionId: 's1' })
+    service.openTab({ type: 'terminal' }, { sessionId: 's1' })
+    service.setActivity('git', { sessionId: 's1' })
+    service.openFile('/ws/old.ts', { sessionId: 's2' })
+    expect(service.inheritSession('s1', 's1')).toBe(false)
+    expect(service.inheritSession('s1', 's2')).toBe(true)
+    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts'])
+    expect(service.getSnapshot('s2').tabs.map(row => row.type)).toEqual(['editor'])
+    expect(service.getSnapshot('s2').activeTabId).toBe(service.getSnapshot('s2').tabs[0]?.id)
+    expect(service.getSnapshot('s2').activity).toBe('git')
+    expect(service.inheritSession('s1', 's2')).toBe(true)
+  })
+
   it('returns the frozen empty view when no session is bound', () => {
     const service = new XmartWorkbenchController()
     expect(service.getSnapshot()).toBe(EMPTY_WORKBENCH_VIEW)
