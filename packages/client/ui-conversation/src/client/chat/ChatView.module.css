@@ -42,6 +42,51 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* MarkdownText binds `font: var(--dsw-font-markdown-*)`, so shrinking the
+     assistant shell's font-size does not change prose. Rebind the scale here
+     (conversation only) to Cursor-like 13px body / 14px heads / 12px code. */
+  --dsw-font-markdown-base: 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-base-font-size: 13px;
+  --dsw-font-markdown-base-line-height: 20px;
+  --dsw-font-markdown-base-strong: 600 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-base-strong-font-size: 13px;
+  --dsw-font-markdown-base-strong-line-height: 20px;
+  --dsw-font-markdown-base-italic: italic 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-base-italic-font-size: 13px;
+  --dsw-font-markdown-base-strong-italic: italic 600 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-base-strong-italic-font-size: 13px;
+  --dsw-font-markdown-h1: 600 14px/20px var(--dsw-font-family);
+  --dsw-font-markdown-h1-font-size: 14px;
+  --dsw-font-markdown-h1-line-height: 20px;
+  --dsw-font-markdown-h1-font-weight: 600;
+  --dsw-font-markdown-h2: 600 14px/20px var(--dsw-font-family);
+  --dsw-font-markdown-h2-font-size: 14px;
+  --dsw-font-markdown-h2-line-height: 20px;
+  --dsw-font-markdown-h2-font-weight: 600;
+  --dsw-font-markdown-h3: 600 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-h3-font-size: 13px;
+  --dsw-font-markdown-h3-line-height: 20px;
+  --dsw-font-markdown-h3-font-weight: 600;
+  --dsw-font-markdown-h4: 600 13px/20px var(--dsw-font-family);
+  --dsw-font-markdown-h4-font-size: 13px;
+  --dsw-font-markdown-code: 12px/18px var(--ds-font-family-code);
+  --dsw-font-markdown-code-font-size: 12px;
+  --dsw-font-markdown-code-block: 12px/18px var(--ds-font-family-code);
+  --dsw-font-markdown-code-block-font-size: 12px;
+  --dsw-font-markdown-table: 12px/18px var(--dsw-font-family);
+  --dsw-font-markdown-table-font-size: 12px;
+  --dsw-font-markdown-table-head: 500 12px/18px var(--dsw-font-family);
+  --dsw-font-markdown-small: 12px/18px var(--dsw-font-family);
+  --dsw-font-markdown-small-strong: 600 12px/18px var(--dsw-font-family);
+}
+
+.column :where(h1, h2, h3) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.column :where(p) {
+  margin: 8px 0;
 }
 
 /* Settled-flow identity boundary. It is neutral today and becomes the natural
