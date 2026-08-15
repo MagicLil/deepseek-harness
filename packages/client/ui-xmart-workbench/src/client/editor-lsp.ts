@@ -11,6 +11,34 @@ export interface EditorCompletionItem {
   readonly kind?: number
 }
 
+/** One navigation target from `*.definition` / `*.references`. */
+export interface EditorLocation {
+  /** Document URI from the language server. */
+  readonly uri: string
+  /** Zero-based start line. */
+  readonly startLine: number
+  /** Zero-based start character. */
+  readonly startCharacter: number
+  /** Zero-based end line. */
+  readonly endLine: number
+  /** Zero-based end character. */
+  readonly endCharacter: number
+}
+
+/** Hover card from `*.hover`. */
+export interface EditorHover {
+  /** Markdown or plaintext body. */
+  readonly contents: string
+  /** Zero-based start line of the hovered symbol. */
+  readonly startLine?: number
+  /** Zero-based start character of the hovered symbol. */
+  readonly startCharacter?: number
+  /** Zero-based end line of the hovered symbol. */
+  readonly endLine?: number
+  /** Zero-based end character of the hovered symbol. */
+  readonly endCharacter?: number
+}
+
 /** One diagnostic from `*.diagnostics`. */
 export interface EditorDiagnostic {
   readonly message: string
@@ -29,6 +57,9 @@ export interface EditorLanguageClient {
   close: (path: string) => Promise<void>
   complete: (path: string, line: number, character: number) => Promise<readonly EditorCompletionItem[]>
   diagnostics: (path: string) => Promise<readonly EditorDiagnostic[]>
+  definition: (path: string, line: number, character: number) => Promise<readonly EditorLocation[]>
+  hover: (path: string, line: number, character: number) => Promise<EditorHover | undefined>
+  references: (path: string, line: number, character: number) => Promise<readonly EditorLocation[]>
 }
 
 export type RemoteResult<T> =
@@ -50,6 +81,24 @@ export interface EditorLspRemote {
     workspaceRoot: string
     path: string
   }) => Promise<RemoteResult<{ items: readonly EditorDiagnostic[] }>>
+  definition: (req: {
+    workspaceRoot: string
+    path: string
+    line: number
+    character: number
+  }) => Promise<RemoteResult<{ items: readonly EditorLocation[] }>>
+  hover: (req: {
+    workspaceRoot: string
+    path: string
+    line: number
+    character: number
+  }) => Promise<RemoteResult<EditorHover | Record<string, never>>>
+  references: (req: {
+    workspaceRoot: string
+    path: string
+    line: number
+    character: number
+  }) => Promise<RemoteResult<{ items: readonly EditorLocation[] }>>
 }
 
 /** Vue aliases kept so existing imports keep compiling. */
@@ -129,6 +178,23 @@ export function bindEditorLsp(
     diagnostics: async path => unwrap(
       `${label}.diagnostics`,
       await remote.diagnostics({ workspaceRoot, path }),
+    ).items,
+    definition: async (path, line, character) => unwrap(
+      `${label}.definition`,
+      await remote.definition({ workspaceRoot, path, line, character }),
+    ).items,
+    hover: async (path, line, character): Promise<EditorHover | undefined> => {
+      const result = unwrap(
+        `${label}.hover`,
+        await remote.hover({ workspaceRoot, path, line, character }),
+      )
+      const contents = (result as { contents?: string }).contents
+      if (typeof contents !== 'string') return undefined
+      return { ...result, contents }
+    },
+    references: async (path, line, character) => unwrap(
+      `${label}.references`,
+      await remote.references({ workspaceRoot, path, line, character }),
     ).items,
   }
 }

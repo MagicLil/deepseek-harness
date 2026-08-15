@@ -362,6 +362,9 @@ describe('ui-xmart-workbench apply', () => {
       close: async () => ({ ok: true as const, value: undefined }),
       complete: async () => ({ ok: true as const, value: { items: [] } }),
       diagnostics: async () => ({ ok: true as const, value: { items: [] } }),
+      definition: async () => ({ ok: true as const, value: { items: [] } }),
+      hover: async () => ({ ok: true as const, value: {} }),
+      references: async () => ({ ok: true as const, value: { items: [] } }),
     }
     Object.assign(b.ctx.get('remote') as object, {
       vueLsp: lspRemote, tsLsp: lspRemote, javaLsp: lspRemote,

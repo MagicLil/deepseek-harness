@@ -20,6 +20,9 @@ describe('bindVueLsp', () => {
       close: vi.fn(async () => ({ ok: true as const, value: undefined })),
       complete: vi.fn(async () => ({ ok: true as const, value: { items: [{ label: 'a' }] } })),
       diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      definition: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      hover: vi.fn(async () => ({ ok: true as const, value: {} })),
+      references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
     }
     const client = bindVueLsp(remote, '/ws')
     await client.open('/ws/A.vue', '<template />')

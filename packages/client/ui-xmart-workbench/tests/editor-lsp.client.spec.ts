@@ -16,6 +16,12 @@ function remote(): EditorLspRemote {
     close: vi.fn(async () => ({ ok: true as const, value: undefined })),
     complete: vi.fn(async () => ({ ok: true as const, value: { items: [{ label: 'a' }] } })),
     diagnostics: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+    definition: vi.fn(async () => ({
+      ok: true as const,
+      value: { items: [{ uri: 'file:///a.ts', startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 2 }] },
+    })),
+    hover: vi.fn(async () => ({ ok: true as const, value: { contents: 'doc' } })),
+    references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
   }
 }
 
@@ -43,6 +49,13 @@ describe('bindEditorLsp', () => {
     await client.close('/ws/a.ts')
     expect(await client.complete('/ws/a.ts', 0, 1)).toEqual([{ label: 'a' }])
     expect(await client.diagnostics('/ws/a.ts')).toEqual([])
+    expect(await client.definition('/ws/a.ts', 0, 1)).toEqual([
+      { uri: 'file:///a.ts', startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 2 },
+    ])
+    expect(await client.hover('/ws/a.ts', 0, 1)).toEqual({ contents: 'doc' })
+    expect(await client.references('/ws/a.ts', 0, 1)).toEqual([])
+    host.hover = vi.fn(async () => ({ ok: true as const, value: {} }))
+    expect(await client.hover('/ws/a.ts', 0, 1)).toBeUndefined()
     host.open = vi.fn(async () => ({ ok: false as const, error: { code: 'x', message: 'no' } }))
     await expect(client.open('/ws/a.ts', 'x')).rejects.toThrow(/tsLsp.open failed/)
   })

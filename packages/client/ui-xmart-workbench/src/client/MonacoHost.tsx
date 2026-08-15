@@ -3,9 +3,14 @@
  * editor+model pair lives as long as one opened file.
  */
 import { useEffect, useRef, useState } from 'react'
+import type { IPosition, IRange, Uri } from 'monaco-editor'
 import { loadMonaco, type Monaco } from './monaco-loader.ts'
 import { languageFromPath } from './language-from-path.ts'
-import type { EditorLanguageClient } from './editor-lsp.ts'
+import { EDITOR_DARK_THEME, EDITOR_LIGHT_THEME, prepareMonacoHighlight } from './monaco-highlight.ts'
+import type { EditorHover, EditorLanguageClient, EditorLocation } from './editor-lsp.ts'
+import { fileUrlToPath, normalizeEditorPath, requestReveal, subscribeReveal, takeReveal } from './editor-nav.ts'
+import { WORKBENCH_FIND_EVENT, WORKBENCH_REPLACE_EVENT } from './app-menu-dispatch.ts'
+import { bindEditorLayout } from './editor-layout.ts'
 import css from './MonacoHost.module.css'
 
 const LSP_CHANGE_DEBOUNCE_MS = 300
@@ -15,19 +20,27 @@ const LSP_DIAGNOSTICS_POLL_MS = 1500
 export interface MonacoHostLabels {
   loading: string
   error: string
+  /** Shown when definition lands on a jar / `jdt://` / `.class` with no disk source. */
+  noSource?: string
+  /** Shown while the language server is starting or downloading. */
+  lspStarting?: string
+  /** Shown when the language server fails to start. */
+  lspFailed?: string
 }
 
 /** Monaco host props. */
-export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, languageClient }: {
+export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, languageClient, onOpenFile }: {
   initialValue: string
   filePath: string
   labels: MonacoHostLabels
   onChange: (content: string) => void
   onSave: () => void
   languageClient?: EditorLanguageClient
+  onOpenFile?: (path: string) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [navNote, setNavNote] = useState<string | null>(null)
   const initialRef = useRef({ value: initialValue, path: filePath })
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -35,17 +48,25 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
   onSaveRef.current = onSave
   const languageClientRef = useRef(languageClient)
   languageClientRef.current = languageClient
+  const onOpenFileRef = useRef(onOpenFile)
+  onOpenFileRef.current = onOpenFile
+  const noSourceRef = useRef(labels.noSource)
+  noSourceRef.current = labels.noSource
 
   useEffect(() => {
     let disposed = false
     const cleanups: Array<() => void> = []
     loadMonaco().then(
-      (monaco) => {
+      async (monaco) => {
         try {
           const host = hostRef.current
           /* v8 ignore next -- the ref is bound before the async boot settles. */
           if (disposed || host === null) return
-          const language = languageFromPath(initialRef.current.path)
+          const language = await prepareMonacoHighlight(monaco, initialRef.current.path)
+          /* v8 ignore start -- unmount can win the highlight boot. */
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- `disposed` flips during the await.
+          if (disposed || hostRef.current === null) return
+          /* v8 ignore stop */
           const uri = monaco.Uri.file(initialRef.current.path.replaceAll('\\', '/'))
           const existing = monaco.editor.getModel(uri)
           const model = existing ?? monaco.editor.createModel(initialRef.current.value, language, uri)
@@ -56,8 +77,9 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
           cleanups.push(() => { model.dispose() })
           const editor = monaco.editor.create(host, {
             model,
-            theme: darkTheme() ? 'vs-dark' : 'vs',
-            automaticLayout: true,
+            theme: darkTheme() ? EDITOR_DARK_THEME : EDITOR_LIGHT_THEME,
+            automaticLayout: false,
+            fixedOverflowWidgets: true,
             fontSize: 13,
             fontFamily: 'Cascadia Code, JetBrains Mono, Consolas, monospace',
             minimap: { enabled: true },
@@ -65,14 +87,46 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
             padding: { bottom: 16 },
           })
           cleanups.push(() => { editor.dispose() })
+          cleanups.push(bindEditorLayout(editor, host))
           const contentSub = model.onDidChangeContent(() => { onChangeRef.current(model.getValue()) })
           cleanups.push(() => { contentSub.dispose() })
           if (languageClientRef.current !== undefined) {
-            cleanups.push(...bindLanguageClient(monaco, model, initialRef.current.path, languageClientRef))
+            cleanups.push(...bindLanguageClient(
+              monaco,
+              model,
+              initialRef.current.path,
+              languageClientRef,
+              onOpenFileRef,
+              () => { setNavNote(noSourceRef.current ?? '') },
+              setNavNote,
+              labels.lspStarting,
+              labels.lspFailed,
+            ))
           }
           editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { onSaveRef.current() })
+          const applyReveal = (): void => {
+            const reveal = takeReveal(initialRef.current.path)
+            if (reveal === undefined) return
+            const position = { lineNumber: reveal.line + 1, column: reveal.character + 1 }
+            editor.setPosition(position)
+            editor.revealPositionInCenter(position)
+          }
+          applyReveal()
+          cleanups.push(subscribeReveal(applyReveal))
+          const runAction = (id: string): void => {
+            const action = editor.getAction(id)
+            void action?.run()
+          }
+          const onFind = (): void => { runAction('actions.find') }
+          const onReplace = (): void => { runAction('editor.action.startFindReplaceAction') }
+          window.addEventListener(WORKBENCH_FIND_EVENT, onFind)
+          window.addEventListener(WORKBENCH_REPLACE_EVENT, onReplace)
+          cleanups.push(() => {
+            window.removeEventListener(WORKBENCH_FIND_EVENT, onFind)
+            window.removeEventListener(WORKBENCH_REPLACE_EVENT, onReplace)
+          })
           const observer = new MutationObserver(() => {
-            monaco.editor.setTheme(darkTheme() ? 'vs-dark' : 'vs')
+            monaco.editor.setTheme(darkTheme() ? EDITOR_DARK_THEME : EDITOR_LIGHT_THEME)
           })
           observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
           cleanups.push(() => { observer.disconnect() })
@@ -100,6 +154,9 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
           {phase === 'loading' ? labels.loading : labels.error}
         </div>
       )}
+      {navNote !== null && navNote !== '' && (
+        <div className={css.navNote} data-testid="xmart-workbench-nav-note">{navNote}</div>
+      )}
       <div ref={hostRef} className={css.host} />
     </div>
   )
@@ -122,6 +179,11 @@ function bindLanguageClient(
   model: ReturnType<Monaco['editor']['createModel']>,
   filePath: string,
   languageClientRef: { current: EditorLanguageClient | undefined },
+  onOpenFileRef: { current: ((path: string) => void) | undefined },
+  onNoSource: () => void,
+  onNote: (note: string | null) => void,
+  lspStarting: string | undefined,
+  lspFailed: string | undefined,
 ): Array<() => void> {
   const cleanups: Array<() => void> = []
   const client = languageClientRef.current
@@ -145,9 +207,14 @@ function bindLanguageClient(
     }, () => {})
   }
 
-  /* v8 ignore start -- a failed open is silent; the user can still type. */
-  void client.open(filePath, model.getValue()).then(paint, () => {})
-  /* v8 ignore stop */
+  if (lspStarting !== undefined && lspStarting !== '') onNote(lspStarting)
+  void client.open(filePath, model.getValue()).then(
+    () => {
+      onNote(null)
+      paint()
+    },
+    () => { onNote(lspFailed ?? null) },
+  )
   /* v8 ignore next -- close is best-effort on unmount. */
   cleanups.push(() => { void languageClientRef.current?.close(filePath).catch(() => {}) })
 
@@ -172,7 +239,8 @@ function bindLanguageClient(
   const poll = setInterval(paint, LSP_DIAGNOSTICS_POLL_MS)
   cleanups.push(() => { clearInterval(poll) })
 
-  const completion = monaco.languages.registerCompletionItemProvider(languageFromPath(filePath), {
+  const language = languageFromPath(filePath)
+  const completion = monaco.languages.registerCompletionItemProvider(language, {
     triggerCharacters: ['.', '<', '"', "'", '/', '@'],
     provideCompletionItems: (_current, position) => {
       const live = languageClientRef.current
@@ -195,5 +263,140 @@ function bindLanguageClient(
     },
   })
   cleanups.push(() => { completion.dispose() })
+
+  const definition = monaco.languages.registerDefinitionProvider(language, {
+    provideDefinition: (_current, position) => {
+      const live = languageClientRef.current
+      /* v8 ignore next -- the provider can fire after unmount. */
+      if (live === undefined) return []
+      return live.definition(filePath, position.lineNumber - 1, position.column - 1).then((items) => {
+        const mapped = mapFileLocations(monaco, items)
+        if (items.length > 0 && mapped.length === 0) onNoSource()
+        return mapped
+      }, () => [])
+    },
+  })
+  cleanups.push(() => { definition.dispose() })
+
+  const hover = monaco.languages.registerHoverProvider(language, {
+    provideHover: (_current, position) => {
+      const live = languageClientRef.current
+      /* v8 ignore next -- the provider can fire after unmount. */
+      if (live === undefined) return null
+      return live.hover(filePath, position.lineNumber - 1, position.column - 1).then((card) => {
+        if (card === undefined) return null
+        return { contents: [{ value: card.contents }], ...hoverRange(card) }
+      }, () => null)
+    },
+  })
+  cleanups.push(() => { hover.dispose() })
+
+  const references = monaco.languages.registerReferenceProvider(language, {
+    provideReferences: (_current, position) => {
+      const live = languageClientRef.current
+      /* v8 ignore next -- the provider can fire after unmount. */
+      if (live === undefined) return []
+      return live.references(filePath, position.lineNumber - 1, position.column - 1).then(
+        items => mapFileLocations(monaco, items),
+        () => [],
+      )
+    },
+  })
+  cleanups.push(() => { references.dispose() })
+
+  const opener = monaco.editor.registerEditorOpener({
+    openCodeEditor: (_source, resource, selectionOrPosition) => {
+      const uri = hrefOf(resource)
+      const path = fileUrlToPath(uri) ?? monacoResourcePath(resource.path)
+      if (path === undefined) {
+        onNoSource()
+        return true
+      }
+      if (normalizeEditorPath(path) === normalizeEditorPath(filePath)) return false
+      requestReveal(path, revealFromSelection(selectionOrPosition))
+      onOpenFileRef.current?.(path)
+      return true
+    },
+  })
+  cleanups.push(() => { opener.dispose() })
   return cleanups
+}
+
+/** `toString` is missing on some test doubles and virtual resources. */
+function hrefOf(resource: Uri): string {
+  const toString = Reflect.get(resource, 'toString')
+  if (typeof toString !== 'function') return ''
+  const href: unknown = toString.call(resource)
+  return typeof href === 'string' ? href : ''
+}
+
+/** Keep `file:` locations; drop jars and language-server virtual URIs. */
+function mapFileLocations(monaco: Monaco, items: readonly EditorLocation[]): Array<{
+  uri: Uri
+  range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }
+}> {
+  const mapped: Array<{
+    uri: Uri
+    range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }
+  }> = []
+  for (const item of items) {
+    const path = fileUrlToPath(item.uri)
+    if (path === undefined) continue
+    mapped.push({
+      uri: monaco.Uri.file(path.replaceAll('\\', '/')),
+      range: {
+        startLineNumber: item.startLine + 1,
+        startColumn: item.startCharacter + 1,
+        endLineNumber: item.endLine + 1,
+        endColumn: item.endCharacter + 1,
+      },
+    })
+  }
+  return mapped
+}
+
+/** Zero-based reveal from a Monaco range or caret. */
+function revealFromSelection(selectionOrPosition: IRange | IPosition | undefined): {
+  line: number
+  character: number
+} {
+  if (selectionOrPosition === undefined) return { line: 0, character: 0 }
+  if ('startLineNumber' in selectionOrPosition) {
+    return {
+      line: selectionOrPosition.startLineNumber - 1,
+      character: selectionOrPosition.startColumn - 1,
+    }
+  }
+  return {
+    line: selectionOrPosition.lineNumber - 1,
+    character: selectionOrPosition.column - 1,
+  }
+}
+
+/** Best-effort path from a Monaco resource when `toString()` is not a `file:` URI. */
+function monacoResourcePath(path: string | undefined): string | undefined {
+  if (path === undefined || path === '') return undefined
+  if (/^\/[A-Za-z]:/.test(path)) return path.slice(1).replaceAll('/', '\\')
+  return path
+}
+
+/** Monaco hover range when the language server sent one. */
+function hoverRange(card: EditorHover): { range?: {
+  startLineNumber: number
+  startColumn: number
+  endLineNumber: number
+  endColumn: number
+} } {
+  if (card.startLine === undefined || card.startCharacter === undefined
+    || card.endLine === undefined || card.endCharacter === undefined) {
+    return {}
+  }
+  return {
+    range: {
+      startLineNumber: card.startLine + 1,
+      startColumn: card.startCharacter + 1,
+      endLineNumber: card.endLine + 1,
+      endColumn: card.endCharacter + 1,
+    },
+  }
 }

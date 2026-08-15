@@ -10,6 +10,8 @@ export type AppMenuCommand =
   | 'session-new'
   | 'workspace-open'
   | 'file-save'
+  | 'file-find'
+  | 'file-replace'
   | 'file-close'
   | 'settings-open'
   | 'activity-explorer'
@@ -22,6 +24,12 @@ export type AppMenuCommand =
 
 /** Window event that asks the mounted editor tab to save. */
 export const WORKBENCH_SAVE_EVENT = 'dsh:workbench-save'
+
+/** Window event that asks the mounted editor to open the find widget. */
+export const WORKBENCH_FIND_EVENT = 'dsh:workbench-find'
+
+/** Window event that asks the mounted editor to open find-and-replace. */
+export const WORKBENCH_REPLACE_EVENT = 'dsh:workbench-replace'
 
 /** Window event that asks the settings shell to open its modal. */
 export const OPEN_SETTINGS_EVENT = 'dsh:open-settings'
@@ -61,6 +69,14 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
   }
   if (command === 'file-save') {
     deps.dispatch(WORKBENCH_SAVE_EVENT)
+    return
+  }
+  if (command === 'file-find') {
+    deps.dispatch(WORKBENCH_FIND_EVENT)
+    return
+  }
+  if (command === 'file-replace') {
+    deps.dispatch(WORKBENCH_REPLACE_EVENT)
     return
   }
   if (command === 'session-new') {
