@@ -73,9 +73,10 @@ export function FileTree({
   }, [listEntries])
 
   useEffect(() => {
-    if (levelsRef.current.size === 0 && inflight.current.size === 0) return
     for (const controller of inflight.current.values()) controller.abort()
     inflight.current.clear()
+    // Drop the ref now so the load effect in this same flush can refetch.
+    levelsRef.current = new Map()
     setLevels(new Map())
   }, [root, refreshNonce])
   useEffect(() => () => {

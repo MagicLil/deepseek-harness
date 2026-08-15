@@ -35,6 +35,18 @@ export function basename(path: string): string {
 }
 
 /**
+ * Parent directory (POSIX or Windows). A root path is returned unchanged.
+ * @param path - file or folder path.
+ */
+export function dirname(path: string): string {
+  const norm = path.replace(/[/\\]+$/, '')
+  const idx = Math.max(norm.lastIndexOf('/'), norm.lastIndexOf('\\'))
+  if (idx < 0) return path
+  if (idx === 0) return norm.slice(0, 1)
+  return norm.slice(0, idx)
+}
+
+/**
  * Join a directory and a single segment using the parent's separator.
  * @param dir - absolute parent.
  * @param name - one path segment (no separators).

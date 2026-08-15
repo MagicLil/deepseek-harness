@@ -1,45 +1,58 @@
 /**
  * X-Mart workbench plugin, browser half. Provides `ctx.xmartWorkbench`,
- * fills the frame-declared `workbench` slot with a tabbed column, fills
- * `shell.overlay` with the reopen control, and contributes the Workbench
- * settings section. Export discipline: packages/client/AGENTS.md.
+ * fills the Cursor-shell slots (activity bar, primary sidebar, editor
+ * column, bottom panel), and contributes the Workbench settings section.
+ * Export discipline: packages/client/AGENTS.md.
  */
 import { createElement } from 'react'
-import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
+import {
+  IconBranchOutline16, IconChecklistOutline14, IconFolderOpenOutline16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  WorkbenchColumnInjected, WorkbenchSettingsInjected, WorkbenchToggleInjected,
+  ActivityBarInjected, BottomPanelInjected, PrimarySidebarInjected,
+  WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
 import { createWorkbenchStore } from './stores.ts'
 import { XmartWorkbenchController } from './service.ts'
 import { WorkbenchColumn } from './WorkbenchColumn.tsx'
-import { WorkbenchToggle } from './WorkbenchToggle.tsx'
+import { ActivityBar } from './ActivityBar.tsx'
+import { PrimarySidebar } from './PrimarySidebar.tsx'
+import { BottomPanel } from './BottomPanel.tsx'
 import { WorkbenchSettingsSection } from './WorkbenchSettingsSection.tsx'
 import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
 import { EditorTab } from './EditorTab.tsx'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
+import { GitTab } from './GitTab.tsx'
+import { DiffTab } from './DiffTab.tsx'
+import { readTaskTurn, TasksTab } from './TasksTab.tsx'
+import { TerminalTab } from './TerminalTab.tsx'
+import { encodeDiffPath } from './git-diff-path.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
 import { hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
 import { en, NS, zh } from './locales.ts'
+import { clickSettingsTrigger } from './settings-trigger.ts'
+import type { TabBodyProps } from './types.ts'
 
 export { XmartWorkbenchController } from './service.ts'
 export type { IXmartWorkbench } from './service.ts'
 export type {
+  ActivityBarInjected, ActivityBarProps, BottomPanelInjected, BottomPanelProps,
+  PrimarySidebarInjected, PrimarySidebarProps,
   WorkbenchColumnInjected, WorkbenchColumnProps, WorkbenchSettingsInjected, WorkbenchSettingsProps,
-  WorkbenchToggleInjected, WorkbenchToggleProps,
 } from './contract.ts'
 export type { WorkbenchKey } from './locales.ts'
 export type { WorkbenchPersistState } from './stores.ts'
 export type {
-  FileViewerDescriptor, OpenTabSeed, SessionScope, TabBodyProps, TabDescriptor, WorkbenchTab,
-  WorkbenchView,
+  ActivityDescriptor, ActivityId, FileViewerDescriptor, OpenTabSeed, SessionScope, TabBodyProps,
+  TabDescriptor, WorkbenchTab, WorkbenchView,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -63,33 +76,11 @@ function ViewerStub() {
   return null
 }
 
-/**
- * Stable open-flag source plus a same-identity setter. The source object
- * stays stable so the renderer can cache the hook binding.
- * @returns the observable and its setter.
- */
-function createOpenFlag(): { source: HostObservable<boolean>; set: (next: boolean) => void } {
-  let value = false
-  const listeners = new Set<() => void>()
-  return {
-    source: {
-      getSnapshot: () => value,
-      subscribe: (fn) => {
-        listeners.add(fn)
-        return () => { listeners.delete(fn) }
-      },
-    },
-    set: (next) => {
-      if (value === next) return
-      value = next
-      for (const listener of listeners) listener()
-    },
-  }
-}
 
 /**
  * Register dictionaries, provide `ctx.xmartWorkbench`, and contribute the
- * column, overlay toggle, settings section, and built-in tab types.
+ * activity bar, primary sidebar, editor column, bottom panel, settings
+ * section, and built-in tab types.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -119,13 +110,8 @@ export function apply(ctx: ClientContext): void {
     }
   }
 
-  ctx.effect(() => workbench.registerTab({
-    id: 'explorer',
-    title: () => t('tab.explorer'),
-    order: 0,
-    single: true,
-    available: scope => typeof getCwd(scope.sessionId) === 'string' && getCwd(scope.sessionId) !== '',
-    component: props => createElement(ExplorerTab, {
+  ctx.effect(() => {
+    const component = (props: TabBodyProps) => createElement(ExplorerTab, {
       ...props,
       t,
       getCwd,
@@ -138,8 +124,143 @@ export function apply(ctx: ClientContext): void {
       openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
       mentionFile: (path) => { mentionFile(props.sessionId, path) },
       files,
-    }),
-  }), 'ui-xmart-workbench: explorer tab')
+    })
+    const disposeTab = workbench.registerTab({
+      id: 'explorer',
+      title: () => t('tab.explorer'),
+      order: 0,
+      hidden: true,
+      single: true,
+      available: scope => typeof getCwd(scope.sessionId) === 'string' && getCwd(scope.sessionId) !== '',
+      component,
+    })
+    const disposeActivity = workbench.registerActivity({
+      id: 'explorer',
+      title: () => t('activity.explorer'),
+      order: 0,
+      icon: IconFolderOpenOutline16,
+      component,
+    })
+    return () => {
+      disposeActivity()
+      disposeTab()
+    }
+  }, 'ui-xmart-workbench: explorer')
+  ctx.effect(() => {
+    const component = (props: TabBodyProps) => createElement(GitTab, {
+      ...props,
+      t,
+      getCwd,
+      watchSessions: fn => ctx.sessions.list.subscribe(fn),
+      listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
+      gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
+      gitStage: (path, files) => ctx.workspaces.gitStage(path, files),
+      gitUnstage: (path, files) => ctx.workspaces.gitUnstage(path, files),
+      gitDiscard: (path, files) => ctx.workspaces.gitDiscard(path, files),
+      gitCommit: (path, message) => ctx.workspaces.gitCommit(path, message),
+      gitLog: (path, limit) => ctx.workspaces.gitLog(path, limit),
+      openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
+      openDiff: (side, file) => {
+        workbench.openTab({
+          type: 'diff', path: encodeDiffPath(side, file), title: file,
+        }, { sessionId: props.sessionId })
+      },
+      files,
+    })
+    const disposeTab = workbench.registerTab({
+      id: 'git',
+      title: () => t('tab.git'),
+      order: 10,
+      hidden: true,
+      single: true,
+      available: scope => typeof getCwd(scope.sessionId) === 'string' && getCwd(scope.sessionId) !== '',
+      component,
+    })
+    const disposeActivity = workbench.registerActivity({
+      id: 'git',
+      title: () => t('activity.git'),
+      order: 10,
+      icon: IconBranchOutline16,
+      component,
+    })
+    return () => {
+      disposeActivity()
+      disposeTab()
+    }
+  }, 'ui-xmart-workbench: git')
+  ctx.effect(() => {
+    const component = (props: TabBodyProps) => createElement(TasksTab, {
+      ...props,
+      t,
+      watchSessions: (fn) => {
+        let offSession: (() => void) | undefined
+        const attachSession = () => {
+          offSession?.()
+          offSession = ctx.sessions.binding(props.sessionId as SessionId)?.session.subscribe(fn)
+        }
+        const offList = ctx.sessions.list.subscribe(() => {
+          attachSession()
+          fn()
+        })
+        attachSession()
+        return () => {
+          offList()
+          offSession?.()
+        }
+      },
+      listTurn: id => readTaskTurn(
+        ctx.sessions.list.getSnapshot().byId[id as SessionId]?.running,
+        ctx.sessions.binding(id as SessionId)?.session.getSnapshot(),
+      ),
+      listJobs: id => ctx.sessions.list.getSnapshot().jobsBySession[id as SessionId] ?? [],
+      listSubagents: (id) => {
+        const entries = ctx.sessions.list.getSnapshot().subagentsByParent[id as SessionId]?.entries ?? []
+        return entries.flatMap((row) => {
+          if (row.kind !== 'child') return []
+          return row.label === undefined
+            ? [{ id: row.id, activity: row.activity }]
+            : [{ id: row.id, label: row.label, activity: row.activity }]
+        })
+      },
+      cancelTurn: () => { void ctx.sessions.binding(props.sessionId as SessionId)?.session.cancel() },
+      cancelSubagent: (id) => { void ctx.sessions.binding(id as SessionId)?.session.cancel() },
+      openSubagent: (id) => {
+        const parent = props.sessionId as SessionId
+        const entries = ctx.sessions.list.getSnapshot().subagentsByParent[parent]?.entries ?? []
+        const row = entries.find(entry => entry.id === id)
+        if (row === undefined || row.kind !== 'child') return
+        ctx.sessions.openSubagent({
+          parentSessionId: parent, childSessionId: row.id, mode: row.mode,
+        })
+      },
+    })
+    const disposeTab = workbench.registerTab({
+      id: 'tasks',
+      title: () => t('tab.tasks'),
+      order: 20,
+      hidden: true,
+      single: true,
+      component,
+    })
+    const disposeActivity = workbench.registerActivity({
+      id: 'tasks',
+      title: () => t('activity.tasks'),
+      order: 20,
+      icon: IconChecklistOutline14,
+      component,
+    })
+    return () => {
+      disposeActivity()
+      disposeTab()
+    }
+  }, 'ui-xmart-workbench: tasks')
+  ctx.effect(() => workbench.registerTab({
+    id: 'terminal',
+    title: () => t('tab.terminal'),
+    order: 30,
+    hidden: true,
+    component: props => createElement(TerminalTab, { ...props, t }),
+  }), 'ui-xmart-workbench: terminal tab')
   ctx.effect(() => workbench.registerTab({
     id: 'demo',
     title: () => t('tab.demo'),
@@ -176,6 +297,18 @@ export function apply(ctx: ClientContext): void {
       ...props, t, openSystem: path => ctx.workspaces.openPath(path),
     }),
   }), 'ui-xmart-workbench: image tab')
+  ctx.effect(() => workbench.registerTab({
+    id: 'diff',
+    title: () => t('tab.diff'),
+    hidden: true,
+    dedupeKey: tab => tab.path,
+    component: props => createElement(DiffTab, {
+      ...props,
+      t,
+      getCwd,
+      gitDiff: (path, side, file, signal) => ctx.workspaces.gitDiff(path, side, file, signal),
+    }),
+  }), 'ui-xmart-workbench: diff tab')
   ctx.effect(() => workbench.registerTab({
     id: 'binary',
     title: () => t('tab.binary'),
@@ -225,14 +358,10 @@ export function apply(ctx: ClientContext): void {
     lastFsSeq = noteFsTouch(files, lastFsSeq, seq, refresh, reload)
   })), 'ui-xmart-workbench: fs events')
 
-  const openFlag = createOpenFlag()
   const persist = createWorkbenchStore()
   const columnInjected = (sessionId: SessionId): WorkbenchColumnInjected => {
     workbench.bindSession(sessionId)
     return {
-      closeWorkbench: () => { ctx.layout.closeWorkbench() },
-      setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
-      reportOpen: (open) => { openFlag.set(open) },
       openTab: (type) => { workbench.openTab({ type }, { sessionId }) },
       closeTab: (id) => { workbench.closeTab(id, { sessionId }) },
       activateTab: (id) => { workbench.activateTab(id, { sessionId }) },
@@ -243,9 +372,30 @@ export function apply(ctx: ClientContext): void {
       },
     }
   }
-  const toggleInjected = (): WorkbenchToggleInjected => ({
-    openWorkbench: () => { ctx.layout.openWorkbench() },
-    hooks: { workbenchOpen: openFlag.source },
+  const activityInjected = (sessionId: SessionId): ActivityBarInjected => ({
+    setActivity: (id) => { workbench.setActivity(id, { sessionId }) },
+    resolveIcon: id => workbench.getActivity(id)?.icon,
+    openPrimary: () => { ctx.layout.openWorkbench() },
+    closePrimary: () => { ctx.layout.closeWorkbench() },
+    toggleBottom: () => { ctx.layout.toggleBottom() },
+    openSettings: () => { clickSettingsTrigger(globalThis.document) },
+    hooks: {
+      workbenchSession: workbench.observeSession(sessionId),
+      workbenchRegistry: workbench.observeRegistry(),
+    },
+  })
+  const primaryInjected = (sessionId: SessionId): PrimarySidebarInjected => ({
+    closeWorkbench: () => { ctx.layout.closeWorkbench() },
+    setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
+    resolveBody: type => workbench.getActivity(type)?.component ?? workbench.getTab(type)?.component,
+    refreshExplorer: () => { files.bumpRefresh() },
+    hooks: {
+      workbenchSession: workbench.observeSession(sessionId),
+      workbenchRegistry: workbench.observeRegistry(),
+    },
+  })
+  const bottomInjected = (): BottomPanelInjected => ({
+    resolveBody: type => workbench.getTab(type)?.component,
   })
   const settingsInjected = (): WorkbenchSettingsInjected => ({
     setTabEnabled: (id, enabled) => { workbench.setTabEnabled(id, enabled) },
@@ -253,23 +403,21 @@ export function apply(ctx: ClientContext): void {
     hooks: { workbenchRegistry: workbench.observeRegistry() },
   })
 
+  ctx.slots.inject('activityBar', () => ctx.slots.register(
+    { name: 'activityBar', inject: activityInjected, locale: NS },
+    ActivityBar,
+  ))
+  ctx.slots.inject('primarySidebar', () => ctx.slots.register(
+    { name: 'primarySidebar', store: persist, inject: primaryInjected, locale: NS },
+    PrimarySidebar,
+  ))
   ctx.slots.inject('workbench', () => ctx.slots.register(
-    {
-      name: 'workbench',
-      store: persist,
-      inject: columnInjected,
-      locale: NS,
-    },
+    { name: 'workbench', inject: columnInjected, locale: NS },
     WorkbenchColumn,
   ))
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-    {
-      name: 'shell.overlay',
-      id: 'xmart-workbench-toggle',
-      inject: toggleInjected,
-      locale: NS,
-    },
-    WorkbenchToggle,
+  ctx.slots.inject('bottomPanel', () => ctx.slots.register(
+    { name: 'bottomPanel', inject: bottomInjected, locale: NS },
+    BottomPanel,
   ))
   ctx.slots.inject('settings.section', () => ctx.slots.register(
     {

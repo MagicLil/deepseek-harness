@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-vsix-extension-host-gate.md
+2026-08-15-vsix-extension-host-gate.md: cda66e514682d15b4b94430022642da4605d2194
+2026-08-15-vsix-extension-host-gate.zh.md: 093fa249ea7fa45690fc0e07da05f49558bf96cb

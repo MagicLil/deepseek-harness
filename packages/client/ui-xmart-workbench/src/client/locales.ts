@@ -72,6 +72,45 @@ export type WorkbenchKey =
   | 'editor.reloadPrompt'
   | 'editor.reload'
   | 'editor.dismiss'
+  | 'tab.git'
+  | 'tab.diff'
+  | 'tab.tasks'
+  | 'tab.terminal'
+  | 'git.noWorkspace'
+  | 'git.loading'
+  | 'git.missing'
+  | 'git.error'
+  | 'git.repo'
+  | 'git.clean'
+  | 'git.detached'
+  | 'git.commit'
+  | 'git.commitPlaceholder'
+  | 'git.stage'
+  | 'git.unstage'
+  | 'git.discard'
+  | 'git.diffWorktree'
+  | 'git.diffStaged'
+  | 'git.open'
+  | 'diff.noPath'
+  | 'diff.loading'
+  | 'diff.error'
+  | 'diff.empty'
+  | 'tasks.jobs'
+  | 'tasks.subagents'
+  | 'tasks.turn'
+  | 'tasks.turnRunning'
+  | 'tasks.statusRunning'
+  | 'tasks.noJobs'
+  | 'tasks.noSubagents'
+  | 'tasks.stop'
+  | 'terminal.unavailable'
+  | 'activity.explorer'
+  | 'activity.git'
+  | 'activity.tasks'
+  | 'activity.terminal'
+  | 'activity.settings'
+  | 'sidebar.missing'
+  | 'sidebar.crashed'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -84,10 +123,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const zh: Record<WorkbenchKey, string> = {
   'column.title': '工作台',
   'column.close': '关闭工作台',
-  'column.empty': '从 + 打开资源管理器，浏览并编辑工作区文件。',
+  'column.empty': '从资源管理器打开文件后，会显示在这里。',
   'toggle.open': '打开工作台',
+  'activity.explorer': '资源管理器',
+  'activity.git': 'Git',
+  'activity.tasks': '任务',
+  'activity.terminal': '终端',
+  'activity.settings': '设置',
   'tab.demo': '演示',
-  'tab.demo.body': '演示标签仍可用。用 + 打开「资源管理器」浏览工作区文件。',
+  'tab.demo.body': '演示标签仍可用。用左侧活动栏打开资源管理器，浏览工作区文件。',
   'tab.file': '文件',
   'tab.file.body': '这是旧版文件占位。新打开的文件会进入编辑器标签。',
   'tab.explorer': '资源管理器',
@@ -149,16 +193,55 @@ export const zh: Record<WorkbenchKey, string> = {
   'editor.reloadPrompt': 'Agent 改过这个文件。要重新加载吗？未保存的修改会丢失。',
   'editor.reload': '重新加载',
   'editor.dismiss': '忽略',
+  'tab.git': 'Git',
+  'tab.diff': '差异',
+  'tab.tasks': '任务',
+  'tab.terminal': '终端',
+  'sidebar.missing': '这个面板还没挂上。',
+  'sidebar.crashed': '这个面板渲染失败，请切换一次活动栏图标再试。',
+  'git.noWorkspace': '当前会话没有工作区。请先在对话里选一个工作区，或用最右列添加。',
+  'git.loading': '正在读取 Git 状态…',
+  'git.missing': '当前打开的文件夹不是 Git 仓库。如果仓库在子目录里，把那个子目录加为工作区。本机也需要已安装 git。',
+  'git.error': 'Git 状态读取失败。',
+  'git.repo': '仓库',
+  'git.clean': '工作区是干净的。',
+  'git.detached': '分离 HEAD',
+  'git.commit': '提交',
+  'git.commitPlaceholder': '提交说明（Ctrl+Enter）',
+  'git.stage': '暂存',
+  'git.unstage': '取消暂存',
+  'git.discard': '还原',
+  'git.diffWorktree': '查看工作区差异',
+  'git.diffStaged': '查看暂存差异',
+  'git.open': '打开文件',
+  'diff.noPath': '这个差异标签没有路径。',
+  'diff.loading': '正在读取差异…',
+  'diff.error': '差异读取失败。',
+  'diff.empty': '这一侧没有差异。',
+  'tasks.jobs': '后台任务',
+  'tasks.subagents': '子代理',
+  'tasks.turn': '当前回合',
+  'tasks.turnRunning': '智能体正在工作',
+  'tasks.statusRunning': '进行中',
+  'tasks.noJobs': '这个会话现在没有正在执行的任务。',
+  'tasks.noSubagents': '没有子代理。',
+  'tasks.stop': '停止',
+  'terminal.unavailable': '真终端需要主机 PTY 通道，默认桌面包还没挂 ctx.terminals。标签已预留。',
 }
 
 /** English dictionary (same keys as `zh`). */
 export const en: Record<WorkbenchKey, string> = {
   'column.title': 'Workbench',
   'column.close': 'Close workbench',
-  'column.empty': 'Open Explorer from + to browse and edit workspace files.',
+  'column.empty': 'Files you open from Explorer land here.',
   'toggle.open': 'Open workbench',
+  'activity.explorer': 'Explorer',
+  'activity.git': 'Git',
+  'activity.tasks': 'Tasks',
+  'activity.terminal': 'Terminal',
+  'activity.settings': 'Settings',
   'tab.demo': 'Demo',
-  'tab.demo.body': 'The demo tab is still here. Open Explorer from + to browse the workspace.',
+  'tab.demo.body': 'The demo tab is still here. Open Explorer from the activity bar to browse the workspace.',
   'tab.file': 'File',
   'tab.file.body': 'This is a leftover file stub. Newly opened files land in an editor tab.',
   'tab.explorer': 'Explorer',
@@ -220,4 +303,38 @@ export const en: Record<WorkbenchKey, string> = {
   'editor.reloadPrompt': 'The agent changed this file. Reload? Unsaved edits will be lost.',
   'editor.reload': 'Reload',
   'editor.dismiss': 'Dismiss',
+  'tab.git': 'Git',
+  'tab.diff': 'Diff',
+  'tab.tasks': 'Tasks',
+  'tab.terminal': 'Terminal',
+  'sidebar.missing': 'This panel is not registered.',
+  'sidebar.crashed': 'This panel crashed. Switch the activity-bar icon and try again.',
+  'git.noWorkspace': 'This session has no workspace. Pick one in the conversation, or add one from the far-right rail.',
+  'git.loading': 'Reading git status…',
+  'git.missing': 'This folder is not a git repository. If the repo is in a subdirectory, add that folder as the workspace. Git must also be installed.',
+  'git.error': 'Could not read git status.',
+  'git.repo': 'Repository',
+  'git.clean': 'The working tree is clean.',
+  'git.detached': 'Detached HEAD',
+  'git.commit': 'Commit',
+  'git.commitPlaceholder': 'Commit message (Ctrl+Enter)',
+  'git.stage': 'Stage',
+  'git.unstage': 'Unstage',
+  'git.discard': 'Discard',
+  'git.diffWorktree': 'Diff worktree',
+  'git.diffStaged': 'Diff staged',
+  'git.open': 'Open file',
+  'diff.noPath': 'This diff tab has no path.',
+  'diff.loading': 'Reading the diff…',
+  'diff.error': 'Could not read the diff.',
+  'diff.empty': 'This side has no diff.',
+  'tasks.jobs': 'Background jobs',
+  'tasks.subagents': 'Subagents',
+  'tasks.turn': 'Current turn',
+  'tasks.turnRunning': 'Agent is working',
+  'tasks.statusRunning': 'Running',
+  'tasks.noJobs': 'This session has no running work.',
+  'tasks.noSubagents': 'No subagents.',
+  'tasks.stop': 'Stop',
+  'terminal.unavailable': 'A real PTY needs a host terminal bridge. The default desktop bundle does not mount ctx.terminals yet. This tab is reserved.',
 }

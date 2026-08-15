@@ -1,0 +1,66 @@
+/** Copy dictionaries for the marketplace sidebars. */
+
+/** Simplified Chinese dictionary and key source of truth. */
+export const zh = {
+  'activity.plugins': '插件',
+  'activity.extensions': '扩展',
+  searchPlugins: '搜索插件',
+  searchExtensions: '搜索扩展',
+  installed: '已安装',
+  recommended: '推荐',
+  catalog: '目录',
+  empty: '没有匹配的条目。',
+  loading: '正在加载…',
+  error: '暂时无法读取目录。',
+  retry: '重试',
+  install: '安装',
+  uninstall: '卸载',
+  installedTag: '已安装',
+  unsupported: '本产品不支持',
+  pendingHost: '语言/主题（待宿主）',
+  needsNodeHost: '需 Node 扩展宿主',
+  verified: '已验证',
+  confirmTitle: '安装插件',
+  confirmSpec: '来源',
+  confirmBuilds: '允许运行安装脚本（默认拒绝）',
+  confirmDesktop: '这个插件需要 HTTP 或 WebSocket，桌面端不能用。',
+  confirmOk: '确认安装',
+  confirmCancel: '取消',
+  needsRestart: '已写入当前 profile。请重启桌面端后生效。',
+  notActivated: '已下载到本地，但当前编辑器还不会激活 VS Code 扩展。',
+  logs: '安装日志',
+} satisfies Record<string, string>
+
+/** Marketplace locale key union. */
+export type MarketplaceKey = keyof typeof zh
+
+/** English dictionary checked against the Chinese key set. */
+export const en = {
+  'activity.plugins': 'Plugins',
+  'activity.extensions': 'Extensions',
+  searchPlugins: 'Search plugins',
+  searchExtensions: 'Search extensions',
+  installed: 'Installed',
+  recommended: 'Recommended',
+  catalog: 'Catalog',
+  empty: 'No matching items.',
+  loading: 'Loading…',
+  error: 'The catalog is temporarily unavailable.',
+  retry: 'Retry',
+  install: 'Install',
+  uninstall: 'Uninstall',
+  installedTag: 'Installed',
+  unsupported: 'Not supported in this product',
+  pendingHost: 'Language/theme (host pending)',
+  needsNodeHost: 'Needs a Node extension host',
+  verified: 'Verified',
+  confirmTitle: 'Install plugin',
+  confirmSpec: 'Source',
+  confirmBuilds: 'Allow install scripts (off by default)',
+  confirmDesktop: 'This plugin needs HTTP or a WebSocket and cannot run on desktop.',
+  confirmOk: 'Confirm install',
+  confirmCancel: 'Cancel',
+  needsRestart: 'Written to the current profile. Relaunch the desktop app to load it.',
+  notActivated: 'Downloaded locally. The current editor does not activate VS Code extensions yet.',
+  logs: 'Install log',
+} satisfies Record<MarketplaceKey, string>

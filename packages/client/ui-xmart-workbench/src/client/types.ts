@@ -9,7 +9,7 @@ import type { ComponentType } from 'react'
 export const XMART_WORKBENCH_VERSION = 1
 
 /** Feature flags published on the service (`IXmartWorkbench.features`). */
-export const XMART_WORKBENCH_FEATURES = ['tabs', 'fileViewers', 'settingsToggles'] as const
+export const XMART_WORKBENCH_FEATURES = ['tabs', 'fileViewers', 'settingsToggles', 'activities'] as const
 
 /** localStorage key prefix for per-session open tabs (`${TABS_PERSIST}.${sessionId}`). */
 export const TABS_PERSIST = 'dsh.xmart.workbench.tabs'
@@ -19,6 +19,31 @@ export const PREFS_PERSIST = 'dsh.xmart.workbench.prefs'
 
 /** Default `+` menu order when a descriptor omits `order`. */
 export const DEFAULT_TAB_ORDER = 100
+
+/** Default activity-bar order when a descriptor omits `order`. */
+export const DEFAULT_ACTIVITY_ORDER = 100
+
+/** Activity-bar views that live in the primary sidebar, not the editor tab bar. */
+export const SHELL_TAB_TYPES = ['explorer', 'git', 'tasks', 'terminal'] as const
+
+/**
+ * Primary-sidebar activity id. Built-in ids stay `explorer` / `git` /
+ * `tasks`; other plugins register more through `registerActivity`.
+ */
+export type ActivityId = string
+
+/** Built-in activity ids that remain valid before any plugin registers. */
+export const PRIMARY_ACTIVITIES = ['explorer', 'git', 'tasks'] as const
+
+/** True when an id is a built-in primary-sidebar activity. */
+export function isPrimaryActivity(id: string): id is typeof PRIMARY_ACTIVITIES[number] {
+  return (PRIMARY_ACTIVITIES as readonly string[]).includes(id)
+}
+
+/** True when a tab type belongs on the activity bar / bottom panel, not the editor strip. */
+export function isShellTabType(type: string): boolean {
+  return (SHELL_TAB_TYPES as readonly string[]).includes(type)
+}
 
 /** Session identity the service methods accept (cwd arrives in a later phase). */
 export type SessionScope = {
@@ -46,6 +71,8 @@ export type WorkbenchSessionState = {
   activeTabId: string | null
   /** Next default-mint counter (starts at 1). */
   nextSeq: number
+  /** Primary-sidebar activity id (`explorer` until a plugin registers another). */
+  activity: ActivityId
 }
 
 /** One `+` menu row (hidden and settings-disabled types are omitted). */
@@ -80,6 +107,8 @@ export type WorkbenchRegistrySnapshot = {
   tabs: readonly WorkbenchRegistryRow[]
   /** Registered file viewers (including disabled). */
   viewers: readonly WorkbenchRegistryRow[]
+  /** Registered activity-bar rows, sorted by `order`. */
+  activities: readonly WorkbenchRegistryRow[]
 }
 
 /** Props passed to a registered tab body. No ctx, no store object. */
@@ -171,4 +200,21 @@ export type FileViewerDescriptor = {
   load?: (path: string, scope: SessionScope, signal?: AbortSignal) => Promise<unknown>
   /** Viewer body (unused until a later phase; required so the API stays complete). */
   component: ComponentType<Record<string, never>>
+}
+
+/**
+ * Activity-bar registration. `registerActivity` returns a disposer; a
+ * duplicate `id` throws. The primary sidebar renders `component`.
+ */
+export type ActivityDescriptor = {
+  /** Unique activity id (also the persist value). */
+  id: string
+  /** Activity-bar accessible name and sidebar title. */
+  title: string | (() => string)
+  /** Activity-bar sort key; default {@link DEFAULT_ACTIVITY_ORDER}. */
+  order?: number
+  /** 16–18px activity-bar icon. */
+  icon: ComponentType<{ size?: number }>
+  /** Primary-sidebar body. Receives the same props as a tab body. */
+  component: ComponentType<TabBodyProps>
 }

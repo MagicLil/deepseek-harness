@@ -1,0 +1,232 @@
+// @vitest-environment jsdom
+/**
+ * PrimarySidebar: persist ↔ layout sync and the active activity body.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import { useSyncExternalStore } from 'react'
+import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { PrimarySidebar } from '../src/client/PrimarySidebar.tsx'
+import type { PrimarySidebarProps } from '../src/client/contract.ts'
+import { createWorkbenchStore } from '../src/client/stores.ts'
+import { EMPTY_WORKBENCH_VIEW } from '../src/client/service.ts'
+import type { TabBodyProps, WorkbenchView } from '../src/client/types.ts'
+
+afterEach(cleanup)
+
+function hookOf<T>(inst: { subscribe: (fn: () => void) => () => void; getSnapshot: () => T }) {
+  return function useSelector<S>(sel: (s: T) => S): S {
+    return sel(useSyncExternalStore(inst.subscribe, inst.getSnapshot))
+  }
+}
+
+function constantHook<T>(value: T) {
+  return function useSelector<S>(sel: (s: T) => S): S {
+    return sel(value)
+  }
+}
+
+function Stub({ tab }: TabBodyProps) {
+  return <div data-testid="xmart-primary-body">{tab.type}</div>
+}
+
+function mount(
+  width: number,
+  scope = 's1',
+  setup?: (inst: ReturnType<ReturnType<typeof createWorkbenchStore>['create']>) => void,
+  view: WorkbenchView = EMPTY_WORKBENCH_VIEW,
+  resolveBody: PrimarySidebarProps['resolveBody'] = () => Stub,
+) {
+  const instance = createWorkbenchStore().create(scope)
+  setup?.(instance)
+  const closeWorkbench = vi.fn()
+  const setWorkbench = vi.fn()
+  const refreshExplorer = vi.fn()
+  const props = {
+    width,
+    sessionId: scope as SessionId,
+    useStore: hookOf(instance),
+    actions: instance.actions,
+    useSession: (() => null) as never,
+    useSessions: (() => null) as never,
+    useWorkspaces: (() => null) as never,
+    closeWorkbench,
+    setWorkbench,
+    resolveBody,
+    refreshExplorer,
+    useWorkbenchSession: constantHook(view),
+    useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+    t: ((key: string) => key) as never,
+  } as PrimarySidebarProps
+  const utils = render(<PrimarySidebar {...props} />)
+  return {
+    ...utils,
+    instance,
+    closeWorkbench,
+    setWorkbench,
+    refreshExplorer,
+    rerender: (next: Partial<PrimarySidebarProps>) => {
+      utils.rerender(<PrimarySidebar {...props} {...next} />)
+    },
+  }
+}
+
+describe('PrimarySidebar', () => {
+  it('renders nothing while the preference is closed', () => {
+    mount(0)
+    expect(screen.queryByTestId('xmart-primary-sidebar')).toBeNull()
+  })
+
+  it('renders the activity body when open', () => {
+    mount(260, 's-ui', (inst) => { inst.actions.rememberOpen(260) })
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.explorer')
+    expect(screen.getByTestId('xmart-primary-pane-explorer').className).not.toMatch(/paneInactive/)
+    expect(screen.getByTestId('xmart-primary-pane-explorer').textContent).toBe('explorer')
+  })
+
+  it('puts the explorer refresh icon on the title row', () => {
+    const { refreshExplorer, rerender } = mount(260, 's-refresh')
+    expect(screen.getByTestId('xmart-workbench-explorer-refresh')).toBeTruthy()
+    act(() => { screen.getByTestId('xmart-workbench-explorer-refresh').click() })
+    expect(refreshExplorer).toHaveBeenCalledOnce()
+    rerender({
+      useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'git' }),
+    })
+    expect(screen.queryByTestId('xmart-workbench-explorer-refresh')).toBeNull()
+  })
+
+  it('uses registered activity titles and ids when the registry is live', () => {
+    const { rerender } = mount(
+      260,
+      's-reg',
+      undefined,
+      { ...EMPTY_WORKBENCH_VIEW, activity: 'custom' },
+    )
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('custom')
+    rerender({
+      useWorkbenchRegistry: constantHook({
+        tabs: [],
+        viewers: [],
+        activities: [{ id: 'custom', title: '自定义', enabled: true }],
+      }),
+      resolveBody: (type: string) => type === 'custom' ? Stub : undefined,
+    })
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('自定义')
+    expect(screen.getByTestId('xmart-primary-pane-custom').textContent).toBe('custom')
+  })
+
+  it('titles Git and Tasks', () => {
+    const { rerender } = mount(
+      260,
+      's-title',
+      undefined,
+      { ...EMPTY_WORKBENCH_VIEW, activity: 'git' },
+    )
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.git')
+    rerender({
+      useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'tasks' }),
+    })
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.tasks')
+  })
+
+  it('keeps the explorer tree mounted when switching to Git and back', () => {
+    const { rerender } = mount(
+      260,
+      's-switch',
+      (inst) => { inst.actions.rememberOpen(260) },
+      { ...EMPTY_WORKBENCH_VIEW, activity: 'explorer' },
+    )
+    const explorer = screen.getByTestId('xmart-primary-pane-explorer')
+    expect(explorer.className).not.toMatch(/paneInactive/)
+    expect(screen.queryByTestId('xmart-primary-pane-git')).toBeNull()
+    rerender({
+      useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'git' }),
+    })
+    expect(screen.getByTestId('xmart-primary-pane-explorer')).toBe(explorer)
+    expect(explorer.className).toMatch(/paneInactive/)
+    expect(screen.getByTestId('xmart-primary-pane-git').className).not.toMatch(/paneInactive/)
+    rerender({
+      useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'explorer' }),
+    })
+    expect(screen.getByTestId('xmart-primary-pane-explorer')).toBe(explorer)
+    expect(explorer.className).not.toMatch(/paneInactive/)
+    expect(screen.queryByTestId('xmart-primary-pane-git')).toBeNull()
+  })
+
+  it('shows a fallback when the activity type is unregistered', () => {
+    mount(260, 's-empty', undefined, { ...EMPTY_WORKBENCH_VIEW, activity: 'git' }, () => undefined)
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.git')
+    expect(screen.queryByTestId('xmart-primary-body')).toBeNull()
+    expect(screen.getByTestId('xmart-primary-pane-git').textContent).toBe('sidebar.missing')
+  })
+
+  it('keeps the sidebar when an activity body throws', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    function Boom(): never {
+      throw new Error('boom')
+    }
+    mount(
+      260,
+      's-boom',
+      undefined,
+      { ...EMPTY_WORKBENCH_VIEW, activity: 'git' },
+      type => type === 'git' ? Boom : Stub,
+    )
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+    expect(screen.getByTestId('xmart-primary-fallback-git').textContent).toBe('sidebar.crashed')
+    expect(screen.getByTestId('xmart-primary-pane-explorer').textContent).toBe('explorer')
+    spy.mockRestore()
+  })
+
+  it('restores a persisted open width into the layout store on mount', () => {
+    const { setWorkbench } = mount(0, 's-open', (inst) => {
+      inst.actions.rememberOpen(300)
+    })
+    expect(setWorkbench).toHaveBeenCalledWith(300)
+  })
+
+  it('closes a leftover layout preference when this session last left the panel closed', () => {
+    const { closeWorkbench } = mount(260, 's-closed', (inst) => {
+      inst.actions.rememberClosed()
+    })
+    expect(closeWorkbench).toHaveBeenCalledOnce()
+  })
+
+  it('persists a later drag width after the session sync', () => {
+    const { instance, rerender } = mount(0, 's-drag', (inst) => {
+      inst.actions.rememberOpen(260)
+    })
+    act(() => { rerender({ width: 260 }) })
+    act(() => { rerender({ width: 300 }) })
+    expect(instance.getSnapshot()).toEqual({ open: true, width: 300 })
+  })
+
+  it('asks layout to adopt the remembered width when opening from a closed persist', () => {
+    const { setWorkbench, instance, rerender } = mount(0, 's-reopen', (inst) => {
+      inst.actions.rememberOpen(300)
+      inst.actions.rememberClosed()
+    })
+    expect(instance.getSnapshot()).toEqual({ open: false, width: 300 })
+    act(() => { rerender({ width: 260 }) })
+    expect(setWorkbench).toHaveBeenCalledWith(300)
+  })
+
+  it('remembers a later close after the session sync', () => {
+    const { instance, rerender } = mount(0, 's-close', (inst) => {
+      inst.actions.rememberOpen(260)
+    })
+    act(() => { rerender({ width: 260 }) })
+    act(() => { rerender({ width: 0 }) })
+    expect(instance.getSnapshot()).toEqual({ open: false, width: 260 })
+  })
+
+  it('does not rewrite a closed persist when the leftover preference is already zero', () => {
+    const { instance, rerender } = mount(260, 's-zero-closed', (inst) => {
+      inst.actions.rememberClosed()
+    })
+    act(() => { rerender({ width: 0 }) })
+    expect(instance.getSnapshot()).toEqual({ open: false, width: 260 })
+  })
+})

@@ -94,6 +94,9 @@
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
+    - id: marketplace
+      name: '@deepseek-ai/dsh-host-marketplace'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -275,14 +278,17 @@
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
 
-    # In-app code editor: the workspace file tree + CodeMirror tab in the
-    # conversation view ring, over the host file RPCs.
+    # Retired from the conversation view ring; the workbench column owns files.
     - id: ui-editor
       name: '@deepseek-ai/dsh-client-ui-editor'
+      disabled: true
 
     # X-Mart workbench: empty right-hand column beside the conversation.
     - id: ui-xmart-workbench
       name: '@deepseek-ai/dsh-client-ui-xmart-workbench'
+
+    - id: ui-xmart-marketplace
+      name: '@deepseek-ai/dsh-client-ui-xmart-marketplace'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

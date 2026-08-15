@@ -10,14 +10,14 @@ import type { WorkbenchKey } from './locales.ts'
 import type { WorkbenchFilesStore } from './files-store.ts'
 import { FileTree } from './FileTree.tsx'
 import { indexGitChanges } from './git-marks.ts'
-import { isSingleSegment, joinPath, relativeTo } from './route-file.ts'
+import { dirname, isSingleSegment, joinPath, relativeTo } from './route-file.ts'
 import css from './ExplorerTab.module.css'
 
 /** Locale thunk. */
 type Translate = (key: WorkbenchKey) => string
 
-/** Create-form mode. */
-type CreateKind = 'file' | 'folder' | null
+/** Inline create form: kind plus the directory the name is created in. */
+type CreateState = { kind: 'file' | 'folder'; parent: string } | null
 
 /** Context-menu target. */
 type MenuTarget = { entry: FileEntry; x: number; y: number }
@@ -45,7 +45,7 @@ export function ExplorerTab({
   const [cwd, setCwd] = useState(() => getCwd(sessionId))
   const [snap, setSnap] = useState(() => files.getSnapshot())
   const [gitByPath, setGitByPath] = useState<Readonly<Record<string, GitFileStatus>>>({})
-  const [create, setCreate] = useState<CreateKind>(null)
+  const [create, setCreate] = useState<CreateState>(null)
   const [name, setName] = useState('')
   const [menu, setMenu] = useState<MenuTarget | null>(null)
 
@@ -75,30 +75,24 @@ export function ExplorerTab({
   }
 
   const expanded = snap.expanded[sessionId] ?? {}
-  const parent = createParent(cwd, expanded)
 
   const submitCreate = () => {
-    if (!isSingleSegment(name)) return
+    if (create === null || !isSingleSegment(name)) return
     const trimmed = name.trim()
     const done = () => {
       setCreate(null)
       setName('')
       files.bumpRefresh()
     }
-    if (create === 'folder') {
-      void createDirectory(parent, trimmed).then(done, () => {})
+    if (create.kind === 'folder') {
+      void createDirectory(create.parent, trimmed).then(done, () => {})
       return
     }
-    void writeFile(joinPath(parent, trimmed), '').then(done, () => {})
+    void writeFile(joinPath(create.parent, trimmed), '').then(done, () => {})
   }
 
   return (
     <div className={css.root} data-testid="xmart-workbench-explorer">
-      <div className={css.toolbar}>
-        <button type="button" className={css.tool} onClick={() => { files.bumpRefresh() }}>{t('explorer.refresh')}</button>
-        <button type="button" className={css.tool} onClick={() => { setCreate('file'); setName('') }}>{t('explorer.newFile')}</button>
-        <button type="button" className={css.tool} onClick={() => { setCreate('folder'); setName('') }}>{t('explorer.newFolder')}</button>
-      </div>
       {create !== null && (
         <form
           className={css.form}
@@ -110,9 +104,9 @@ export function ExplorerTab({
           <input
             className={css.input}
             value={name}
-            placeholder={create === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
+            placeholder={create.kind === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
             onChange={(event) => { setName(event.target.value) }}
-            aria-label={create === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
+            aria-label={create.kind === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
           />
           <button type="submit" className={css.tool}>{t('explorer.create')}</button>
           <button type="button" className={css.tool} onClick={() => { setCreate(null) }}>{t('explorer.cancel')}</button>
@@ -154,6 +148,11 @@ export function ExplorerTab({
           setMenu(null)
           /* v8 ignore next -- Menu only selects while a row is open. */
           if (target === undefined) return
+          if (id === 'new-file' || id === 'new-folder') {
+            setCreate({ kind: id === 'new-file' ? 'file' : 'folder', parent: parentOf(target) })
+            setName('')
+            return
+          }
           if (id === 'copy-abs') {
             void navigator.clipboard.writeText(target.path)
             return
@@ -182,18 +181,19 @@ export function menuAnchorRect(menu: MenuTarget | null): DOMRect {
 }
 
 /**
- * Directory that new files land in: last expanded folder, else the root.
- * @param root - workspace cwd.
- * @param expanded - expanded map.
+ * Directory a context-menu create lands in: the folder itself, or a
+ * file's parent.
+ * @param entry - right-clicked row.
  */
-export function createParent(root: string, expanded: Readonly<Record<string, boolean>>): string {
-  const open = Object.keys(expanded).filter(path => expanded[path] === true)
-  return open[open.length - 1] ?? root
+export function parentOf(entry: FileEntry): string {
+  return entry.kind === 'directory' ? entry.path : dirname(entry.path)
 }
 
 function menuItems(entry: FileEntry | undefined, t: Translate) {
   const file = entry !== undefined && entry.kind !== 'directory'
   return [
+    { id: 'new-file', label: t('explorer.newFile'), disabled: entry === undefined },
+    { id: 'new-folder', label: t('explorer.newFolder'), disabled: entry === undefined },
     { id: 'copy-rel', label: t('explorer.copyRel'), disabled: entry === undefined },
     { id: 'copy-abs', label: t('explorer.copyAbs'), disabled: entry === undefined },
     { id: 'mention', label: t('explorer.mention'), disabled: !file },

@@ -8,7 +8,7 @@ const EXT_TO_LANG = new Map<string, string>([
   ['md', 'markdown'], ['markdown', 'markdown'], ['mdx', 'markdown'],
   ['py', 'python'], ['pyi', 'python'],
   ['css', 'css'], ['scss', 'scss'], ['less', 'less'],
-  ['html', 'html'], ['htm', 'html'],
+  ['html', 'html'], ['htm', 'html'], ['vue', 'html'],
   ['yml', 'yaml'], ['yaml', 'yaml'],
   ['sh', 'shell'], ['bash', 'shell'], ['zsh', 'shell'], ['ps1', 'powershell'],
   ['rs', 'rust'], ['go', 'go'], ['java', 'java'],

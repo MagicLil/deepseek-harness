@@ -20,7 +20,8 @@ The browser side of the dsh web GUI: shell boot, browser-host communication, sha
 | [`ui-primitives/`](ui-primitives/README.md) | Provides shared React controls, icons, and content renderers. |
 | [`ui-attachment/`](ui-attachment/README.md) | Provides attachment display atoms: draft-image rail, message gallery, and lightbox. |
 | [`ui-layout/`](ui-layout/README.md) | Arranges the main application regions. |
-| [`ui-xmart-workbench/`](ui-xmart-workbench/README.md) | Provides the right-hand workbench column, explorer/editor tabs, and Workbench settings page. |
+| [`ui-xmart-workbench/`](ui-xmart-workbench/README.md) | Provides the Cursor-style activity bar, left sidebar (Explorer/Git/Tasks), center editor, bottom terminal seat, and Workbench settings page. |
+| [`ui-xmart-marketplace/`](ui-xmart-marketplace/README.md) | Provides the activity-bar Plugins and Extensions sidebars. |
 | [`ui-sidebar/`](ui-sidebar/README.md) | Presents workspace and session navigation. |
 | [`ui-workspace/`](ui-workspace/README.md) | Provides workspace selection and creation surfaces. |
 | [`ui-conversation/`](ui-conversation/README.md) | Presents the active conversation and its input surface. |

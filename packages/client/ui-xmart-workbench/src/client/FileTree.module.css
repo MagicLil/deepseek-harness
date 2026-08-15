@@ -1,6 +1,5 @@
 .tree {
   min-height: 0;
-  overflow: auto;
   padding: 4px 0 12px;
   font-size: 13px;
   color: var(--dsw-alias-label-primary);

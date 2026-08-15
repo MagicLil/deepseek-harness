@@ -36,6 +36,7 @@ describe('WorkbenchSettingsSection', () => {
     const { setTabEnabled, setViewerEnabled } = mount({
       tabs: [{ id: 'demo', title: '演示', enabled: true }],
       viewers: [],
+      activities: [],
     })
     expect(screen.getByTestId('xmart-workbench-settings')).toBeTruthy()
     expect(screen.getByText('还没有注册文件预览器。')).toBeTruthy()
@@ -48,6 +49,7 @@ describe('WorkbenchSettingsSection', () => {
     const { setViewerEnabled } = mount({
       tabs: [{ id: 'demo', title: '演示', enabled: false }],
       viewers: [{ id: 'image', title: 'Image', enabled: true }],
+      activities: [],
     })
     expect(screen.getByLabelText('启用')).toBeTruthy()
     act(() => { screen.getByTestId('xmart-workbench-enable-image').click() })

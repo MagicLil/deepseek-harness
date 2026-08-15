@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  absPath, basename, hasNulByte, isSingleSegment, joinPath, relativeTo, tabTypeForViewer,
+  absPath, basename, dirname, hasNulByte, isSingleSegment, joinPath, relativeTo, tabTypeForViewer,
 } from '../src/client/route-file.ts'
 import { isMarkdownPath, languageFromPath } from '../src/client/language-from-path.ts'
 import { indexGitChanges, letter, markKind } from '../src/client/git-marks.ts'
@@ -19,6 +19,10 @@ describe('route-file helpers', () => {
   it('joins, relatives, and basenames on both separators', () => {
     expect(basename('C:\\proj\\main.ts')).toBe('main.ts')
     expect(basename('')).toBe('')
+    expect(dirname('/ws/a.ts')).toBe('/ws')
+    expect(dirname('C:\\ws\\a.ts')).toBe('C:\\ws')
+    expect(dirname('/a.ts')).toBe('/')
+    expect(dirname('a.ts')).toBe('a.ts')
     expect(joinPath('/ws', 'a.ts')).toBe('/ws/a.ts')
     expect(joinPath('C:\\ws\\', 'a.ts')).toBe('C:\\ws\\a.ts')
     expect(absPath('C:\\repo', 'src/a.ts')).toBe('C:\\repo\\src\\a.ts')
@@ -36,6 +40,7 @@ describe('route-file helpers', () => {
 describe('language-from-path', () => {
   it('maps extensions and treats unknowns as plaintext', () => {
     expect(languageFromPath('/a.ts')).toBe('typescript')
+    expect(languageFromPath('/a.vue')).toBe('html')
     expect(languageFromPath('/a.md')).toBe('markdown')
     expect(languageFromPath('/a')).toBe('plaintext')
     expect(languageFromPath('')).toBe('plaintext')

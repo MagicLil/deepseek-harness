@@ -5,10 +5,13 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject, XmartWorkbenchController } from '@deepseek-ai/dsh-client-ui-xmart-workbench/client'
 import type {
-  WorkbenchColumnInjected, WorkbenchSettingsInjected, WorkbenchToggleInjected,
+  ActivityBarInjected, BottomPanelInjected, PrimarySidebarInjected,
+  WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from '@deepseek-ai/dsh-client-ui-xmart-workbench/client'
 import { WorkbenchColumn } from '../src/client/WorkbenchColumn.tsx'
-import { WorkbenchToggle } from '../src/client/WorkbenchToggle.tsx'
+import { ActivityBar } from '../src/client/ActivityBar.tsx'
+import { PrimarySidebar } from '../src/client/PrimarySidebar.tsx'
+import { BottomPanel } from '../src/client/BottomPanel.tsx'
 import { WorkbenchSettingsSection } from '../src/client/WorkbenchSettingsSection.tsx'
 import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-xmart-workbench'
 import * as invariant from '@deepseek-ai/dsh-client-ui-xmart-workbench/invariant'
@@ -23,23 +26,64 @@ async function bench() {
     closeWorkbench: vi.fn(),
     setWorkbench: vi.fn(),
     toggleWorkbench: vi.fn(),
+    toggleBottom: vi.fn(),
+    openBottom: vi.fn(),
+    closeBottom: vi.fn(),
+    setBottomHeight: vi.fn(),
+    setPrimarySidebar: vi.fn(),
   }
   ctx.provide('layout', layout)
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   const setDraft = vi.fn()
+  const cancel = vi.fn()
+  const openSubagent = vi.fn()
   const sessions = {
     list: {
-      getSnapshot: () => ({ byId: { s1: { cwd: '/ws' } } }),
+      getSnapshot: () => ({
+        byId: { s1: { cwd: '/ws', running: true } },
+        jobsBySession: { s1: [{ id: 'bash-1', kind: 'bash', label: 'ls', status: 'running' }] },
+        subagentsByParent: {
+          s1: {
+            entries: [
+              { kind: 'child', id: 'c1', activity: 'running', hasChildren: false, mode: 'continuable', label: 'child' },
+              { kind: 'child', id: 'c2', activity: 'inactive', hasChildren: false, mode: 'one-shot' },
+              { kind: 'diagnostic', id: 'd1', reason: 'corrupt' },
+            ],
+          },
+        },
+      }),
       subscribe: () => () => {},
     },
     scope: (id: string) => id === 's1' ? ({}) : undefined,
+    binding: (id: string) => {
+      if (id === 's1') {
+        return {
+          session: {
+            cancel,
+            getSnapshot: () => ({
+              running: true,
+              runningCalls: [{ callId: 't1', name: 'Read' }],
+            }),
+            subscribe: () => () => {},
+          },
+        }
+      }
+      return id === 'c1' ? { session: { cancel } } : undefined
+    },
+    openSubagent,
   }
   const workspaces = {
     listEntries: vi.fn(async () => ({ path: '/ws', entries: [], truncated: false })),
     gitStatus: vi.fn(async () => ({
       root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
     })),
+    gitDiff: vi.fn(async () => ({ root: '/ws', side: 'worktree', text: '' })),
+    gitStage: vi.fn(async () => {}),
+    gitUnstage: vi.fn(async () => {}),
+    gitDiscard: vi.fn(async () => {}),
+    gitCommit: vi.fn(async () => ({ root: '/ws', hash: 'abc' })),
+    gitLog: vi.fn(async () => []),
     readFile: vi.fn(async () => 'hi'),
     writeFile: vi.fn(async () => {}),
     createDirectory: vi.fn(async () => '/ws/n'),
@@ -60,7 +104,7 @@ async function bench() {
   ctx.provide('conversationEvents', conversationEvents)
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
-    setDraft, conversationEvents, sessions,
+    setDraft, conversationEvents, sessions, cancel, openSubagent,
   }
 }
 
@@ -72,8 +116,10 @@ function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
     children: {
+      activityBar: { kind: 'single', scope: 'session' },
+      primarySidebar: { kind: 'single', scope: 'session' },
       workbench: { kind: 'single', scope: 'session' },
-      'shell.overlay': { kind: 'list', scope: 'root' },
+      bottomPanel: { kind: 'single', scope: 'session' },
       'settings.section': { kind: 'list', scope: 'root' },
     },
   } as never, () => null)
@@ -101,8 +147,19 @@ describe('ui-xmart-workbench apply', () => {
     expect(demo?.single).toBe(true)
     expect(file?.hidden).toBe(true)
     expect(editor?.hidden).toBe(true)
-    expect(explorer?.available?.({ sessionId: 's1' }, { tabs: [], activeTabId: null, nextSeq: 1 })).toBe(true)
-    expect(explorer?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1 })).toBe(false)
+    expect(service.getTab('git')?.single).toBe(true)
+    expect(service.getTab('tasks')?.single).toBe(true)
+    expect(service.getTab('diff')?.hidden).toBe(true)
+    expect(service.getTab('git')?.hidden).toBe(true)
+    expect(service.getTab('explorer')?.hidden).toBe(true)
+    expect(service.getTab('tasks')?.hidden).toBe(true)
+    expect(service.getTab('terminal')?.hidden).toBe(true)
+    expect(service.getTab('git')?.available?.({ sessionId: 's1' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(true)
+    expect(service.getTab('git')?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(false)
+    expect(service.getTab('diff')?.dedupeKey?.({ id: 'd', type: 'diff', title: 'a', path: 'worktree:a.ts' }))
+      .toBe('worktree:a.ts')
+    expect(explorer?.available?.({ sessionId: 's1' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(true)
+    expect(explorer?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(false)
     const explorerTitle = explorer?.title
     expect(typeof explorerTitle === 'function' ? explorerTitle() : explorerTitle).toBe('资源管理器')
     const demoTitle = demo?.title
@@ -119,14 +176,16 @@ describe('ui-xmart-workbench apply', () => {
     expect(b.locale.bind('workbench')('tab.demo')).toBe('演示')
   })
 
-  it('registers the column, overlay toggle, and settings section', async () => {
+  it('registers the column, activity bar, primary sidebar, bottom panel, and settings section', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     expect(b.slots.entries('workbench')[0]!.component).toBe(WorkbenchColumn)
     expect(b.slots.entries('workbench')[0]!.locale).toBe('workbench')
     expect(b.locale.bind('workbench')('column.title')).toBe('工作台')
-    expect(b.slots.entries('shell.overlay')[0]!.component).toBe(WorkbenchToggle)
+    expect(b.slots.entries('activityBar')[0]!.component).toBe(ActivityBar)
+    expect(b.slots.entries('primarySidebar')[0]!.component).toBe(PrimarySidebar)
+    expect(b.slots.entries('bottomPanel')[0]!.component).toBe(BottomPanel)
     const section = b.slots.entries('settings.section')[0]
     expect(section?.component).toBe(WorkbenchSettingsSection)
     expect(section?.options.id).toBe('workbench')
@@ -142,11 +201,41 @@ describe('ui-xmart-workbench apply', () => {
     const column = (
       b.slots.entries('workbench')[0]!.inject as unknown as (id: string) => WorkbenchColumnInjected
     )('s1')
-    column.closeWorkbench()
-    column.setWorkbench(480)
-    column.reportOpen(true)
+    const primary = (
+      b.slots.entries('primarySidebar')[0]!.inject as unknown as (id: string) => PrimarySidebarInjected
+    )('s1')
+    const activity = (
+      b.slots.entries('activityBar')[0]!.inject as unknown as (id: string) => ActivityBarInjected
+    )('s1')
+    const bottom = (
+      b.slots.entries('bottomPanel')[0]!.inject as unknown as () => BottomPanelInjected
+    )()
+    primary.closeWorkbench()
+    primary.setWorkbench(480)
     expect(b.layout.closeWorkbench).toHaveBeenCalledOnce()
     expect(b.layout.setWorkbench).toHaveBeenCalledWith(480)
+    activity.setActivity('git')
+    activity.openPrimary()
+    activity.closePrimary()
+    activity.toggleBottom()
+    expect(activity.resolveIcon('explorer')).toBeTypeOf('function')
+    expect(activity.resolveIcon('missing')).toBeUndefined()
+    expect(activity.hooks.workbenchRegistry.getSnapshot().activities.map(row => row.id))
+      .toEqual(['explorer', 'git', 'tasks'])
+    expect(column.hooks.workbenchRegistry.getSnapshot().tabs.some(row => row.id === 'explorer')).toBe(true)
+    expect(primary.hooks.workbenchRegistry.getSnapshot().activities).toHaveLength(3)
+    expect(primary.resolveBody('missing')).toBeUndefined()
+    primary.refreshExplorer()
+    expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
+    expect(b.layout.openWorkbench).toHaveBeenCalled()
+    expect(b.layout.closeWorkbench).toHaveBeenCalledTimes(2)
+    expect(b.layout.toggleBottom).toHaveBeenCalledOnce()
+    activity.openSettings()
+    expect(activity.resolveIcon('git')).toBeTypeOf('function')
+    expect(activity.resolveIcon('missing')).toBeUndefined()
+    expect(primary.resolveBody('explorer')).toBeTypeOf('function')
+    expect(primary.resolveBody('demo')).toBeTypeOf('function')
+    expect(bottom.resolveBody('terminal')).toBeTypeOf('function')
     column.openTab('demo')
     const service = workbench(b.ctx)
     const opened = service.getSnapshot('s1').tabs[0]
@@ -225,6 +314,89 @@ describe('ui-xmart-workbench apply', () => {
       tab: { id: 'bi', type: 'binary', title: 'a.bin', path: '/p/a.bin' }, visible: true, sessionId: 's1',
     }) as { props: { openSystem: (path: string) => Promise<void> } }
     await binaryEl.props.openSystem('/p/a.bin')
+    const Git = column.resolveBody('git')
+    const Diff = column.resolveBody('diff')
+    const Tasks = column.resolveBody('tasks')
+    const Terminal = column.resolveBody('terminal')
+    expect(Git).toBeTypeOf('function')
+    expect(Diff).toBeTypeOf('function')
+    expect(Tasks).toBeTypeOf('function')
+    expect(Terminal).toBeTypeOf('function')
+    if (
+      typeof Git !== 'function' || typeof Diff !== 'function'
+      || typeof Tasks !== 'function' || typeof Terminal !== 'function'
+    ) return
+    expect((Terminal as typeof renderFile)({
+      tab: { id: 'tm', type: 'terminal', title: '终端' }, visible: true, sessionId: 's1',
+    })).toBeTruthy()
+    const gitEl = (Git as typeof renderFile)({
+      tab: { id: 'g', type: 'git', title: 'Git' }, visible: true, sessionId: 's1',
+    }) as { props: {
+      listEntries: (path: string) => Promise<unknown>
+      gitStatus: (path: string) => Promise<unknown>
+      gitStage: (path: string, files: string[]) => Promise<void>
+      gitUnstage: (path: string, files: string[]) => Promise<void>
+      gitDiscard: (path: string, files: string[]) => Promise<void>
+      gitCommit: (path: string, message: string) => Promise<unknown>
+      gitLog: (path: string, limit?: number) => Promise<unknown>
+      openFile: (path: string) => void
+      openDiff: (side: 'worktree' | 'staged', file: string) => void
+      watchSessions: (fn: () => void) => () => void
+      getCwd: (id: string) => string | undefined
+    } }
+    await gitEl.props.listEntries('/ws')
+    await gitEl.props.gitStatus('/ws')
+    await gitEl.props.gitStage('/ws', ['a.ts'])
+    await gitEl.props.gitUnstage('/ws', ['a.ts'])
+    await gitEl.props.gitDiscard('/ws', ['a.ts'])
+    await gitEl.props.gitCommit('/ws', 'm')
+    await gitEl.props.gitLog('/ws', 5)
+    gitEl.props.openFile('/ws/a.ts')
+    gitEl.props.openDiff('worktree', 'a.ts')
+    gitEl.props.watchSessions(() => {})()
+    expect(gitEl.props.getCwd('s1')).toBe('/ws')
+    expect(service.getSnapshot('s1').tabs.some(row => row.type === 'diff')).toBe(true)
+    const diffEl = (Diff as typeof renderFile)({
+      tab: { id: 'df', type: 'diff', title: 'a.ts', path: 'worktree:a.ts' }, visible: true, sessionId: 's1',
+    }) as { props: { gitDiff: (path: string, side: 'worktree', file?: string) => Promise<unknown> } }
+    await diffEl.props.gitDiff('/ws', 'worktree', 'a.ts')
+    const tasksEl = (Tasks as typeof renderFile)({
+      tab: { id: 'tk', type: 'tasks', title: '任务' }, visible: true, sessionId: 's1',
+    }) as { props: {
+      listTurn: (id: string) => { running: boolean; calls: { id: string; name: string }[] }
+      listJobs: (id: string) => unknown[]
+      listSubagents: (id: string) => { id: string }[]
+      cancelTurn: () => void
+      cancelSubagent: (id: string) => void
+      openSubagent: (id: string) => void
+      watchSessions: (fn: () => void) => () => void
+    } }
+    expect(tasksEl.props.listTurn('s1')).toEqual({
+      running: true, calls: [{ id: 't1', name: 'Read' }],
+    })
+    expect(tasksEl.props.listTurn('missing')).toEqual({ running: false, calls: [] })
+    expect(tasksEl.props.listJobs('s1')).toHaveLength(1)
+    expect(tasksEl.props.listJobs('missing')).toEqual([])
+    expect(tasksEl.props.listSubagents('s1').map(row => row.id)).toEqual(['c1', 'c2'])
+    expect(tasksEl.props.listSubagents('missing')).toEqual([])
+    tasksEl.props.cancelSubagent('c1')
+    tasksEl.props.cancelSubagent('gone')
+    expect(b.cancel).toHaveBeenCalledOnce()
+    tasksEl.props.cancelTurn()
+    expect(b.cancel).toHaveBeenCalledTimes(2)
+    tasksEl.props.openSubagent('c1')
+    tasksEl.props.openSubagent('d1')
+    tasksEl.props.openSubagent('gone')
+    const missingTasks = (Tasks as typeof renderFile)({
+      tab: { id: 'tk2', type: 'tasks', title: '任务' }, visible: true, sessionId: 'missing',
+    }) as { props: { openSubagent: (id: string) => void; listSubagents: (id: string) => unknown[] } }
+    missingTasks.props.openSubagent('c1')
+    expect(missingTasks.props.listSubagents('missing')).toEqual([])
+    expect(b.openSubagent).toHaveBeenCalledWith({
+      parentSessionId: 's1', childSessionId: 'c1', mode: 'continuable',
+    })
+    expect(b.openSubagent).toHaveBeenCalledTimes(1)
+    tasksEl.props.watchSessions(() => {})()
     explorerEl.props.mentionFile('/ws/a.ts')
     expect(b.setDraft).toHaveBeenCalledWith('hello /ws/a.ts ')
     const conversation = b.ctx.get('conversation') as unknown as {
@@ -273,21 +445,6 @@ describe('ui-xmart-workbench apply', () => {
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'image')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'binary')).toBe(true)
     expect(b.layout.openWorkbench).toHaveBeenCalled()
-    const toggle = (b.slots.entries('shell.overlay')[0]!.inject as unknown as () => WorkbenchToggleInjected)()
-    toggle.openWorkbench()
-    expect(b.layout.openWorkbench).toHaveBeenCalledTimes(5)
-    expect(toggle.hooks.workbenchOpen.getSnapshot()).toBe(true)
-    const notified = vi.fn()
-    const off = toggle.hooks.workbenchOpen.subscribe(notified)
-    column.reportOpen(false)
-    expect(notified).toHaveBeenCalledOnce()
-    expect(toggle.hooks.workbenchOpen.getSnapshot()).toBe(false)
-    column.reportOpen(false)
-    expect(notified).toHaveBeenCalledOnce()
-    off()
-    column.reportOpen(true)
-    expect(notified).toHaveBeenCalledOnce()
-    expect(toggle.hooks.workbenchOpen.getSnapshot()).toBe(true)
   })
 
   it('routes settings inject writes onto the service', async () => {
@@ -313,7 +470,9 @@ describe('ui-xmart-workbench apply', () => {
     await fiber.await()
     await fiber.dispose()
     expect(b.slots.entries('workbench')).toHaveLength(0)
-    expect(b.slots.entries('shell.overlay')).toHaveLength(0)
+    expect(b.slots.entries('activityBar')).toHaveLength(0)
+    expect(b.slots.entries('primarySidebar')).toHaveLength(0)
+    expect(b.slots.entries('bottomPanel')).toHaveLength(0)
     expect(b.slots.entries('settings.section')).toHaveLength(0)
   })
 })

@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { GitAccessError, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { ExplorerTab, createParent, menuAnchorRect } from '../src/client/ExplorerTab.tsx'
+import { ExplorerTab, menuAnchorRect, parentOf } from '../src/client/ExplorerTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -18,7 +18,11 @@ const t = makeTranslate(zh, commonZh)
 
 function mount(opts?: {
   cwd?: string
-  listEntries?: () => Promise<{ path: string; entries: never[]; truncated: boolean }>
+  listEntries?: (path: string) => Promise<{
+    path: string
+    entries: readonly { name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }[]
+    truncated: boolean
+  }>
   gitStatus?: () => Promise<unknown>
   writeFile?: (path: string, content: string) => Promise<void>
   createDirectory?: (path: string, name: string) => Promise<string>
@@ -67,10 +71,10 @@ function mount(opts?: {
   return { files, writeFile, createDirectory, openSystem, openFile, mentionFile }
 }
 
-describe('createParent', () => {
-  it('uses the last expanded folder', () => {
-    expect(createParent('/ws', {})).toBe('/ws')
-    expect(createParent('/ws', { '/ws/src': true })).toBe('/ws/src')
+describe('parentOf', () => {
+  it('uses a folder itself and a file parent', () => {
+    expect(parentOf({ name: 'src', path: '/ws/src', kind: 'directory', hidden: false })).toBe('/ws/src')
+    expect(parentOf({ name: 'a.ts', path: '/ws/a.ts', kind: 'file', hidden: false })).toBe('/ws')
   })
 
   it('builds a menu anchor rect', () => {
@@ -86,10 +90,32 @@ describe('ExplorerTab', () => {
     expect(screen.getByText('当前会话没有工作区目录。')).toBeTruthy()
   })
 
-  it('creates files and folders and refreshes', async () => {
+  it('relists the workspace when the refresh nonce is bumped', async () => {
+    let names = ['a.ts']
+    const listEntries = vi.fn(async (path: string) => ({
+      path,
+      truncated: false,
+      entries: names.map(name => ({
+        name, path: `/ws/${name}`, kind: 'file' as const, hidden: false,
+      })),
+    }))
+    const { files } = mount({ listEntries })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('a.ts')).toBeTruthy()
+    expect(screen.queryByText('b.ts')).toBeNull()
+    expect(screen.queryByText('新建文件')).toBeNull()
+    expect(screen.queryByText('新建文件夹')).toBeNull()
+    names = ['a.ts', 'b.ts']
+    act(() => { files.bumpRefresh() })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('b.ts')).toBeTruthy()
+    expect(listEntries.mock.calls.length).toBeGreaterThan(1)
+  })
+
+  it('creates files and folders from the row context menu', async () => {
     const { writeFile, createDirectory, files } = mount()
     await act(async () => { await Promise.resolve() })
-    fireEvent.click(screen.getByText('刷新'))
+    fireEvent.contextMenu(screen.getByText('src'))
     fireEvent.click(screen.getByText('新建文件'))
     fireEvent.change(screen.getByLabelText('文件名'), { target: { value: 'bad/name' } })
     fireEvent.submit(screen.getByLabelText('文件名').closest('form') as HTMLFormElement)
@@ -97,18 +123,21 @@ describe('ExplorerTab', () => {
     fireEvent.change(screen.getByLabelText('文件名'), { target: { value: 'n.ts' } })
     fireEvent.submit(screen.getByLabelText('文件名').closest('form') as HTMLFormElement)
     await act(async () => { await Promise.resolve() })
-    expect(writeFile).toHaveBeenCalled()
+    expect(writeFile).toHaveBeenCalledWith('/ws/src/n.ts', '')
+    fireEvent.contextMenu(screen.getByText('a.ts'))
     fireEvent.click(screen.getByText('新建文件夹'))
     fireEvent.change(screen.getByLabelText('文件夹名'), { target: { value: 'lib' } })
     fireEvent.submit(screen.getByLabelText('文件夹名').closest('form') as HTMLFormElement)
     await act(async () => { await Promise.resolve() })
-    expect(createDirectory).toHaveBeenCalled()
+    expect(createDirectory).toHaveBeenCalledWith('/ws', 'lib')
+    fireEvent.contextMenu(screen.getByText('src'))
     fireEvent.click(screen.getByText('新建文件'))
     fireEvent.click(screen.getByText('取消'))
     expect(files.getSnapshot().refreshNonce).toBeGreaterThan(0)
     cleanup()
     mount({ writeFile: async () => { throw new Error('no') } })
     await act(async () => { await Promise.resolve() })
+    fireEvent.contextMenu(screen.getByText('src'))
     fireEvent.click(screen.getByText('新建文件'))
     fireEvent.change(screen.getByLabelText('文件名'), { target: { value: 'z.ts' } })
     fireEvent.submit(screen.getByLabelText('文件名').closest('form') as HTMLFormElement)
@@ -116,6 +145,7 @@ describe('ExplorerTab', () => {
     cleanup()
     mount({ createDirectory: async () => { throw new Error('no') } })
     await act(async () => { await Promise.resolve() })
+    fireEvent.contextMenu(screen.getByText('src'))
     fireEvent.click(screen.getByText('新建文件夹'))
     fireEvent.change(screen.getByLabelText('文件夹名'), { target: { value: 'z' } })
     fireEvent.submit(screen.getByLabelText('文件夹名').closest('form') as HTMLFormElement)

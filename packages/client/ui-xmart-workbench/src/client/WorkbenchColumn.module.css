@@ -58,6 +58,7 @@
 
 .bar {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -135,6 +136,7 @@
 
 .add:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .placeholderTitle {

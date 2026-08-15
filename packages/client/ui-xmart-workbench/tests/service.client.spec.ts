@@ -57,6 +57,42 @@ describe('XmartWorkbenchController registry', () => {
     dispose()
   })
 
+  it('registerActivity adds, sorts, dispose removes, and unknown persist falls back', () => {
+    const service = new XmartWorkbenchController()
+    expect(service.getActivities()).toHaveLength(0)
+    const dispose = service.registerActivity({
+      id: 'plugins',
+      title: () => '插件',
+      order: 30,
+      icon: Noop,
+      component: Noop,
+    })
+    expect(service.getActivity('plugins')?.id).toBe('plugins')
+    expect(service.getActivity('missing')).toBeUndefined()
+    expect(service.observeRegistry().getSnapshot().activities).toEqual([
+      { id: 'plugins', title: '插件', enabled: true },
+    ])
+    service.setActivity('plugins', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('plugins')
+    expect(() => service.registerActivity({
+      id: 'plugins', title: 'Dup', icon: Noop, component: Noop,
+    })).toThrow('activity "plugins" already registered')
+    dispose()
+    expect(service.getActivities()).toHaveLength(0)
+    expect(service.getSnapshot('s1').activity).toBe('explorer')
+    dispose()
+    service.registerActivity({
+      id: 'late', title: 'Late', order: 80, icon: Noop, component: Noop,
+    })
+    service.registerActivity({
+      id: 'early', title: 'Early', order: 5, icon: Noop, component: Noop,
+    })
+    service.registerActivity({
+      id: 'mid', title: 'Mid', icon: Noop, component: Noop,
+    })
+    expect(service.observeRegistry().getSnapshot().activities.map(row => row.id)).toEqual(['early', 'late', 'mid'])
+  })
+
   it('registerFileViewer throws on duplicate id', () => {
     const service = new XmartWorkbenchController()
     service.registerFileViewer(viewer({ id: 'img', exts: ['png'] }))
@@ -531,6 +567,7 @@ describe('persist sanitization', () => {
       ],
       activeTabId: 'b',
       nextSeq: 1,
+      activity: 'explorer',
     })
     localStorage.setItem(`${TABS_PERSIST}.ok`, JSON.stringify({
       tabs: [{ id: 'a', type: 't', title: 'A' }],
@@ -571,6 +608,70 @@ describe('persist sanitization', () => {
     expect(service.matchFileViewer('C:\\a\\Photo.PNG')?.id).toBe('image')
     expect(service.matchFileViewer('/a/file')).toBeUndefined()
     expect(service.matchFileViewer('/a/.env')).toBeUndefined()
+  })
+
+  it('setActivity writes, no-ops without a session, and sanitizes persist garbage', () => {
+    const service = new XmartWorkbenchController()
+    service.setActivity('git')
+    expect(service.getSnapshot()).toBe(EMPTY_WORKBENCH_VIEW)
+    service.setActivity('git', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('git')
+    service.setActivity('git', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('git')
+    service.setActivity('tasks', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('tasks')
+    localStorage.setItem(`${TABS_PERSIST}.act`, JSON.stringify({
+      tabs: [], activeTabId: null, nextSeq: 1, activity: 'NOPE',
+    }))
+    expect(new XmartWorkbenchController().getSnapshot('act').activity).toBe('explorer')
+    localStorage.setItem(`${TABS_PERSIST}.act2`, JSON.stringify({
+      tabs: [], activeTabId: null, nextSeq: 1, activity: 'git',
+    }))
+    expect(new XmartWorkbenchController().getSnapshot('act2').activity).toBe('git')
+  })
+
+  it('drops leftover split fields from persist', () => {
+    localStorage.setItem(`${TABS_PERSIST}.split`, JSON.stringify({
+      tabs: [{ id: 'a', type: 't', title: 'A' }, { id: 'b', type: 't', title: 'B' }],
+      activeTabId: 'a',
+      nextSeq: 3,
+      splitTabId: 'b',
+      splitRatio: 0.3,
+    }))
+    const snap = new XmartWorkbenchController().getSnapshot('split')
+    expect(snap).toMatchObject({
+      tabs: [
+        { id: 'a', type: 't', title: 'A' },
+        { id: 'b', type: 't', title: 'B' },
+      ],
+      activeTabId: 'a',
+      nextSeq: 3,
+      activity: 'explorer',
+    })
+    expect(snap).not.toHaveProperty('splitTabId')
+    expect(snap).not.toHaveProperty('splitRatio')
+  })
+
+  it('setActivity writes, no-ops the same value, and sanitizes persist', () => {
+    const service = new XmartWorkbenchController()
+    service.setActivity('git')
+    expect(service.getSnapshot()).toBe(EMPTY_WORKBENCH_VIEW)
+    service.setActivity('git', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('git')
+    const listener = vi.fn()
+    service.subscribe(listener)
+    service.setActivity('git', { sessionId: 's1' })
+    expect(listener).not.toHaveBeenCalled()
+    service.setActivity('tasks', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('tasks')
+    localStorage.setItem(`${TABS_PERSIST}.act`, JSON.stringify({
+      tabs: [], activeTabId: null, nextSeq: 1, activity: 'git',
+    }))
+    expect(new XmartWorkbenchController().getSnapshot('act').activity).toBe('git')
+    localStorage.setItem(`${TABS_PERSIST}.badact`, JSON.stringify({
+      tabs: [], activeTabId: null, nextSeq: 1, activity: 'NOPE',
+    }))
+    expect(new XmartWorkbenchController().getSnapshot('badact').activity).toBe('explorer')
   })
 
   it('drops garbage prefs and honors an explicit false', () => {

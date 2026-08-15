@@ -225,6 +225,48 @@ describe('FileTree', () => {
     expect(screen.getByText('空目录')).toBeTruthy()
   })
 
+  it('shows files again after an unmount and remount', async () => {
+    const listing: FileListing = {
+      path: '/ws',
+      truncated: false,
+      entries: [entry({ name: 'a.ts', path: '/ws/a.ts', kind: 'file' })],
+    }
+    const listEntries = vi.fn(async () => listing)
+    const view = render(
+      <FileTree
+        root="/ws"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('a.ts')).toBeTruthy()
+    view.unmount()
+    render(
+      <FileTree
+        root="/ws"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('a.ts')).toBeTruthy()
+  })
+
   it('aborts an in-flight listing when refreshNonce changes', async () => {
     let settle: (value: FileListing) => void = () => {}
     const listEntries = vi.fn(() => new Promise<FileListing>((resolve) => { settle = resolve }))

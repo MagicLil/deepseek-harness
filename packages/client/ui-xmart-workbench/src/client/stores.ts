@@ -6,8 +6,8 @@
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 
-/** Default width written when a session first opens the workbench (matches ui-layout WORKBENCH_DEFAULT). */
-export const WORKBENCH_PERSIST_DEFAULT = 400
+/** Default width written when a session first opens the primary sidebar (matches ui-layout WORKBENCH_DEFAULT). */
+export const WORKBENCH_PERSIST_DEFAULT = 260
 
 /** Session-scoped workbench persist state. */
 export type WorkbenchPersistState = {
@@ -32,7 +32,7 @@ type WorkbenchPersistActions = {
  */
 export function createWorkbenchStore(): EngineStoreHandle<WorkbenchPersistState, WorkbenchPersistActions> {
   return defineStore({
-    init: (): WorkbenchPersistState => ({ open: false, width: WORKBENCH_PERSIST_DEFAULT }),
+    init: (): WorkbenchPersistState => ({ open: true, width: WORKBENCH_PERSIST_DEFAULT }),
     persist: 'dsh.xmart.workbench',
     actions: {
       rememberOpen: (d, width: number) => {

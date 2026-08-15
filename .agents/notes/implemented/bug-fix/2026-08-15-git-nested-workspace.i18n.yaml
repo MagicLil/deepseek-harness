@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-15-git-nested-workspace.md
+2026-08-15-git-nested-workspace.md: bba112964d2bfe77c4a7a7de235c2da142681256
+2026-08-15-git-nested-workspace.zh.md: 77ee5fed706f4352e2f271067d72ce9a776a8d0b

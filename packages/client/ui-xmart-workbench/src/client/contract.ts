@@ -1,6 +1,6 @@
 /**
- * Workbench slot contracts: composed props for the column, overlay toggle,
- * and the Workbench settings section.
+ * Workbench slot contracts: composed props for the editor column, activity
+ * bar, primary sidebar, bottom panel, and the Workbench settings section.
  */
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRuntime, PropsStore,
@@ -11,23 +11,14 @@ import type { ComponentType } from 'react'
 import type { createWorkbenchStore } from './stores.ts'
 import type { WorkbenchKey } from './locales.ts'
 import type {
-  TabBodyProps, WorkbenchRegistrySnapshot, WorkbenchView,
+  ActivityId, TabBodyProps, WorkbenchRegistrySnapshot, WorkbenchView,
 } from './types.ts'
 
-/** Injected layout writes, tab actions, and live snapshots for the column. */
+/** Activity-bar icon component (primitives or a plugin SVG). */
+export type ActivityIcon = ComponentType<{ size?: number }>
+
+/** Injected tab actions and live snapshots for the editor column. */
 export interface WorkbenchColumnInjected {
-  /** Close the workbench panel (layout preference → 0). */
-  closeWorkbench: () => void
-  /**
-   * Write the workbench width preference.
-   * @param px - requested width in px.
-   */
-  setWorkbench: (px: number) => void
-  /**
-   * Publish whether this session's workbench preference is open (overlay hide/show).
-   * @param open - true when the stored preference is greater than 0.
-   */
-  reportOpen: (open: boolean) => void
   /**
    * Open or focus a tab type in this session.
    * @param type - registered tab type id.
@@ -57,28 +48,91 @@ export interface WorkbenchColumnInjected {
   }
 }
 
-/** Full composed props for the workbench column. */
+/** Full composed props for the editor column. */
 export type WorkbenchColumnProps =
   & PropsRuntime<'workbench'>
-  & PropsStore<ReturnType<typeof createWorkbenchStore>>
   & PropsLocale<'workbench'>
   & InjectFace<WorkbenchColumnInjected>
 
-/** Injected open control and open-state hook sources for the overlay toggle. */
-export type WorkbenchToggleInjected = {
-  /** Open the workbench at the layout contract default (column restores persisted width). */
-  openWorkbench: () => void
+/** Injected activity writes and layout toggles for the activity bar. */
+export interface ActivityBarInjected {
+  /**
+   * Remember the primary-sidebar activity for this session.
+   * @param id - registered or built-in activity id.
+   */
+  setActivity: (id: ActivityId) => void
+  /**
+   * Look up a registered activity icon.
+   * @param id - activity id.
+   */
+  resolveIcon: (id: string) => ActivityIcon | undefined
+  /** Open the primary sidebar (layout preference → default width). */
+  openPrimary: () => void
+  /** Close the primary sidebar. */
+  closePrimary: () => void
+  /** Toggle the editor bottom panel. */
+  toggleBottom: () => void
+  /** Open the existing settings dialog (clicks the `sidebar.settings` trigger). */
+  openSettings: () => void
   hooks: {
-    /** True while the current session's workbench preference is open. */
-    workbenchOpen: HostObservable<boolean>
+    /** Per-session activity and tab list. */
+    workbenchSession: HostObservable<WorkbenchView>
+    /** Registered activities (empty until plugins register). */
+    workbenchRegistry: HostObservable<WorkbenchRegistrySnapshot>
   }
 }
 
-/** Full composed props for the overlay reopen control. */
-export type WorkbenchToggleProps =
-  & PropsRuntime<'shell.overlay'>
+/** Full composed props for the activity bar. */
+export type ActivityBarProps =
+  & PropsRuntime<'activityBar'>
   & PropsLocale<'workbench'>
-  & InjectFace<WorkbenchToggleInjected>
+  & InjectFace<ActivityBarInjected>
+
+/** Injected layout writes and body lookup for the primary sidebar. */
+export interface PrimarySidebarInjected {
+  /** Close the primary sidebar (layout preference → 0). */
+  closeWorkbench: () => void
+  /**
+   * Write the primary-sidebar width preference.
+   * @param px - requested width in px.
+   */
+  setWorkbench: (px: number) => void
+  /**
+   * Look up the registered body for a tab type.
+   * @param type - tab type id.
+   */
+  resolveBody: (type: string) => ComponentType<TabBodyProps> | undefined
+  /** Re-list the explorer tree from disk (title-row refresh). */
+  refreshExplorer: () => void
+  hooks: {
+    /** Per-session activity and tab list. */
+    workbenchSession: HostObservable<WorkbenchView>
+    /** Registered activities for the title and pane list. */
+    workbenchRegistry: HostObservable<WorkbenchRegistrySnapshot>
+  }
+}
+
+/** Full composed props for the primary sidebar. */
+export type PrimarySidebarProps =
+  & PropsRuntime<'primarySidebar'>
+  & PropsStore<ReturnType<typeof createWorkbenchStore>>
+  & PropsLocale<'workbench'>
+  & InjectFace<PrimarySidebarInjected>
+
+/** Injected body lookup for the bottom panel. */
+export interface BottomPanelInjected {
+  /**
+   * Look up the registered body for a tab type.
+   * @param type - tab type id.
+   */
+  resolveBody: (type: string) => ComponentType<TabBodyProps> | undefined
+}
+
+/** Full composed props for the bottom panel. */
+export type BottomPanelProps =
+  & PropsRuntime<'bottomPanel'>
+  & PropsLocale<'workbench'>
+  & InjectFace<BottomPanelInjected>
 
 /** Injected registry snapshot and enable writes for the settings page. */
 export interface WorkbenchSettingsInjected {
@@ -106,4 +160,4 @@ export type WorkbenchSettingsProps =
   & PropsLocale<'workbench'>
   & InjectFace<WorkbenchSettingsInjected>
 
-export type { WorkbenchKey }
+export type { WorkbenchKey, ActivityId }

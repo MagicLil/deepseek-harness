@@ -10,11 +10,14 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import { matchFileViewer as matchViewer } from './match-viewer.ts'
 import { basename, tabTypeForViewer } from './route-file.ts'
 import {
+  DEFAULT_ACTIVITY_ORDER,
   DEFAULT_TAB_ORDER,
   PREFS_PERSIST,
   TABS_PERSIST,
   XMART_WORKBENCH_FEATURES,
   XMART_WORKBENCH_VERSION,
+  isPrimaryActivity,
+  type ActivityDescriptor,
   type FileViewerDescriptor,
   type OpenTabSeed,
   type SessionScope,
@@ -34,7 +37,11 @@ type WorkbenchPrefs = {
 
 const EMPTY_PREFS: WorkbenchPrefs = { tabsEnabled: {}, viewersEnabled: {} }
 
-const EMPTY_STATE: WorkbenchSessionState = { tabs: [], activeTabId: null, nextSeq: 1 }
+const EMPTY_STATE: WorkbenchSessionState = {
+  tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer',
+}
+
+const ACTIVITY_ID = /^[a-z][a-z0-9-]*$/
 
 /** Frozen empty view (same reference until a session is first written). */
 export const EMPTY_WORKBENCH_VIEW: WorkbenchView = Object.freeze({
@@ -59,6 +66,12 @@ export interface IXmartWorkbench {
    * @returns disposer that removes the viewer.
    */
   registerFileViewer(descriptor: FileViewerDescriptor): () => void
+  /**
+   * Register a primary-sidebar activity. Duplicate ids throw.
+   * @param descriptor - activity to add.
+   * @returns disposer that removes the activity (persist keeps the id).
+   */
+  registerActivity(descriptor: ActivityDescriptor): () => void
   /**
    * Open or focus a tab in a session. Settings-disabled types are a no-op.
    * `available` does not reject. Content seeds (`path` / `url`) open the column.
@@ -111,6 +124,17 @@ export interface IXmartWorkbench {
    */
   getFileViewers(): readonly FileViewerDescriptor[]
   /**
+   * Registered activities in registration order.
+   * @returns the live descriptor list.
+   */
+  getActivities(): readonly ActivityDescriptor[]
+  /**
+   * Look up one activity.
+   * @param id - activity id.
+   * @returns the descriptor, or undefined.
+   */
+  getActivity(id: string): ActivityDescriptor | undefined
+  /**
    * Look up one tab type.
    * @param id - type id.
    * @returns the descriptor, or undefined.
@@ -135,6 +159,12 @@ export interface IXmartWorkbench {
    * @returns the winning viewer, or undefined.
    */
   matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined
+  /**
+   * Set the primary-sidebar activity for a session.
+   * @param activity - registered or built-in activity id.
+   * @param scope - target session; defaults to the column-bound session.
+   */
+  setActivity(activity: string, scope?: SessionScope): void
   /** Capability version. */
   readonly version: number
   /** Feature flags (`tabs`, `fileViewers`, `settingsToggles`). */
@@ -165,7 +195,10 @@ function sanitizeSession(raw: unknown): WorkbenchSessionState {
   const nextSeq = typeof rec.nextSeq === 'number' && Number.isInteger(rec.nextSeq) && rec.nextSeq >= 1
     ? rec.nextSeq
     : 1
-  return { tabs, activeTabId: active, nextSeq }
+  const activity = typeof rec.activity === 'string' && ACTIVITY_ID.test(rec.activity)
+    ? rec.activity
+    : 'explorer'
+  return { tabs, activeTabId: active, nextSeq, activity }
 }
 
 /**
@@ -207,12 +240,13 @@ export class XmartWorkbenchController implements IXmartWorkbench {
 
   readonly #tabs = new Map<string, TabDescriptor>()
   readonly #viewers = new Map<string, FileViewerDescriptor>()
+  readonly #activities = new Map<string, ActivityDescriptor>()
   readonly #stores = new Map<string, SnapshotStore<WorkbenchSessionState>>()
   readonly #views = new Map<string, WorkbenchView>()
   readonly #sessionSources = new Map<string, HostObservable<WorkbenchView>>()
   readonly #listeners = new Set<() => void>()
   readonly #prefs: SnapshotStore<WorkbenchPrefs>
-  #registryView: WorkbenchRegistrySnapshot = { tabs: [], viewers: [] }
+  #registryView: WorkbenchRegistrySnapshot = { tabs: [], viewers: [], activities: [] }
   readonly #registrySource: HostObservable<WorkbenchRegistrySnapshot> = {
     getSnapshot: () => this.#registryView,
     subscribe: fn => this.subscribe(fn),
@@ -335,6 +369,23 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
 
   /** @inheritdoc */
+  registerActivity(descriptor: ActivityDescriptor): () => void {
+    if (this.#activities.has(descriptor.id)) {
+      throw new Error(`activity "${descriptor.id}" already registered`)
+    }
+    this.#activities.set(descriptor.id, descriptor)
+    this.#publishRegistry()
+    this.#republishSessions()
+    this.#notify()
+    return () => {
+      if (!this.#activities.delete(descriptor.id)) return
+      this.#publishRegistry()
+      this.#republishSessions()
+      this.#notify()
+    }
+  }
+
+  /** @inheritdoc */
   openTab(seed: OpenTabSeed, scope?: SessionScope): string | undefined {
     const sessionId = this.#resolveSession(scope)
     if (sessionId === undefined) return undefined
@@ -440,6 +491,16 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
 
   /** @inheritdoc */
+  getActivities(): readonly ActivityDescriptor[] {
+    return [...this.#activities.values()]
+  }
+
+  /** @inheritdoc */
+  getActivity(id: string): ActivityDescriptor | undefined {
+    return this.#activities.get(id)
+  }
+
+  /** @inheritdoc */
   getTab(id: string): TabDescriptor | undefined {
     return this.#tabs.get(id)
   }
@@ -452,6 +513,21 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   /** @inheritdoc */
   isViewerEnabled(id: string): boolean {
     return this.#prefs.getSnapshot().viewersEnabled[id] !== false
+  }
+
+  /**
+   * Set the primary-sidebar activity for a session.
+   * @param activity - registered or built-in activity id.
+   * @param scope - target session; defaults to the column-bound session.
+   */
+  setActivity(activity: string, scope?: SessionScope): void {
+    const sessionId = this.#resolveSession(scope)
+    if (sessionId === undefined) return
+    const state = this.#ensure(sessionId).getSnapshot()
+    if (state.activity === activity) return
+    this.#write(sessionId, (draft) => {
+      draft.activity = activity
+    })
   }
 
   /** @inheritdoc */
@@ -544,7 +620,10 @@ export class XmartWorkbenchController implements IXmartWorkbench {
     /* v8 ignore next -- called after #ensure or while iterating #stores.keys(). */
     if (store === undefined) return
     const state = store.getSnapshot()
-    this.#views.set(sessionId, { ...state, menu: this.#menuFor(sessionId, state) })
+    const activity = isKnownActivity(state.activity, this.#activities)
+      ? state.activity
+      : 'explorer'
+    this.#views.set(sessionId, { ...state, activity, menu: this.#menuFor(sessionId, state) })
   }
 
   #republishSessions(): void {
@@ -552,6 +631,14 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
 
   #publishRegistry(): void {
+    const activities = [...this.#activities.values()]
+      .map(descriptor => ({
+        id: descriptor.id,
+        title: resolveTitle(descriptor.title),
+        enabled: true,
+        order: descriptor.order ?? DEFAULT_ACTIVITY_ORDER,
+      }))
+      .sort((a, b) => a.order - b.order)
     this.#registryView = {
       tabs: [...this.#tabs.values()].map(descriptor => ({
         id: descriptor.id,
@@ -563,6 +650,7 @@ export class XmartWorkbenchController implements IXmartWorkbench {
         title: descriptor.title !== undefined ? resolveTitle(descriptor.title) : descriptor.id,
         enabled: this.isViewerEnabled(descriptor.id),
       })),
+      activities: activities.map(({ id, title, enabled }) => ({ id, title, enabled })),
     }
   }
 
@@ -577,6 +665,16 @@ export class XmartWorkbenchController implements IXmartWorkbench {
  * @param seed - caller seed.
  * @returns the tab with title/url overlays.
  */
+/**
+ * Built-in ids stay visible before registration; a registered id becomes
+ * known as soon as its disposer is still live.
+ * @param id - persist or setActivity value.
+ * @param registered - live activity map.
+ */
+function isKnownActivity(id: string, registered: ReadonlyMap<string, ActivityDescriptor>): boolean {
+  return isPrimaryActivity(id) || registered.has(id)
+}
+
 function overlayCreated(tab: WorkbenchTab, seed: OpenTabSeed): WorkbenchTab {
   let next = tab
   if (seed.title !== undefined) next = { ...next, title: seed.title }

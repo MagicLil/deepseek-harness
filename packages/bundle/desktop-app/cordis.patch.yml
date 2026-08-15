@@ -68,12 +68,18 @@
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
-    # Pin the native OS chooser — desktop always has a local display.
+    # Pin the native OS chooser pair — desktop always has a local display.
+    # The host half serves `ctx.directoryPicker`; the client surface
+    # (`ui-directory-picker-native` in the browser roster below) occupies
+    # ui-workspace's directory-flow holes so Add workspace stays visible.
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-native'
 
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
+
+    - id: marketplace
+      name: '@deepseek-ai/dsh-host-marketplace'
 
     - id: api-gateway
       name: '@deepseek-ai/dsh-host-apiproxy'
@@ -153,6 +159,12 @@
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
 
+    # Client half of the pinned native chooser. Without this Loader row,
+    # client-modules never discovers the surface, both directory-flow holes
+    # stay empty, and the Add workspace icon / menu entry are hidden.
+    - id: ui-directory-picker-native
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-native'
+
     - id: ui-input-trigger
       name: '@deepseek-ai/dsh-client-ui-input-trigger'
 
@@ -195,14 +207,17 @@
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
 
-    # In-app code editor (Monaco/VSCode core): the workspace file tree +
-    # editor tab in the conversation view ring, over the host file RPCs.
+    # Retired from the conversation view ring; the workbench column owns files.
     - id: ui-editor
       name: '@deepseek-ai/dsh-client-ui-editor'
+      disabled: true
 
     # X-Mart workbench: empty right-hand column beside the conversation.
     - id: ui-xmart-workbench
       name: '@deepseek-ai/dsh-client-ui-xmart-workbench'
+
+    - id: ui-xmart-marketplace
+      name: '@deepseek-ai/dsh-client-ui-xmart-marketplace'
 
 # ── the agent plane moves behind agent presets (same as web) ────────────────
 
