@@ -15,10 +15,10 @@ export const name = 'client-ui-xmart-workbench-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: a pure-consumer plugin registering presentational
- * components into host-declared slots plus its locale dictionaries — its
- * inject face is layout-panel callbacks and an open-state report; it
- * emits no cordis events and owns no cross-plugin mutable state.
+ * No runtime invariant: the workbench registry and tab lists live in the
+ * browser (in-memory plus localStorage). They are not an authoritative
+ * host event stream or a cross-plugin data relationship this companion
+ * can assert.
  */
 const install: InvariantInstaller = () => {}
 

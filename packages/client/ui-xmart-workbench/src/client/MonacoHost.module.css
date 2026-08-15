@@ -1,0 +1,31 @@
+.wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.note {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-bg-base);
+}
+
+.note[data-state='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}

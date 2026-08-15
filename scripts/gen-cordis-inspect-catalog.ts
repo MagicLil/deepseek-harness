@@ -19,6 +19,15 @@ const CLIENT_SERVICES: Readonly<Record<string, readonly string[]>> = {
     'connectWorkspace', 'startSession', 'create', 'pickDirectory', 'listDirectory', 'createDirectory',
     'openPath', 'rename', 'delete', 'insertSessionBefore', 'archiveSession',
   ],
+  xmartWorkbench: [
+    'registerTab', 'registerFileViewer',
+    'openTab', 'closeTab', 'activateTab', 'openFile',
+    'getSnapshot', 'subscribe',
+    'getTabs', 'getFileViewers', 'getTab',
+    'isTabEnabled', 'isViewerEnabled',
+    'matchFileViewer',
+    'version', 'features',
+  ],
 }
 
 const CLIENT_EVENTS = new Set([

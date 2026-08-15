@@ -2,9 +2,13 @@
 
 [English](README.md) | 中文
 
-X-Mart 工作台插件：对话旁的空右侧栏。`WorkbenchColumn` 填充框架声明的 `workbench` slot；`WorkbenchToggle` 填充 `shell.overlay`，以便关闭后重新打开。两个界面都通过 `ctx.layout` 驱动面板切换。新会话默认关闭工作台。打开时写入约定默认宽度（400px）；若该会话上次拖动的宽度不同，占用方再把它恢复回去。关闭、拖动和切换会话会把开/关状态以及最后一次非零宽度记入按会话隔离的持久化 store（`dsh.xmart.workbench`）。布局 store 本身保持瞬时，不持久化。该栏目前只渲染标题、关闭按钮和占位文案——文件、编辑、Git 与终端在后续阶段加入。现有 `ui-editor` 对话视图 tab 保持不变。该包不提供服务，也不声明 Context 合并。
+X-Mart 工作台插件：对话旁的右侧栏，内含单面板 Tab 条。`WorkbenchColumn` 填充框架声明的 `workbench` slot；`WorkbenchToggle` 填充 `shell.overlay`，以便关闭后重新打开。两个界面都通过 `ctx.layout` 驱动面板切换。新会话默认关闭工作台。打开时写入约定默认宽度（400px）；若该会话上次拖动的宽度不同，占用方再把它恢复回去。关闭、拖动和切换会话会把开/关状态以及最后一次非零宽度记入按会话隔离的持久化 store（`dsh.xmart.workbench`）。布局 store 本身保持瞬时，不持久化。
 
-`workbench` slot 由 ui-layout 声明，因此 `apply` 使用 `slots.inject()` 在声明生命周期内完成注册，并在目标 slot 的声明恢复后重新注册。
+`apply` 提供 `ctx.xmartWorkbench`。其他 client 插件通过 `registerTab` / `registerFileViewer` 注册 tab 类型和文件预览器（每次调用返回供 fiber 使用的 disposer）。`openTab` / `closeTab` / `activateTab` / `openFile` 改写按会话持久化的 tab 列表（`dsh.xmart.workbench.tabs.<sessionId>`）。设置 → 工作台为每个已注册类型提供一行开关（`dsh.xmart.workbench.prefs`）：关闭后该类型从 `+` 菜单消失，新的 `openTab` 会被拒绝；已经打开的标签保留。已打开但类型未注册的标签渲染占位卡。
+
+内置可见 tab：`explorer`（懒加载工作区树；会话有 cwd 时可用）和 `demo`。隐藏 tab：`editor`（Monaco、草稿、Ctrl/Cmd+S、Markdown 预览）、`image` 与 `binary`（占位 + 系统打开），以及给旧持久化记录用的 `file` 占位。`openFile` 按 priority 降序、detect 先于扩展名匹配预览器，并打开 `editor` / `image` / `binary`（按 path 去重）。预览器：`binary-download`（NUL 嗅探）、`image`、`markdown`，以及兜底 `code`。资源管理器/编辑器的草稿和展开目录持久化在 `dsh.xmart.workbench.files`。Agent 文件工具事件会推高刷新计数和按路径的 reload token（D7）。现有 `ui-editor` 对话视图 tab 保持不变。
+
+`workbench` slot 由 ui-layout 声明，`settings.section` 由 ui-settings-general 声明，因此 `apply` 使用 `slots.inject()` 在声明生命周期内完成注册，并在目标 slot 的声明恢复后重新注册。
 
 ## 模型体验
 
@@ -16,7 +20,12 @@ X-Mart 工作台插件：对话旁的空右侧栏。`WorkbenchColumn` 填充框�
 
 ## 已知限制与暂缓事项
 
-- **空栏**：Phase 0 只交付外壳；资源管理器、编辑器、Git 与终端 tab 属于后续阶段。
-- **尚无 `ctx.xmartWorkbench` 注册表**：tab 与 viewer 注册从 Phase 1 开始。
-- **布局偏好在占用方恢复之前是瞬时的**：整页重新加载会把布局 store 中的工作台宽度清为关闭；占用方在挂载后按会话持久化记录重新应用。
-- **让步可能隐藏仍为打开的偏好**：窄视口可能把工作台轨道推导为零宽度而不清除已存储的偏好；窗口变宽后会恢复。
+- **单面板** — 该栏只有一条 Tab 条；拖动拆分在后续阶段。
+- **重命名和删除不可用** — workspaces remote 还没有文件系统重命名/删除；资源管理器菜单里这两行是禁用的。
+- **对话里点路径仍走系统打开** — 拦截会话卡片上的 `workspaces.openPath` 需要改 `ui-conversation` 的宿主缝。资源管理器右键仍保留「用系统应用打开」。
+- **图片 tab 是占位** — 栏内预览需要 host 的 `readFileBytes` RPC；当前只显示路径和系统打开按钮。
+- **尚未注册 Git、终端、任务与分栏** — 这些类型在后续阶段加入。
+- **描述符上没有 badge、urlTarget 和插件自有设置行** — v1 只保留启用开关。
+- **启用表和文件界面状态在 localStorage，不走 `settingsScope`** — 不会跨设备同步。
+- **布局偏好在占用方恢复之前是瞬时的** — 整页重新加载会把布局 store 中的工作台宽度清为关闭；占用方在挂载后按会话持久化记录重新应用。
+- **让步可能隐藏仍为打开的偏好** — 窄视口可能把工作台轨道推导为零宽度而不清除已存储的偏好；窗口变宽后会恢复。

@@ -82,6 +82,7 @@ export interface IWorkspaces {
    * Read git status for the repository containing `path` (editor SCM panel).
    * @param path - absolute workspace path or any file inside it.
    * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the git status snapshot.
    */
   gitStatus(path: string, signal?: AbortSignal): Promise<GitStatus>
   /**

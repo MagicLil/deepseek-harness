@@ -385,6 +385,105 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
     ],
   },
+  {
+    key: 'xmartWorkbench',
+    summary: 'The outward workbench face (`ctx.xmartWorkbench`): tab/viewer registration, open/close/activate, file routing, and snapshots.',
+    description: 'The outward workbench face (`ctx.xmartWorkbench`): tab/viewer registration, open/close/activate, file routing, and snapshots.',
+    methods: [
+      {
+        signature: 'registerTab(descriptor: TabDescriptor): () => void',
+        description: 'Register a tab type. Duplicate ids throw.',
+        parameters: [{ name: 'descriptor', description: 'tab type to add.' }],
+        returns: 'disposer that removes the type (open instances stay).',
+      },
+      {
+        signature: 'registerFileViewer(descriptor: FileViewerDescriptor): () => void',
+        description: 'Register a file viewer. Duplicate ids throw.',
+        parameters: [{ name: 'descriptor', description: 'viewer to add.' }],
+        returns: 'disposer that removes the viewer.',
+      },
+      {
+        signature: 'openTab(seed: OpenTabSeed, scope?: SessionScope): string | undefined',
+        description: 'Open or focus a tab in a session. Settings-disabled types are a no-op. `available` does not reject. Content seeds (`path` / `url`) open the column.',
+        parameters: [{ name: 'seed', description: 'type plus optional id/title/path/url.' }, { name: 'scope', description: 'target session; defaults to the column-bound session.' }],
+        returns: 'the focused tab id, or undefined when the open is refused.',
+      },
+      {
+        signature: 'closeTab(tabId: string, scope?: SessionScope): void',
+        description: 'Close a tab. Unknown ids are a no-op.',
+        parameters: [{ name: 'tabId', description: 'instance id.' }, { name: 'scope', description: 'target session; defaults to the column-bound session.' }],
+      },
+      {
+        signature: 'activateTab(tabId: string, scope?: SessionScope): void',
+        description: 'Focus a tab. Unknown ids are a no-op.',
+        parameters: [{ name: 'tabId', description: 'instance id.' }, { name: 'scope', description: 'target session; defaults to the column-bound session.' }],
+      },
+      {
+        signature: 'openFile(path: string, scope?: SessionScope, head?: Uint8Array): string | undefined',
+        description: 'Open a file stub tab (deduped by path). Viewer matching runs so later phases can route the same call; v1 always opens the hidden `file` type.',
+        parameters: [{ name: 'path', description: 'file path.' }, { name: 'scope', description: 'target session; defaults to the column-bound session.' }, { name: 'head', description: 'optional leading bytes forwarded to {@link matchFileViewer}.' }],
+        returns: 'the focused tab id, or undefined when the open is refused.',
+      },
+      {
+        signature: 'getSnapshot(sessionId?: string): WorkbenchView',
+        description: 'Session snapshot (tabs, focus, derived `+` menu).',
+        parameters: [{ name: 'sessionId', description: 'session to read; defaults to the column-bound session.' }],
+        returns: 'the view, or {@link EMPTY_WORKBENCH_VIEW} when no session is bound.',
+      },
+      {
+        signature: 'subscribe(listener: () => void): () => void',
+        description: 'Subscribe to registry, prefs, and any session change.',
+        parameters: [{ name: 'listener', description: 'called after a published change.' }],
+        returns: 'unsubscribe.',
+      },
+      {
+        signature: 'getTabs(): readonly TabDescriptor[]',
+        description: 'Registered tab types in registration order (includes hidden and disabled).',
+        parameters: [],
+        returns: 'the live descriptor list.',
+      },
+      {
+        signature: 'getFileViewers(): readonly FileViewerDescriptor[]',
+        description: 'Registered file viewers in registration order (includes disabled).',
+        parameters: [],
+        returns: 'the live descriptor list.',
+      },
+      {
+        signature: 'getTab(id: string): TabDescriptor | undefined',
+        description: 'Look up one tab type.',
+        parameters: [{ name: 'id', description: 'type id.' }],
+        returns: 'the descriptor, or undefined.',
+      },
+      {
+        signature: 'isTabEnabled(id: string): boolean',
+        description: 'Settings enable check. Absent key and unknown ids are enabled.',
+        parameters: [{ name: 'id', description: 'tab type id.' }],
+        returns: 'false only after an explicit disable.',
+      },
+      {
+        signature: 'isViewerEnabled(id: string): boolean',
+        description: 'Settings enable check for a viewer. Absent key and unknown ids are enabled.',
+        parameters: [{ name: 'id', description: 'viewer id.' }],
+        returns: 'false only after an explicit disable.',
+      },
+      {
+        signature: 'matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined',
+        description: 'Match a path to an enabled viewer.',
+        parameters: [{ name: 'path', description: 'file path.' }, { name: 'head', description: 'optional leading bytes for `detect`.' }],
+        returns: 'the winning viewer, or undefined.',
+      },
+      {
+        signature: 'readonly version: number',
+        description: 'Capability version.',
+        parameters: [],
+      },
+      {
+        signature: 'readonly features: readonly string[]',
+        description: 'Feature flags (`tabs`, `fileViewers`, `settingsToggles`).',
+        parameters: [],
+      },
+    ],
+  },
 ]
 
 /** Every harness event, sorted by name. */
@@ -566,6 +665,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type EntryKeyOf<K extends keyof SlotMap & string> = SlotMap[K] extends {\n    kind: \'keyed\';\n    keyProps: infer P extends object;\n} ? keyof P & string : string;',
   },
   {
+    name: 'FetchStrategy',
+    declaration: 'export type FetchStrategy = \'none\' | \'fsRead\' | \'mediaUrl\' | \'custom\' | \'binary-download\';',
+  },
+  {
+    name: 'FileViewerDescriptor',
+    declaration: 'export type FileViewerDescriptor = {\n    id: string;\n    title?: string | (() => string);\n    exts: readonly string[];\n    priority?: number;\n    fetchStrategy: FetchStrategy;\n    detect?: (path: string, head: Uint8Array) => boolean;\n    load?: (path: string, scope: SessionScope, signal?: AbortSignal) => Promise<unknown>;\n    component: ComponentType<Record<string, never>>;\n};',
+  },
+  {
     name: 'GlobalStandardProps',
     declaration: 'export interface GlobalStandardProps {\n}',
   },
@@ -648,6 +755,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'OpenState',
     declaration: 'export type OpenState = \'cold\' | \'loading\' | \'open\' | \'error\';',
+  },
+  {
+    name: 'OpenTabSeed',
+    declaration: 'export type OpenTabSeed = {\n    type: string;\n    id?: string;\n    title?: string;\n    path?: string;\n    url?: string;\n};',
   },
   {
     name: 'OwnerOf',
@@ -742,6 +853,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SessionProviderComponent = (props: SessionAreaProps) => ReactNode;',
   },
   {
+    name: 'SessionScope',
+    declaration: 'export type SessionScope = {\n    sessionId: string;\n};',
+  },
+  {
     name: 'SessionSearchResultItem',
     declaration: 'export interface SessionSearchResultItem {\n    sessionId: SessionId;\n    snippet: string;\n}',
   },
@@ -826,6 +941,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface StoreSpec<T, A extends ActionsDecl<T>> {\n    init: () => T;\n    persist?: string;\n    actions: A;\n}',
   },
   {
+    name: 'TabBodyProps',
+    declaration: 'export type TabBodyProps = {\n    tab: WorkbenchTab;\n    visible: boolean;\n    sessionId: string;\n};',
+  },
+  {
+    name: 'TabDescriptor',
+    declaration: 'export type TabDescriptor = {\n    id: string;\n    title: string | (() => string);\n    order?: number;\n    hidden?: boolean;\n    available?: (scope: SessionScope, state: WorkbenchSessionState) => boolean;\n    single?: boolean;\n    dedupeKey?: (tab: WorkbenchTab) => string | undefined;\n    createTab?: (state: WorkbenchSessionState) => {\n        tab: WorkbenchTab;\n        patch?: Pick<Partial<WorkbenchSessionState>, \'nextSeq\'>;\n    } | null;\n    component: ComponentType<TabBodyProps>;\n};',
+  },
+  {
     name: 'ThemeDefinition',
     declaration: 'export interface ThemeDefinition {\n    id: string;\n    colorScheme: \'light\' | \'dark\';\n    tokens: ThemeTokens;\n}',
   },
@@ -884,6 +1007,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UserMessageNode',
     declaration: 'export interface UserMessageNode {\n    kind: \'user\';\n    seq: number;\n    time: number;\n    content: readonly ContentBlock[];\n    source: unknown;\n}',
+  },
+  {
+    name: 'WorkbenchMenuItem',
+    declaration: 'export type WorkbenchMenuItem = {\n    id: string;\n    title: string;\n    disabled: boolean;\n};',
+  },
+  {
+    name: 'WorkbenchSessionState',
+    declaration: 'export type WorkbenchSessionState = {\n    tabs: WorkbenchTab[];\n    activeTabId: string | null;\n    nextSeq: number;\n};',
+  },
+  {
+    name: 'WorkbenchTab',
+    declaration: 'export type WorkbenchTab = {\n    id: string;\n    type: string;\n    title: string;\n    path?: string;\n};',
+  },
+  {
+    name: 'WorkbenchView',
+    declaration: 'export type WorkbenchView = WorkbenchSessionState & {\n    menu: readonly WorkbenchMenuItem[];\n};',
   },
 ]
 

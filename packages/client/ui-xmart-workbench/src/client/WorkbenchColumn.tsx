@@ -1,13 +1,15 @@
 /**
- * Empty workbench column: title, close, and placeholder copy. Syncs the
- * session persist store to ctx.layout on session identity change, then
- * writes persist from later preference changes (drag / toggle).
+ * Workbench column: title, close, tab strip, and the active tab body.
+ * Syncs the session persist store to ctx.layout on session identity change,
+ * then writes persist from later preference changes (drag / toggle).
  */
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { WorkbenchColumnProps } from './contract.ts'
+import { TabBar } from './TabBar.tsx'
+import { TabPlaceholder } from './TabPlaceholder.tsx'
 import css from './WorkbenchColumn.module.css'
 
-/** Empty workbench column (see module doc). */
+/** Workbench column (see module doc). */
 export function WorkbenchColumn({
   width,
   sessionId,
@@ -16,6 +18,11 @@ export function WorkbenchColumn({
   closeWorkbench,
   setWorkbench,
   reportOpen,
+  openTab,
+  closeTab,
+  activateTab,
+  resolveBody,
+  useWorkbenchSession,
   t,
 }: WorkbenchColumnProps) {
   const persisted = useStore(s => s)
@@ -25,6 +32,8 @@ export function WorkbenchColumn({
   writes.current = { closeWorkbench, setWorkbench, reportOpen, actions }
   const syncGen = useRef(0)
   const seenGen = useRef(-1)
+  const view = useWorkbenchSession(s => s)
+  const active = view.tabs.find(tab => tab.id === view.activeTabId)
 
   useLayoutEffect(() => {
     syncGen.current += 1
@@ -57,6 +66,8 @@ export function WorkbenchColumn({
 
   if (width === 0) return null
 
+  const Body = active === undefined ? undefined : resolveBody(active.type)
+
   return (
     <div className={css.root} data-testid="xmart-workbench">
       <div className={css.header}>
@@ -72,8 +83,21 @@ export function WorkbenchColumn({
           </svg>
         </button>
       </div>
+      <TabBar
+        tabs={view.tabs}
+        activeTabId={view.activeTabId}
+        menu={view.menu}
+        t={t}
+        onActivate={activateTab}
+        onClose={closeTab}
+        onOpen={openTab}
+      />
       <div className={css.body}>
-        <div className={css.empty}>{t('column.empty')}</div>
+        {active === undefined
+          ? <div className={css.empty}>{t('column.empty')}</div>
+          : Body === undefined
+            ? <TabPlaceholder type={active.type} t={t} />
+            : <Body tab={active} visible sessionId={sessionId} />}
       </div>
     </div>
   )
