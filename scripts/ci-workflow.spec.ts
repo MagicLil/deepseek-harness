@@ -391,6 +391,20 @@ describe('Issue lifecycle workflow', () => {
 })
 
 describe('Git hooks', () => {
+  it('checks commit subjects for a conventional type and Chinese description', () => {
+    const lefthook = loadWorkflow('lefthook.yml')
+    const hook = lefthook['commit-msg']
+    if (!isRecord(hook) || !Array.isArray(hook.jobs)) {
+      throw new TypeError('lefthook must define commit-msg jobs')
+    }
+    const job: unknown = hook.jobs.find(
+      (entry: unknown) => isRecord(entry) && entry.name === 'commit message (Chinese subject)',
+    )
+    expect(job).toMatchObject({
+      run: 'node_modules/.bin/tsx scripts/verify-commit-message.ts {1}',
+    })
+  })
+
   it('leaves frozen Agent Note sidecars to the archive verifier', () => {
     const lefthook = loadWorkflow('lefthook.yml')
 
