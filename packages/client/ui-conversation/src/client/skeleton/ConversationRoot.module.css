@@ -29,14 +29,13 @@
   position: relative;
   flex: none;
   padding: 0 16px;
-  border-bottom: 1px solid transparent;
 }
 
 .header::after {
   content: '';
   position: absolute;
   right: 0;
-  bottom: 1px;
+  bottom: 0;
   left: 0;
   z-index: 0;
   height: 1px;
@@ -163,16 +162,16 @@
   content: '';
   position: absolute;
   right: 0;
-  bottom: 1px;
+  bottom: 0;
   left: 0;
   height: 2px;
-  border-radius: 2px;
+  border-radius: 1px 1px 0 0;
   background: transparent;
 }
 
-/* Selected tab is blue, not ink: brand-primary resolves to neutral black in
-   this token sheet, so the selected state rides the business blue — the
-   nearest semantic token that stays blue in both themes. */
+/* Selected tab rides the business accent (万物智汇 green via the workbench
+   overlay; DeepSeek blue upstream). The 2px bar shares the header hairline's
+   bottom edge so it covers the rule instead of floating a pill on top of it. */
 .tabActive {
   color: var(--dsw-alias-state-business-primary);
 }

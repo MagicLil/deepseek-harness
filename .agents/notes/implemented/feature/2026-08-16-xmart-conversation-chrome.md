@@ -10,7 +10,7 @@ The conversation column still used DeepSeek blue accents and 16px body type. The
 
 ## Decision
 
-**Accent color is an L2 token overlay.** `ui-xmart-workbench` calls `ctx.theme.overrideTokens` with the 万物智汇 green (`#5BB73B` dark / `#3D8C28` light ink). The remapped aliases are `state-business-primary`, `state-business-tertiary`, `button-info-fill/hover`, `brand-primary-new-colorprimary-new-color`, and `sidebar-nav-item-active-accent`. Success / error / warn stay on their own tokens. Trajectory series that bind `--dsw-static-blue-*` stay blue.
+**Accent color is an L2 token overlay.** `ui-xmart-workbench` calls `ctx.theme.overrideTokens` with the 万物智汇 green (`#5BB73B` dark / `#3D8C28` light ink). The remapped aliases are `state-business-primary`, `state-business-tertiary`, `button-info-fill/hover`, `brand-primary-new-colorprimary-new-color`, `sidebar-nav-item-active-accent`, and `specific-bubble` / `specific-bubble-highlight`. The overlay also remaps the static DeepSeek steps conversation chrome still binds directly (`--dsw-static-deepseek-200/450/500`) so `Xmarting...` and ongoing StateDots turn green. Success / error / warn stay on their own tokens. Trajectory series that bind `--dsw-static-blue-*` stay blue.
 
 **Type size and running copy are L3.** Assistant body, user bubble, and composer card go from 16px to 13px. The running status string becomes `Xmarting...`. Those values are hardcoded in `ui-conversation` with no slot or locale key.
 
