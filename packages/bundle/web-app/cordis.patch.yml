@@ -100,6 +100,13 @@
     - id: skill-manager
       name: '@deepseek-ai/dsh-host-skill-manager'
 
+    - id: agent-review
+      name: '@deepseek-ai/dsh-host-agent-review'
+
+    - id: workspace-checks
+      name: '@deepseek-ai/dsh-host-workspace-checks'
+      inject: [subprocess]
+
     - id: lsp
       name: '@deepseek-ai/dsh-lsp'
 
@@ -302,8 +309,10 @@
     - id: ui-xmart-workbench
       name: '@deepseek-ai/dsh-client-ui-xmart-workbench'
 
+    # Community dsh-market owns the Settings market UI; this roster stays off.
     - id: ui-xmart-marketplace
       name: '@deepseek-ai/dsh-client-ui-xmart-marketplace'
+      disabled: true
 
     - id: ui-xmart-skills
       name: '@deepseek-ai/dsh-client-ui-xmart-skills'

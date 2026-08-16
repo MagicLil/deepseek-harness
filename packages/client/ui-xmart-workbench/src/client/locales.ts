@@ -69,6 +69,20 @@ export type WorkbenchKey =
   | 'quickOpen.placeholder'
   | 'quickOpen.empty'
   | 'quickOpen.noWorkspace'
+  | 'search.placeholder'
+  | 'search.caseSensitive'
+  | 'search.wholeWord'
+  | 'search.regex'
+  | 'search.filters'
+  | 'search.include'
+  | 'search.exclude'
+  | 'search.noWorkspace'
+  | 'search.searching'
+  | 'search.empty'
+  | 'search.error'
+  | 'search.badPattern'
+  | 'search.summary'
+  | 'search.truncated'
   | 'editor.save'
   | 'editor.saving'
   | 'editor.saved'
@@ -86,6 +100,8 @@ export type WorkbenchKey =
   | 'tab.git'
   | 'tab.diff'
   | 'tab.terminal'
+  | 'tab.problems'
+  | 'tab.checks'
   | 'git.noWorkspace'
   | 'git.loading'
   | 'git.missing'
@@ -145,6 +161,46 @@ export type WorkbenchKey =
   | 'terminal.exited'
   | 'terminal.starting'
   | 'terminal.crash'
+  | 'problems.count'
+  | 'problems.empty'
+  | 'problems.filterPlaceholder'
+  | 'problems.collapseAll'
+  | 'problems.lineCol'
+  | 'problems.groupBy'
+  | 'problems.group.file'
+  | 'problems.group.source'
+  | 'problems.group.severity'
+  | 'checks.runRelated'
+  | 'checks.runAll'
+  | 'checks.stop'
+  | 'checks.autoRerun'
+  | 'checks.noWorkspace'
+  | 'checks.none'
+  | 'checks.logEmpty'
+  | 'checks.packageRoot'
+  | 'checks.blurb'
+  | 'checks.openProblems'
+  | 'checks.status.idle'
+  | 'checks.status.running'
+  | 'checks.status.passed'
+  | 'checks.status.failed'
+  | 'checks.status.skipped'
+  | 'checks.status.stopped'
+  | 'checks.askAgent'
+  | 'precommit.summary'
+  | 'precommit.gates'
+  | 'precommit.runRecommended'
+  | 'precommit.runGate'
+  | 'precommit.remoteMissing'
+  | 'precommit.confirm'
+  | 'precommit.noPush'
+  | 'precommit.moreFiles'
+  | 'precommit.notNeeded'
+  | 'precommit.needStaged'
+  | 'precommit.needMessage'
+  | 'precommit.needGates'
+  | 'precommit.needFix'
+  | 'precommit.needConfirm'
   | 'menu.file'
   | 'menu.file.newSession'
   | 'menu.file.openWorkspace'
@@ -160,6 +216,7 @@ export type WorkbenchKey =
   | 'menu.edit.selectAll'
   | 'menu.edit.find'
   | 'menu.edit.replace'
+  | 'menu.edit.searchFiles'
   | 'menu.go'
   | 'menu.go.file'
   | 'menu.go.line'
@@ -171,6 +228,8 @@ export type WorkbenchKey =
   | 'menu.view.primary'
   | 'menu.view.sessions'
   | 'menu.view.conversation'
+  | 'menu.view.problems'
+  | 'menu.view.checks'
   | 'menu.terminal'
   | 'menu.terminal.new'
   | 'menu.terminal.toggle'
@@ -179,10 +238,31 @@ export type WorkbenchKey =
   | 'menu.help.aboutTitle'
   | 'menu.help.aboutDetail'
   | 'activity.explorer'
+  | 'activity.search'
   | 'activity.git'
   | 'activity.terminal'
   | 'sidebar.missing'
   | 'sidebar.crashed'
+  | 'review.files'
+  | 'review.undoAll'
+  | 'review.keepAll'
+  | 'review.review'
+  | 'review.keep'
+  | 'review.undo'
+  | 'review.before'
+  | 'review.after'
+  | 'review.shellWarn'
+  | 'review.shellDismiss'
+  | 'review.shellTitle'
+  | 'review.dirty'
+  | 'review.conflict'
+  | 'review.conflictForce'
+  | 'review.skipped'
+  | 'review.notPending'
+  | 'review.notFound'
+  | 'review.ioError'
+  | 'review.status.irreversible'
+  | 'review.empty'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -199,8 +279,29 @@ export const zh: Record<WorkbenchKey, string> = {
   'column.crashed': '这个文件打不开。关掉标签再点一次，或换一个文件。',
   'toggle.open': '打开工作台',
   'activity.explorer': '资源管理器',
+  'activity.search': '搜索',
   'activity.git': '源代码管理',
   'activity.terminal': '终端',
+  'review.files': '{n} 个文件',
+  'review.undoAll': '全部撤销',
+  'review.keepAll': '全部保留',
+  'review.review': '审查',
+  'review.keep': '保留',
+  'review.undo': '撤销',
+  'review.before': '改前',
+  'review.after': '改后',
+  'review.shellWarn': '本轮跑过壳命令，可能还有未跟踪的改动。',
+  'review.shellDismiss': '知道了',
+  'review.shellTitle': '壳改动提示',
+  'review.empty': '本会话还没有待审查的 Agent 改动。',
+  'review.dirty': '先保存或丢弃编辑器里未保存的修改。',
+  'review.conflict': '磁盘内容已偏离 Agent 结果，无法安全撤销。',
+  'review.conflictForce': '磁盘已被改过。仍要覆盖并恢复到本轮开始前吗？',
+  'review.skipped': '跳过了 {n} 个有冲突的文件。',
+  'review.notPending': '该文件已不在待审状态。',
+  'review.notFound': '找不到该审查条目。',
+  'review.ioError': '读写文件失败。',
+  'review.status.irreversible': '不可撤销',
   'tab.demo': '演示',
   'tab.demo.body': '演示标签仍可用。用左侧活动栏打开资源管理器，浏览工作区文件。',
   'tab.file': '文件',
@@ -260,6 +361,20 @@ export const zh: Record<WorkbenchKey, string> = {
   'quickOpen.placeholder': '输入文件名…',
   'quickOpen.empty': '没有匹配的文件',
   'quickOpen.noWorkspace': '没有工作区可搜索',
+  'search.placeholder': '搜索',
+  'search.caseSensitive': '区分大小写',
+  'search.wholeWord': '全字匹配',
+  'search.regex': '使用正则表达式',
+  'search.filters': '筛选文件',
+  'search.include': '要包含的文件（如 *.ts）',
+  'search.exclude': '要排除的文件',
+  'search.noWorkspace': '还没有可搜索的工作区目录。请先在最右列添加工作区。',
+  'search.searching': '正在搜索…',
+  'search.empty': '没有找到结果。',
+  'search.error': '搜索失败。',
+  'search.badPattern': '正则表达式不合法。',
+  'search.summary': '{n} 个结果，{m} 个文件',
+  'search.truncated': '结果太多，只显示前 {n} 条。可以缩小搜索范围。',
   'editor.save': '保存',
   'editor.saving': '保存中…',
   'editor.saved': '已保存',
@@ -277,6 +392,8 @@ export const zh: Record<WorkbenchKey, string> = {
   'tab.git': 'Git',
   'tab.diff': '差异',
   'tab.terminal': '终端',
+  'tab.problems': '问题',
+  'tab.checks': '检查',
   'sidebar.missing': '这个面板还没挂上。',
   'sidebar.crashed': '这个面板渲染失败，请切换一次活动栏图标再试。',
   'git.noWorkspace': '当前会话没有工作区。请先在对话里选一个工作区，或用最右列添加。',
@@ -338,6 +455,46 @@ export const zh: Record<WorkbenchKey, string> = {
   'terminal.exited': '壳已退出。',
   'terminal.starting': '正在启动终端…',
   'terminal.crash': '终端面板出错',
+  'problems.count': '{n} 个问题（{e} 个错误）',
+  'problems.empty': '这里和 Cursor「问题」不是一回事。只汇总：①已打开编辑器的语言诊断；②底栏「检查」跑完后解析出的错误。Cursor 里 Edge Tools / 未打开文件的 TS 报错不会自动出现——请先「全部运行」检查，或打开相关源文件。',
+  'problems.filterPlaceholder': '筛选（文本、路径、来源）',
+  'problems.collapseAll': '全部折叠',
+  'problems.lineCol': '行 {line}, 列 {col}',
+  'problems.groupBy': '分组',
+  'problems.group.file': '文件',
+  'problems.group.source': '工具',
+  'problems.group.severity': '严重程度',
+  'checks.runRelated': '运行相关检查',
+  'checks.runAll': '全部运行',
+  'checks.stop': '停止',
+  'checks.autoRerun': 'Agent 修完后重跑失败项',
+  'checks.noWorkspace': '打开工作区后即可探测 package.json 检查脚本。',
+  'checks.none': '附近没有识别到 typecheck / lint / test / build 脚本。',
+  'checks.logEmpty': '还没有检查日志。',
+  'checks.packageRoot': '检查根目录：{path}',
+  'checks.blurb': '在检查根目录执行 package.json 的 typecheck / lint / test / build（和 CI 同类），不是 Cursor 的语言服务扫描。「运行相关」只带上 Git 改动的代码文件；「全部运行」跑完整脚本。',
+  'checks.openProblems': '查看问题',
+  'checks.status.idle': '待运行',
+  'checks.status.running': '运行中',
+  'checks.status.passed': '通过',
+  'checks.status.failed': '失败',
+  'checks.status.skipped': '跳过',
+  'checks.status.stopped': '已停止',
+  'checks.askAgent': '交给 Agent 修复',
+  'precommit.summary': '本轮改动',
+  'precommit.gates': '推荐门禁',
+  'precommit.runRecommended': '运行推荐门禁',
+  'precommit.runGate': '运行这项检查',
+  'precommit.remoteMissing': '检查通道还没挂上，稍后再试，或打开底栏「检查」。',
+  'precommit.confirm': '我已确认这些改动可以提交',
+  'precommit.noPush': '不会自动 push，也不会改 Git 身份或配置。',
+  'precommit.moreFiles': '还有 {n} 个文件…',
+  'precommit.notNeeded': '与本次改动无关',
+  'precommit.needStaged': '先暂存要提交的文件。',
+  'precommit.needMessage': '先填写提交说明。',
+  'precommit.needGates': '先运行推荐门禁。',
+  'precommit.needFix': '推荐门禁失败。交给 Agent 修复后再提交。',
+  'precommit.needConfirm': '勾选确认后才能创建提交。',
   'menu.file': '文件',
   'menu.file.newSession': '新会话',
   'menu.file.openWorkspace': '打开工作区…',
@@ -353,6 +510,7 @@ export const zh: Record<WorkbenchKey, string> = {
   'menu.edit.selectAll': '全选',
   'menu.edit.find': '查找',
   'menu.edit.replace': '替换',
+  'menu.edit.searchFiles': '在文件中查找',
   'menu.go': '转到',
   'menu.go.file': '转到文件',
   'menu.go.line': '转到行',
@@ -364,6 +522,8 @@ export const zh: Record<WorkbenchKey, string> = {
   'menu.view.primary': '切换左侧边栏',
   'menu.view.sessions': '切换会话列表',
   'menu.view.conversation': '切换对话',
+  'menu.view.problems': '问题',
+  'menu.view.checks': '检查',
   'menu.terminal': '终端',
   'menu.terminal.new': '新建终端',
   'menu.terminal.toggle': '切换终端',
@@ -381,8 +541,29 @@ export const en: Record<WorkbenchKey, string> = {
   'column.crashed': 'This file failed to render. Close the tab and open it again.',
   'toggle.open': 'Open workbench',
   'activity.explorer': 'Explorer',
+  'activity.search': 'Search',
   'activity.git': 'Source Control',
   'activity.terminal': 'Terminal',
+  'review.files': '{n} Files',
+  'review.undoAll': 'Undo All',
+  'review.keepAll': 'Keep All',
+  'review.review': 'Review',
+  'review.keep': 'Keep',
+  'review.undo': 'Undo',
+  'review.before': 'Before',
+  'review.after': 'After',
+  'review.shellWarn': 'A shell tool ran this turn; some disk changes may be untracked.',
+  'review.shellDismiss': 'Dismiss',
+  'review.shellTitle': 'Shell changes',
+  'review.empty': 'No Agent file changes to review in this session.',
+  'review.dirty': 'Save or discard unsaved editor changes first.',
+  'review.conflict': 'Disk no longer matches the Agent result; cannot revert safely.',
+  'review.conflictForce': 'Disk was modified further. Overwrite and restore to before this turn?',
+  'review.skipped': 'Skipped {n} conflicting file(s).',
+  'review.notPending': 'That file is no longer pending review.',
+  'review.notFound': 'Review entry not found.',
+  'review.ioError': 'File I/O failed.',
+  'review.status.irreversible': 'Irreversible',
   'tab.demo': 'Demo',
   'tab.demo.body': 'The demo tab is still here. Open Explorer from the activity bar to browse the workspace.',
   'tab.file': 'File',
@@ -442,6 +623,20 @@ export const en: Record<WorkbenchKey, string> = {
   'quickOpen.placeholder': 'Type a file name…',
   'quickOpen.empty': 'No matching files',
   'quickOpen.noWorkspace': 'No workspace to search',
+  'search.placeholder': 'Search',
+  'search.caseSensitive': 'Match case',
+  'search.wholeWord': 'Match whole word',
+  'search.regex': 'Use regular expression',
+  'search.filters': 'Toggle file filters',
+  'search.include': 'Files to include (e.g. *.ts)',
+  'search.exclude': 'Files to exclude',
+  'search.noWorkspace': 'No workspace folder to search. Add one from the far-right rail first.',
+  'search.searching': 'Searching…',
+  'search.empty': 'No results found.',
+  'search.error': 'Search failed.',
+  'search.badPattern': 'Invalid regular expression.',
+  'search.summary': '{n} results in {m} files',
+  'search.truncated': 'Too many results; showing the first {n}. Narrow the search to see the rest.',
   'editor.save': 'Save',
   'editor.saving': 'Saving…',
   'editor.saved': 'Saved',
@@ -459,6 +654,8 @@ export const en: Record<WorkbenchKey, string> = {
   'tab.git': 'Git',
   'tab.diff': 'Diff',
   'tab.terminal': 'Terminal',
+  'tab.problems': 'Problems',
+  'tab.checks': 'Checks',
   'sidebar.missing': 'This panel is not registered.',
   'sidebar.crashed': 'This panel crashed. Switch the activity-bar icon and try again.',
   'git.noWorkspace': 'This session has no workspace. Pick one in the conversation, or add one from the far-right rail.',
@@ -520,6 +717,46 @@ export const en: Record<WorkbenchKey, string> = {
   'terminal.exited': 'The shell exited.',
   'terminal.starting': 'Starting terminal…',
   'terminal.crash': 'Terminal panel crashed',
+  'problems.count': '{n} problems ({e} errors)',
+  'problems.empty': 'Not the same as Cursor Problems. Only: (1) diagnostics from open editors; (2) errors parsed after Checks. Cursor Edge Tools / closed-file TS issues will not appear — Run All in Checks, or open the source files.',
+  'problems.filterPlaceholder': 'Filter (text, path, source)',
+  'problems.collapseAll': 'Collapse all',
+  'problems.lineCol': 'Ln {line}, Col {col}',
+  'problems.groupBy': 'Group by',
+  'problems.group.file': 'File',
+  'problems.group.source': 'Tool',
+  'problems.group.severity': 'Severity',
+  'checks.runRelated': 'Run Related',
+  'checks.runAll': 'Run All',
+  'checks.stop': 'Stop',
+  'checks.autoRerun': 'Re-run failed after Agent',
+  'checks.noWorkspace': 'Open a workspace to discover package.json check scripts.',
+  'checks.none': 'No typecheck / lint / test / build scripts found nearby.',
+  'checks.logEmpty': 'No check log yet.',
+  'checks.packageRoot': 'Package root: {path}',
+  'checks.blurb': 'Runs package.json typecheck / lint / test / build at the package root (CI-style), not Cursor language-service scanning. Related = dirty code files only; Run All = full scripts.',
+  'checks.openProblems': 'Open Problems',
+  'checks.status.idle': 'Idle',
+  'checks.status.running': 'Running',
+  'checks.status.passed': 'Passed',
+  'checks.status.failed': 'Failed',
+  'checks.status.skipped': 'Skipped',
+  'checks.status.stopped': 'Stopped',
+  'checks.askAgent': 'Ask Agent to fix',
+  'precommit.summary': 'This change set',
+  'precommit.gates': 'Recommended gates',
+  'precommit.runRecommended': 'Run recommended gates',
+  'precommit.runGate': 'Run this check',
+  'precommit.remoteMissing': 'The checks channel is not mounted yet. Try again, or open the Checks panel.',
+  'precommit.confirm': 'I confirm these changes are ready to commit',
+  'precommit.noPush': 'This will not push, and it will not change Git identity or config.',
+  'precommit.moreFiles': '{n} more files…',
+  'precommit.notNeeded': 'Not needed for this change set',
+  'precommit.needStaged': 'Stage the files you want to commit first.',
+  'precommit.needMessage': 'Write a commit message first.',
+  'precommit.needGates': 'Run the recommended gates first.',
+  'precommit.needFix': 'A recommended gate failed. Ask the Agent to fix it before committing.',
+  'precommit.needConfirm': 'Confirm the change set before creating the commit.',
   'menu.file': 'File',
   'menu.file.newSession': 'New Session',
   'menu.file.openWorkspace': 'Open Workspace…',
@@ -535,6 +772,7 @@ export const en: Record<WorkbenchKey, string> = {
   'menu.edit.selectAll': 'Select All',
   'menu.edit.find': 'Find',
   'menu.edit.replace': 'Replace',
+  'menu.edit.searchFiles': 'Find in Files',
   'menu.go': 'Go',
   'menu.go.file': 'Go to File',
   'menu.go.line': 'Go to Line',
@@ -546,6 +784,8 @@ export const en: Record<WorkbenchKey, string> = {
   'menu.view.primary': 'Toggle Primary Sidebar',
   'menu.view.sessions': 'Toggle Session List',
   'menu.view.conversation': 'Toggle Chat',
+  'menu.view.problems': 'Problems',
+  'menu.view.checks': 'Checks',
   'menu.terminal': 'Terminal',
   'menu.terminal.new': 'New Terminal',
   'menu.terminal.toggle': 'Toggle Terminal',

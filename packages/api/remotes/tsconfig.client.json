@@ -44,6 +44,15 @@
       "path": "../../host/skill-manager"
     },
     {
+      "path": "../../host/agent-review"
+    },
+    {
+      "path": "../../host/workspace-checks"
+    },
+    {
+      "path": "../../host/xmart-lan"
+    },
+    {
       "path": "../../lsp/lsp-vue"
     },
     {

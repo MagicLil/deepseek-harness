@@ -5,8 +5,9 @@
 # A patch replaces the targeted row's whole `config`, so each row below
 # restates every key it owns.
 #
-# Desktop does NOT mount webserver / frontend-static / client-hmr. The
-# desktop-runtime row opens Electron over dsh:// and carries fetch over IPC.
+# Desktop mounts webserver on 127.0.0.1:3080. The desktop-runtime row opens
+# Electron at that loopback URL. LAN rebind belongs to xmart-lan, not this row.
+# Shared HMR is unused (no module-reload watcher for the Electron shell).
 # `dsh --profile desktop --help` provides no desktopStartup, so no window opens.
 
 # ── surface-specific values the base deliberately omits ─────────────────────
@@ -85,6 +86,13 @@
     - id: skill-manager
       name: '@deepseek-ai/dsh-host-skill-manager'
 
+    - id: agent-review
+      name: '@deepseek-ai/dsh-host-agent-review'
+
+    - id: workspace-checks
+      name: '@deepseek-ai/dsh-host-workspace-checks'
+      inject: [subprocess]
+
     - id: lsp
       name: '@deepseek-ai/dsh-lsp'
 
@@ -106,19 +114,31 @@
     - id: desktop-startup
       name: '@deepseek-ai/dsh-desktop-app/startup'
 
-    # Desktop glue: opens Electron after Loader settle. No webserver.
+    - id: webserver
+      name: '@deepseek-ai/dsh-host-webserver'
+      config:
+        host: '127.0.0.1'
+        port: 3080
+
+    - id: xmart-lan
+      name: '@deepseek-ai/dsh-host-xmart-lan'
+      inject: [webServer]
+
+    # Desktop glue: opens Electron after Loader settle at the loopback URL.
     - id: desktop-runtime
       name: '@deepseek-ai/dsh-desktop-app'
-      inject: [desktopStartup, connection]
+      inject: [desktopStartup, connection, webServer]
       config:
         surfaceContext: true
 
-    # Browser plugin roster (dsh.client rows). modules composes __DSH_BOOT__
-    # without registering HTTP routes when webServer is absent.
+    # Browser plugin roster (dsh.client rows). Wait for webServer so HTTP
+    # plugin routes register after listen.
     - id: modules
       name: '@deepseek-ai/dsh-client-modules'
+      inject: [webServer]
 
-    # Host half registers no /api routes without webServer; client half uses IPC.
+    # webServer present: registers /api and event WebSockets. The window may
+    # still use preload IPC for first-party RPC.
     - id: connection
       name: '@deepseek-ai/dsh-client-connection'
       config:
@@ -232,11 +252,16 @@
     - id: ui-xmart-workbench
       name: '@deepseek-ai/dsh-client-ui-xmart-workbench'
 
+    # Community dsh-market owns the Settings market UI; this roster stays off.
     - id: ui-xmart-marketplace
       name: '@deepseek-ai/dsh-client-ui-xmart-marketplace'
+      disabled: true
 
     - id: ui-xmart-skills
       name: '@deepseek-ai/dsh-client-ui-xmart-skills'
+
+    - id: ui-xmart-lan
+      name: '@deepseek-ai/dsh-client-ui-xmart-lan'
 
 # ── the agent plane moves behind agent presets (same as web) ────────────────
 

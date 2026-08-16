@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop-app",
-  "description": "The dsh desktop-surface bundle: Electron file:// (dsh://) + IPC over dsh-base, reusing the web frontend",
+  "description": "The dsh desktop-surface bundle: Electron window on the loopback webserver over dsh-base, reusing the web frontend",
   "version": "0.1.0-rc.5",
   "publishConfig": {
     "access": "public"
@@ -83,6 +83,7 @@
     "@deepseek-ai/dsh-client-ui-xmart-workbench": "workspace:^",
     "@deepseek-ai/dsh-client-ui-xmart-marketplace": "workspace:^",
     "@deepseek-ai/dsh-client-ui-xmart-skills": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-xmart-lan": "workspace:^",
     "@deepseek-ai/dsh-cmdline": "workspace:^",
     "@deepseek-ai/dsh-code-runtime-worker-thread": "workspace:^",
     "@deepseek-ai/dsh-cordis-client-runner": "workspace:^",
@@ -90,9 +91,13 @@
     "@deepseek-ai/dsh-desktop": "workspace:^",
     "@deepseek-ai/dsh-web-frontend": "workspace:^",
     "@deepseek-ai/dsh-host-apiproxy": "workspace:^",
+    "@deepseek-ai/dsh-host-frontend-static": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
+    "@deepseek-ai/dsh-host-xmart-lan": "workspace:^",
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:^",
     "@deepseek-ai/dsh-host-marketplace": "workspace:^",
     "@deepseek-ai/dsh-host-skill-manager": "workspace:^",
+    "@deepseek-ai/dsh-host-workspace-checks": "workspace:^",
     "@deepseek-ai/dsh-lsp": "workspace:^",
     "@deepseek-ai/dsh-lsp-vue": "workspace:^",
     "@deepseek-ai/dsh-lsp-languages": "workspace:^",

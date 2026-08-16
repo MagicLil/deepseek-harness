@@ -6,7 +6,7 @@
  */
 import { createElement } from 'react'
 import {
-  IconBranchOutline16, IconFolderOpenOutline16,
+  IconBranchOutline16, IconFolderOpenOutline16, IconSearchOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -30,26 +30,37 @@ import { BottomPanel } from './BottomPanel.tsx'
 import { WorkbenchSettingsSection } from './WorkbenchSettingsSection.tsx'
 import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
+import { SearchTab } from './SearchTab.tsx'
+import { ReviewDock } from './ReviewDock.tsx'
+import { ReviewDiffTab } from './ReviewDiffTab.tsx'
+import type { AgentReviewRemote } from './review-client.ts'
+import { encodeAgentReviewPath } from './agent-review-path.ts'
+import { createWorkbenchSearchStore } from './search-store.ts'
+import { requestReveal } from './editor-nav.ts'
 import { EditorTab } from './EditorTab.tsx'
 import { peekEditorRemotes } from './editor-lsp.ts'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
 import { GitTab } from './GitTab.tsx'
 import { DiffTab } from './DiffTab.tsx'
 import { TerminalTab } from './TerminalTab.tsx'
+import { ProblemsTab } from './ProblemsTab.tsx'
+import { ChecksTab } from './ChecksTab.tsx'
+import { createChecksStore } from './checks-store.ts'
 import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
 import { editorWorkspaceRoot, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
 import { createGitBadgeStore, startGitBadgeWatch } from './git-badge.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
-import { hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
+import { basename, hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
 import { activeEditorPath } from './active-file.ts'
 import { activeFileTab, dispatchAppMenu, type AppMenuCommand } from './app-menu-dispatch.ts'
 import { en, NS, zh } from './locales.ts'
 import { canCreateTerminal, countTerminalTabs, shouldCreateOnToggle } from './terminal-actions.ts'
 import { hostTerminalsOf, killTerminal } from './terminal-client.ts'
 import { clearTerminalSeat } from './terminal-seats.ts'
-import type { TabBodyProps } from './types.ts'
+import { isBottomPanelTabType, type TabBodyProps } from './types.ts'
+import { askAgentFix } from './ask-agent-fix.ts'
 
 export { XmartWorkbenchController } from './service.ts'
 export type { IXmartWorkbench } from './service.ts'
@@ -104,6 +115,8 @@ export function apply(ctx: ClientContext): void {
   const workbench = new XmartWorkbenchController()
   const files = createWorkbenchFilesStore()
   const gitBadge = createGitBadgeStore()
+  const searchStore = createWorkbenchSearchStore()
+  const checksStore = createChecksStore()
   const persist = createWorkbenchStore()
   workbench.attachPanel(() => { ctx.layout.openWorkbench() })
   const projectKey = (sessionId: string): string | undefined => projectKeyOf(
@@ -139,6 +152,14 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   const host = hostTerminalsOf(ctx.get('connection'))
   const remote = ctx.get('remote')
+  const workspaceChecksFace = (): unknown => {
+    try {
+      return ctx.get('remote.workspaceChecks')
+    }
+    catch {
+      return (remote as { workspaceChecks?: unknown }).workspaceChecks
+    }
+  }
   const workspaceSnap = () => ctx.workspaces.list.getSnapshot()
   const getCwd = (sessionId: string) => {
     const snap = workspaceSnap()
@@ -240,6 +261,27 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-xmart-workbench: explorer')
   ctx.effect(() => {
+    const component = (props: TabBodyProps) => createElement(SearchTab, {
+      ...props,
+      t,
+      getRoots,
+      watchSessions: watchWorkspaceFacts,
+      search: (path, query, options, signal) => ctx.workspaces.search(path, query, options, signal),
+      openHit: (sessionId, path, reveal) => {
+        requestReveal(path, reveal)
+        workbench.openFile(path, { sessionId })
+      },
+      store: searchStore,
+    })
+    return workbench.registerActivity({
+      id: 'search',
+      title: () => t('activity.search'),
+      order: 5,
+      icon: IconSearchOutline16,
+      component,
+    })
+  }, 'ui-xmart-workbench: search')
+  ctx.effect(() => {
     const component = (props: TabBodyProps) => createElement(GitTab, {
       ...props,
       t,
@@ -257,6 +299,28 @@ export function apply(ctx: ClientContext): void {
       gitCheckout: (path, name, create) => ctx.workspaces.gitCheckout(path, name, create),
       gitCheckoutCommit: (path, hash) => ctx.workspaces.gitCheckoutCommit(path, hash),
       gitSuggestCommit: (path, sid) => ctx.workspaces.gitSuggestCommit(path, sid),
+      checks: checksStore,
+      checksRemote: { workspaceChecks: workspaceChecksFace() },
+      listCheckEntries: async (dir) => {
+        try {
+          const listing = await ctx.workspaces.listEntries(dir)
+          return listing.entries.map(e => ({
+            name: e.name,
+            kind: e.kind === 'directory' ? 'directory' as const : 'file' as const,
+          }))
+        } catch {
+          return []
+        }
+      },
+      readCheckFile: async (path) => {
+        try {
+          return await ctx.workspaces.readFile(path)
+        } catch {
+          return undefined
+        }
+      },
+      askAgent: text => askAgentFix(ctx, props.sessionId, text),
+      openChecks: () => { openBottomTab(props.sessionId as SessionId, 'checks') },
       openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
       openDiff: (side, file, root) => {
         workbench.openTab({
@@ -318,6 +382,78 @@ export function apply(ctx: ClientContext): void {
       })
     },
   }), 'ui-xmart-workbench: terminal tab')
+  ctx.effect(() => workbench.registerTab({
+    id: 'problems',
+    title: () => t('tab.problems'),
+    order: 10,
+    hidden: true,
+    single: true,
+    component: props => createElement(ProblemsTab, {
+      ...props,
+      t,
+      checks: checksStore,
+      openProblem: (path) => {
+        workbench.openFile(path, { sessionId: props.sessionId })
+        ctx.layout.openWorkbench()
+      },
+    }),
+  }), 'ui-xmart-workbench: problems tab')
+  ctx.effect(() => workbench.registerTab({
+    id: 'checks',
+    title: () => t('tab.checks'),
+    order: 20,
+    hidden: true,
+    single: true,
+    component: props => createElement(ChecksTab, {
+      ...props,
+      t,
+      checks: checksStore,
+      remote: { workspaceChecks: workspaceChecksFace() },
+      getWorkspaceRoot: () => getCwd(props.sessionId),
+      listEntries: async (dir) => {
+        try {
+          const listing = await ctx.workspaces.listEntries(dir)
+          return listing.entries.map(e => ({
+            name: e.name,
+            kind: e.kind === 'directory' ? 'directory' as const : 'file' as const,
+          }))
+        } catch {
+          return []
+        }
+      },
+      readFile: async (path) => {
+        try {
+          return await ctx.workspaces.readFile(path)
+        } catch {
+          return undefined
+        }
+      },
+      gitDirtyPaths: async () => {
+        const root = getCwd(props.sessionId)
+        if (root === undefined) return []
+        try {
+          const status = await ctx.workspaces.gitStatus(root)
+          return [...new Set(status.changes.map(c => c.path))]
+        } catch {
+          return []
+        }
+      },
+      openProblems: () => { openBottomTab(props.sessionId as SessionId, 'problems') },
+      watchRunningFallingEdge: (cb) => {
+        let wasRunning = false
+        return ctx.sessions.list.subscribe(() => {
+          const snap = ctx.sessions.list.getSnapshot()
+          const current = snap.current
+          const running = current === undefined
+            ? false
+            : snap.byId[current]?.running === true
+          if (wasRunning && !running) cb()
+          wasRunning = running
+        })
+      },
+      askAgent: text => askAgentFix(ctx, props.sessionId, text),
+    }),
+  }), 'ui-xmart-workbench: checks tab')
   ctx.effect(() => workbench.registerTab({
     id: 'demo',
     title: () => t('tab.demo'),
@@ -389,6 +525,24 @@ export function apply(ctx: ClientContext): void {
       gitCommitDiff: (path, commit, signal) => ctx.workspaces.gitCommitDiff(path, commit, signal),
     }),
   }), 'ui-xmart-workbench: diff tab')
+  ctx.effect(() => {
+    const review = ctx.get('remote.agentReview') as AgentReviewRemote | undefined
+    if (review === undefined) return () => {}
+    return workbench.registerTab({
+      id: 'agent-review-diff',
+      title: () => t('review.review'),
+      hidden: true,
+      dedupeKey: tab => tab.path,
+      component: props => createElement(ReviewDiffTab, {
+        ...props,
+        t,
+        review,
+        onSettled: () => {
+          workbench.closeTab(props.tab.id, { sessionId: props.sessionId })
+        },
+      }),
+    })
+  }, 'ui-xmart-workbench: agent-review-diff tab')
   ctx.effect(() => workbench.registerTab({
     id: 'binary',
     title: () => t('tab.binary'),
@@ -456,7 +610,7 @@ export function apply(ctx: ClientContext): void {
     const tab = activeFileTab(workbench.getSnapshot(sessionId))
     if (tab !== undefined) workbench.closeTab(tab.id, { sessionId })
   }
-  const showActivity = (sessionId: SessionId, id: 'explorer' | 'git'): void => {
+  const showActivity = (sessionId: SessionId, id: 'explorer' | 'search' | 'git'): void => {
     workbench.setActivity(id, { sessionId })
     ctx.layout.openWorkbench()
   }
@@ -466,10 +620,21 @@ export function apply(ctx: ClientContext): void {
     return id
   }
   const closeTerminalTab = (sessionId: SessionId, tabId: string): void => {
-    const ptyId = clearTerminalSeat(sessionId, tabId)
-    if (ptyId !== undefined) void killTerminal(host, sessionId, ptyId)
+    const tab = workbench.getSnapshot(sessionId).tabs.find(t => t.id === tabId)
+    if (tab?.type === 'terminal') {
+      const ptyId = clearTerminalSeat(sessionId, tabId)
+      if (ptyId !== undefined) void killTerminal(host, sessionId, ptyId)
+    }
     workbench.closeTab(tabId, { sessionId })
-    if (countTerminalTabs(workbench.getSnapshot(sessionId).tabs) === 0) ctx.layout.closeBottom()
+    const remaining = workbench.getSnapshot(sessionId).tabs.filter(t => isBottomPanelTabType(t.type))
+    if (remaining.length === 0) ctx.layout.closeBottom()
+  }
+  const openBottomTab = (sessionId: SessionId, type: 'problems' | 'checks'): void => {
+    const id = workbench.openTab({ type }, { sessionId })
+    if (id !== undefined) {
+      workbench.activateTab(id, { sessionId })
+      ctx.layout.openBottom()
+    }
   }
   const toggleTerminalPanel = (sessionId: SessionId): void => {
     if (shouldCreateOnToggle(countTerminalTabs(workbench.getSnapshot(sessionId).tabs))) {
@@ -490,6 +655,7 @@ export function apply(ctx: ClientContext): void {
       toggleConversation: () => { ctx.layout.toggleConversation() },
       newTerminal: (id) => { openTerminalTab(id as SessionId) },
       toggleTerminal: (id) => { toggleTerminalPanel(id as SessionId) },
+      openBottomTab: (id, type) => { openBottomTab(id as SessionId, type) },
       dispatch: dispatchWindow,
     })
   }
@@ -610,4 +776,32 @@ export function apply(ctx: ClientContext): void {
     },
     WorkbenchSettingsSection,
   ))
+
+  ctx.effect(() => {
+    const review = ctx.get('remote.agentReview') as AgentReviewRemote | undefined
+    if (review === undefined) return () => {}
+    const openReviewDiff = (sessionId: SessionId, path: string, turn: number) => {
+      ctx.layout.openWorkbench()
+      workbench.openTab({
+        type: 'agent-review-diff',
+        path: encodeAgentReviewPath(turn, path),
+        title: basename(path),
+      }, { sessionId })
+    }
+    return ctx.slots.register({
+      name: 'conversation.input.dock',
+      id: 'agent-review-dock',
+      order: 50,
+      locale: NS,
+      inject: (sessionId: SessionId) => ({
+        sessionId,
+        t,
+        review,
+        files,
+        openReviewDiff: (path: string, turn: number) => {
+          openReviewDiff(sessionId, path, turn)
+        },
+      }),
+    }, ReviewDock)
+  }, 'ui-xmart-workbench: review-dock')
 }

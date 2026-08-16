@@ -97,6 +97,7 @@
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:^",
     "@deepseek-ai/dsh-host-marketplace": "workspace:^",
     "@deepseek-ai/dsh-host-skill-manager": "workspace:^",
+    "@deepseek-ai/dsh-host-workspace-checks": "workspace:^",
     "@deepseek-ai/dsh-lsp": "workspace:^",
     "@deepseek-ai/dsh-lsp-vue": "workspace:^",
     "@deepseek-ai/dsh-lsp-languages": "workspace:^",

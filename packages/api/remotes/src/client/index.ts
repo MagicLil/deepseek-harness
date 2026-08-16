@@ -7,6 +7,9 @@ import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import marketplaceRemote from '@deepseek-ai/dsh-host-marketplace/remote'
 import skillManagerRemote from '@deepseek-ai/dsh-host-skill-manager/remote'
+import agentReviewRemote from '@deepseek-ai/dsh-host-agent-review/remote'
+import workspaceChecksRemote from '@deepseek-ai/dsh-host-workspace-checks/remote'
+import xmartLanRemote from '@deepseek-ai/dsh-host-xmart-lan/remote'
 import vueLspRemote from '@deepseek-ai/dsh-lsp-vue/remote'
 import languagesLspRemote from '@deepseek-ai/dsh-lsp-languages/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
@@ -28,6 +31,9 @@ export type {} from '@deepseek-ai/dsh-goal/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-host-marketplace/remote'
 export type {} from '@deepseek-ai/dsh-host-skill-manager/remote'
+export type {} from '@deepseek-ai/dsh-host-agent-review/remote'
+export type {} from '@deepseek-ai/dsh-host-workspace-checks/remote'
+export type {} from '@deepseek-ai/dsh-host-xmart-lan/remote'
 export type {} from '@deepseek-ai/dsh-lsp-vue/remote'
 export type {} from '@deepseek-ai/dsh-lsp-languages/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
@@ -52,7 +58,8 @@ export type { TerminalOutputPayload } from '../terminal-events.ts'
  */
 export type {
   ClientResponse, ConfigurableProviderView, ConnectionHandle, ConnectionSinks, ContentBlock,
-  CredentialView, DirectoryListing, DiscoveredModelView, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  CredentialView, DirectoryListing, DiscoveredModelView, FileEntry, FileListing,
+  FileSearchHit, FileSearchResult, FileSearchSpan, GitBranch, GitChange, GitCommitResult,
   GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, HistoryEntry,
   HostFrame, IApiClient,
   MessageId, ModelCatalogFailure, ModelProviderGroup, ModelReasoningEffort, ModelSelection,
@@ -127,7 +134,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   try {
     for (const contribution of [
       commandsRemote, goalsRemote, dynamicRemote, pluginInventoryRemote, marketplaceRemote,
-      skillManagerRemote, vueLspRemote, languagesLspRemote, messageFeedbackRemote,
+      skillManagerRemote, agentReviewRemote, workspaceChecksRemote, xmartLanRemote, vueLspRemote, languagesLspRemote, messageFeedbackRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

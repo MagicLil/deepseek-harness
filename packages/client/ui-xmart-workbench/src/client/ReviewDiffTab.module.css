@@ -1,0 +1,137 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--dsw-alias-fg-primary);
+  font-size: 12px;
+}
+
+.note {
+  padding: 12px;
+  color: var(--dsw-alias-fg-secondary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-subtle);
+  flex-shrink: 0;
+}
+
+.title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.undo,
+.keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.undo {
+  background: color-mix(in srgb, var(--dsw-alias-fg-primary) 8%, transparent);
+  color: var(--dsw-alias-fg-primary);
+}
+
+.keep {
+  background: var(--dsw-alias-accent, #5BB73B);
+  color: #fff;
+  font-weight: 600;
+}
+
+.undo:disabled,
+.keep:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.message {
+  padding: 6px 12px;
+  color: var(--dsw-alias-danger, #c44);
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--dsw-alias-border-subtle);
+}
+
+.pane:last-child {
+  border-right: none;
+}
+
+.paneHead {
+  padding: 6px 10px;
+  font-weight: 600;
+  color: var(--dsw-alias-fg-secondary);
+  border-bottom: 1px solid var(--dsw-alias-border-subtle);
+  flex-shrink: 0;
+}
+
+.code {
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.before .line {
+  background: color-mix(in srgb, var(--dsw-alias-danger, #c44) 8%, transparent);
+}
+
+.after .line {
+  background: color-mix(in srgb, var(--dsw-alias-success, #3d9a5f) 10%, transparent);
+}
+
+.line {
+  display: flex;
+  min-height: 18px;
+}
+
+.gutter {
+  flex: 0 0 40px;
+  text-align: right;
+  padding: 0 8px;
+  color: var(--dsw-alias-fg-secondary);
+  user-select: none;
+  opacity: 0.7;
+}
+
+.text {
+  flex: 1;
+  white-space: pre;
+  padding-right: 8px;
+}
