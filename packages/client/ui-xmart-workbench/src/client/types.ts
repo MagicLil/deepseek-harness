@@ -32,6 +32,14 @@ export const SHELL_TAB_TYPES = ['explorer', 'git', 'tasks', 'terminal'] as const
 /** Max UI terminal tabs per session (host enforces the same cap). */
 export const TERMINAL_TAB_LIMIT = 3
 
+/** Tab types that live in the editor-stacked bottom panel. */
+export const BOTTOM_PANEL_TAB_TYPES = ['terminal', 'problems', 'checks'] as const
+
+/** True when a tab type belongs in the bottom panel, not the editor strip. */
+export function isBottomPanelTabType(type: string): boolean {
+  return (BOTTOM_PANEL_TAB_TYPES as readonly string[]).includes(type)
+}
+
 /**
  * Primary-sidebar activity id. Built-in ids stay `explorer` / `git`;
  * other plugins register more through `registerActivity`.
@@ -48,7 +56,7 @@ export function isPrimaryActivity(id: string): id is typeof PRIMARY_ACTIVITIES[n
 
 /** True when a tab type belongs on the activity bar / bottom panel, not the editor strip. */
 export function isShellTabType(type: string): boolean {
-  return (SHELL_TAB_TYPES as readonly string[]).includes(type)
+  return (SHELL_TAB_TYPES as readonly string[]).includes(type) || isBottomPanelTabType(type)
 }
 
 /** Session identity the service methods accept (cwd arrives in a later phase). */

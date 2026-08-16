@@ -194,7 +194,7 @@ export type WorkbenchKey =
   | 'precommit.remoteMissing'
   | 'precommit.confirm'
   | 'precommit.noPush'
-  | 'precommit.moreFiles'
+  | 'precommit.summaryHint'
   | 'precommit.notNeeded'
   | 'precommit.needStaged'
   | 'precommit.needMessage'
@@ -488,7 +488,7 @@ export const zh: Record<WorkbenchKey, string> = {
   'precommit.remoteMissing': '检查通道还没挂上，稍后再试，或打开底栏「检查」。',
   'precommit.confirm': '我已确认这些改动可以提交',
   'precommit.noPush': '不会自动 push，也不会改 Git 身份或配置。',
-  'precommit.moreFiles': '还有 {n} 个文件…',
+  'precommit.summaryHint': '只计加减改，文件请到下方「更改」里打开或暂存。',
   'precommit.notNeeded': '与本次改动无关',
   'precommit.needStaged': '先暂存要提交的文件。',
   'precommit.needMessage': '先填写提交说明。',
@@ -750,7 +750,7 @@ export const en: Record<WorkbenchKey, string> = {
   'precommit.remoteMissing': 'The checks channel is not mounted yet. Try again, or open the Checks panel.',
   'precommit.confirm': 'I confirm these changes are ready to commit',
   'precommit.noPush': 'This will not push, and it will not change Git identity or config.',
-  'precommit.moreFiles': '{n} more files…',
+  'precommit.summaryHint': 'Counts only. Open or stage files in Changes below.',
   'precommit.notNeeded': 'Not needed for this change set',
   'precommit.needStaged': 'Stage the files you want to commit first.',
   'precommit.needMessage': 'Write a commit message first.',
