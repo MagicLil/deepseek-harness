@@ -1,12 +1,13 @@
-/* Session-header agent-preset label: static chrome, never a control. */
+/* Session-header agent-preset picker: compact chrome that still reads as a control. */
 
 .label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   max-width: 180px;
-  padding: 0 2px 0 0;
+  padding: 0 4px 0 2px;
   height: 22px;
+  border: none;
   border-radius: 6px;
   background: var(--dsw-alias-fill-tsp-secondary);
   font-size: 12px;
@@ -15,9 +16,46 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  /* Electron title-bar drag overlay swallows clicks unless the control opts out. */
+  -webkit-app-region: no-drag;
+}
+
+.label:not(:disabled):hover,
+.label[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.label:disabled {
+  cursor: default;
 }
 
 .icon {
   flex: none;
   opacity: 0.7;
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 280px;
+}
+
+.itemName {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.itemDesc {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+  white-space: normal;
 }

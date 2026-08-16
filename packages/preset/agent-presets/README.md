@@ -40,7 +40,7 @@ The child records the joined id on its own durable header ([`dsh-subagent`](../.
 
 ### Which preset a session runs
 
-The creation header names the preset a session STARTED with; `resolveSessionPreset(session)` names the one it RUNS. They differ whenever a blank session switched, so every reconstruction path — the summary a picker reads, a resume, a fork — resolves rather than reading the header.
+The creation header names the preset a session STARTED with; `resolveSessionPreset(session)` names the one it RUNS. They differ whenever a session switched, so every reconstruction path — the summary a picker reads, a resume, a fork — resolves rather than reading the header.
 
 The header stays frozen because it is a creation fact. A switch is an `agent-preset/selected` session event appended after the swap commits, which is what the model-visible ⟺ logged rule requires: the preset decides the tool schemas and prompt sections the model sees, so it has to be reconstructable from the log. The service re-emits that committed fact as the non-scoped cordis event `agent-preset/selected(sessionId, agentPreset)` declared by the client-safe `./types` export, allowing remote consumers to invalidate session-derived state without importing Host runtime types. Reading the header alone would rebuild a switched session under the composition it was created with, replaying history the new tool set cannot act on — the exact hazard the blank-only lock exists to prevent.
 
@@ -48,7 +48,7 @@ The header stays frozen because it is a creation fact. A switch is an `agent-pre
 
 `recompose()` unmounts the installed subtree and mounts the new one, because two compositions cannot coexist — both would register the same tool names into one layer. A failed mount restores the previous composition rather than leaving the agent with nothing, and an unknown id is rejected before anything is torn down.
 
-The restriction to a produced-nothing agent is a product rule, not a mechanical one: swapping tools mid-conversation would leave logged tool calls the new composition cannot make. The gateway enforces it at the wire ([`dsh-apiproxy`](../../host/apiproxy/README.md) answers `agent-preset-locked`), which is where session history is in hand.
+A started conversation may switch too. Later turns run the new composition; earlier tool calls still resolve against the standing mount of the preset that produced them. The gateway exposes the switch at the wire ([`dsh-apiproxy`](../../host/apiproxy/README.md) `agentPreset.select`).
 
 ## Authoring
 

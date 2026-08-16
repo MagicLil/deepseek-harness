@@ -1,7 +1,7 @@
 /**
- * Agent-preset preference row: the preset new sessions are composed from.
- * A running session keeps the composition it began with, so this row never
- * disturbs work in progress.
+ * Agent-preset preference row: the deployment default. Writing it also
+ * recomposes every listed root session. A pick in a session header overrides
+ * only that session.
  */
 
 import { useEffect, useState } from 'react'
@@ -20,7 +20,7 @@ export interface AgentPresetRowInjected {
   }
   /** Load the roster when the row first renders. */
   load: () => Promise<void>
-  /** Persist one preset as the default for later sessions. */
+  /** Persist one preset as the default and recompose every listed root session. */
   select: (id: string) => Promise<void>
 }
 

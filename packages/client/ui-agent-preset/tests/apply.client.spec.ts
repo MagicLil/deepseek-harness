@@ -1,6 +1,6 @@
 /**
  * Registration: the General row, the settings section, the new-session chip,
- * and the header label all come from one apply, and each defers until the slot
+ * and the header picker all come from one apply, and each defers until the slot
  * it fills has been declared. A pushed settings change refreshes the surfaces
  * that are already showing, so a default set from one converges the other.
  */
@@ -102,10 +102,16 @@ async function bench() {
           return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { opened: true as const } } })
         },
         remove: () => Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: {} } }),
-        select: (payload: { agentPreset: string }) => {
+        select: (payload: { sessionId?: string; agentPreset: string }) => {
+          calls.push(payload.sessionId === undefined
+            ? `select:${payload.agentPreset}`
+            : `select:${payload.sessionId}:${payload.agentPreset}`)
           calls.push(`select:${payload.agentPreset}`)
           return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { agentPreset: payload.agentPreset } } })
         },
+      },
+      sessions: {
+        list: () => Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { items: [] } } }),
       },
       settings: {
         // The row reads this to learn whether this browser may write at all.
@@ -500,6 +506,66 @@ describe('ui-agent-preset apply', () => {
     // load already fetched, rather than issuing a second read per session.
     expect(label.hooks.agentPresets).toBe(row.hooks.agentPreset)
     expect(label.hooks.agentPresets.getSnapshot().options).toEqual([{ id: 'standard', trust: 'system' }])
+  })
+
+  it('recomposes only the session the header picker names', async () => {
+    const { ctx, slots, calls } = await bench()
+    declareRoot(slots)
+    declareConversation(slots)
+    ctx.provide('conversation', {} as never)
+    const state = {
+      current: 's1',
+      byId: { s1: { id: 's1', blank: false, agentPreset: 'standard' } },
+    }
+    ctx.provide('sessions', sessionsDouble(state) as never)
+    ctx.provide('workspaces', workspacesDouble() as never)
+    await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'workspaces'], apply }).await()
+    const label = (slots.entries('conversation.session.header.actions')[0]!
+      .inject as unknown as () => AgentPresetLabelInjected)()
+
+    await expect(label.select('s1', 'minimal')).resolves.toBeUndefined()
+
+    expect(calls).toContain('select:s1:minimal')
+    expect(state.byId.s1.agentPreset).toBe('minimal')
+  })
+
+  it('returns the host message when the header switch is refused', async () => {
+    const { ctx, slots } = await bench()
+    declareRoot(slots)
+    declareConversation(slots)
+    ctx.provide('conversation', {} as never)
+    ctx.provide('sessions', sessionsDouble({ byId: {} }) as never)
+    ctx.provide('workspaces', workspacesDouble() as never)
+    const connection = ctx.get('connection') as {
+      api: { agentPresets: { select: (payload: { agentPreset: string }) => Promise<unknown> } }
+    }
+    connection.api.agentPresets.select = () => Promise.resolve({
+      rpcId: 'r',
+      result: { ok: false as const, error: { code: 'internal', message: 'session busy', details: {} } },
+    })
+    await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'workspaces'], apply }).await()
+    const label = (slots.entries('conversation.session.header.actions')[0]!
+      .inject as unknown as () => AgentPresetLabelInjected)()
+
+    await expect(label.select('s1', 'minimal')).resolves.toBe('session busy')
+  })
+
+  it('returns the transport message when the header switch rejects', async () => {
+    const { ctx, slots } = await bench()
+    declareRoot(slots)
+    declareConversation(slots)
+    ctx.provide('conversation', {} as never)
+    ctx.provide('sessions', sessionsDouble({ byId: {} }) as never)
+    ctx.provide('workspaces', workspacesDouble() as never)
+    const connection = ctx.get('connection') as {
+      api: { agentPresets: { select: (payload: { agentPreset: string }) => Promise<unknown> } }
+    }
+    connection.api.agentPresets.select = () => Promise.reject(new Error('socket closed'))
+    await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'workspaces'], apply }).await()
+    const label = (slots.entries('conversation.session.header.actions')[0]!
+      .inject as unknown as () => AgentPresetLabelInjected)()
+
+    await expect(label.select('s1', 'minimal')).resolves.toBe('socket closed')
   })
 
   it('stages the creator preset and starts a session from the section', async () => {

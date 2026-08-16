@@ -3373,9 +3373,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         })
       },
 
-      // Recomposing is limited to a blank session because a started
-      // conversation's history was produced under its preset's tools; the
-      // agent and the session survive, only the composition is swapped.
+      // A started conversation may switch too: later turns run the new
+      // composition, and earlier tool calls still resolve against the
+      // standing mount of the preset that produced them. The agent and the
+      // session survive; only the composition is swapped.
       async select(request) {
         const { sessionId, agentPreset } = request.payload
         const presets = ctx.get('agentPresets')
@@ -3390,15 +3391,6 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         if ('error' in found) return err(request, found.error)
         const { agent } = found
         const swap = async (): Promise<RpcResponse<{ agentPreset: string }>> => {
-          // Re-read inside the queue: an earlier switch may have run, and a
-          // conversation may have started, since this request arrived.
-          if (!sessionBlank(agent.session)) {
-            return err(request, {
-              code: 'agent-preset-locked',
-              message: `session "${sessionId}" has already started; its agent preset is fixed`,
-              details: { sessionId, agentPreset },
-            })
-          }
           try {
             const preset = await presets.recompose(agent.ctx, agentPreset)
             // Recorded only after the swap committed: the log states what the

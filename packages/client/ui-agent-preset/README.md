@@ -2,11 +2,11 @@
 
 English | [中文](README.zh.md)
 
-The agent-preset surfaces: a General-settings row choosing which [preset](../../preset/agent-presets/README.md) new sessions are composed from, a chip on the new-session screen choosing the next session's, a read-only label in the session header, and a settings section that manages the roster — copy, delete, default, and the way into a preset's own files.
+The agent-preset surfaces: a General-settings row choosing which [preset](../../preset/agent-presets/README.md) every listed session and every later session run, a chip on the new-session screen choosing the next session's, a picker in the session header choosing THIS session's, and a settings section that manages the roster — copy, delete, default, and the way into a preset's own files.
 
-## Why it is a new-session preference
+## Two scopes
 
-A session's preset is fixed when the session is created — the host refuses to adopt an existing session under a different one, because that session's history was produced under the first preset's tools. So this row cannot be a live switch, and it says so: changing it applies to sessions started afterwards while running sessions keep the composition they began with.
+A settings write (the General row or "Set as default") is global: it stores the deployment default and recomposes every listed root session onto that preset. A pick in the session header is local: it calls `agentPreset.select` for that session only and does not write the default. Child / subagent rows are not retargeted by the global write; they inherit at spawn.
 
 ## The new-session chip
 
@@ -14,11 +14,11 @@ A second surface, beside the workspace picker on the new-session screen. It sits
 
 The chip opens on the deployment default and its pick is *staged* — the screen precedes the session it would apply to. The stage reaches a session when one becomes current and is still blank, which covers both the session the workspace connect created and the blank one it reused; riding along on `sessions.create` would miss the second. It is spent on first use, so the next new session opens on the default again, exactly like the workspace picker beside it.
 
-A session that has started is refused rather than queued: the host answers `agent-preset-locked`, and the stage is dropped instead of waiting for a session that will never accept it.
+A session that has already started is not a target for the staged pick: the stage is dropped instead of switching a conversation the chip is not looking at. Started sessions switch from the header picker.
 
-## The session-header label
+## The session-header picker
 
-A third surface, beside the session title: the preset THIS session runs, as static chrome. A control there would promise a switch the host refuses outright. It reads the preset from the session's own summary and resolves the display name against the same roster the General row reads. Forwarded `agent-preset/selected` owner events fold committed blank-session switches into that shared summary in every tab; the initiating tab may already have applied the RPC echo, and the merge is idempotent.
+A third surface, beside the session title: the preset THIS session runs, as a control. Picking another preset recomposes that session only. It reads the preset from the session's own summary and resolves the display name against the same roster the General row reads. Forwarded `agent-preset/selected` owner events fold committed switches into that shared summary in every tab; the initiating tab may already have applied the RPC echo, and the merge is idempotent.
 
 ## What it reads and writes
 
@@ -46,7 +46,7 @@ The dialog mirrors the host's own containment rule (`[a-z0-9][a-z0-9-]*`) and re
 
 Deleting removes the preset directory. Sessions already composed from it keep running — a composition is mounted once at session creation and nothing re-reads the file.
 
-A roster row carrying `broken` (the host's shape check found the composition missing or unloadable) renders as a marked card: red border, a "Failed to load" badge (what discovery observed, not a claim that the files are damaged — the usual cause is a composition the user just edited or deleted), the reason verbatim, the body disabled — it cannot become the default — and duplication disabled, since a copy of a broken preset is another broken preset. A broken custom row keeps its location and delete actions, because the files are where it gets fixed and deleting is how a ghost directory (composition deleted by hand, directory still blocking the id) is cleared; a broken shipped row withholds the viewer too — there is no readable composition to show. The two pickers (the General row and the new-session chip) drop broken presets entirely: they choose the NEXT session's composition, and offering one that cannot compose would only defer the failure to the session start.
+A roster row carrying `broken` (the host's shape check found the composition missing or unloadable) renders as a marked card: red border, a "Failed to load" badge (what discovery observed, not a claim that the files are damaged — the usual cause is a composition the user just edited or deleted), the reason verbatim, the body disabled — it cannot become the default — and duplication disabled, since a copy of a broken preset is another broken preset. A broken custom row keeps its location and delete actions, because the files are where it gets fixed and deleting is how a ghost directory (composition deleted by hand, directory still blocking the id) is cleared; a broken shipped row withholds the viewer too — there is no readable composition to show. The three pickers (the General row, the new-session chip, and the session-header control) drop broken presets entirely: they choose a composition that must be able to run, and offering one that cannot compose would only defer the failure.
 
 Setting the default writes the `agent-presets` settings namespace, which the host exposes to configuration clients ([`dsh-apiproxy`](../../host/apiproxy/README.md) keeps an explicit allowlist — a namespace outside it makes a picker move and then silently forget).
 
@@ -54,7 +54,7 @@ Setting the default writes the `agent-presets` settings namespace, which the hos
 
 ## When the surfaces are absent
 
-A deployment that composes no presets answers with an empty roster, and the row, the chip, the label, and the section all render nothing — every session then shares the host composition, and there is nothing to choose between or manage. A deployment that configures no writable root answers `authorable: false`, and the section stays a read-only browser: the shipped compositions still open in the viewer, but every copy action is disabled with the reason as its tooltip rather than offering a dialog whose create always fails.
+A deployment that composes no presets answers with an empty roster, and the row, the chip, the header picker, and the section all render nothing — every session then shares the host composition, and there is nothing to choose between or manage. A deployment that configures no writable root answers `authorable: false`, and the section stays a read-only browser: the shipped compositions still open in the viewer, but every copy action is disabled with the reason as its tooltip rather than offering a dialog whose create always fails.
 
 ## Model Experience
 
@@ -62,7 +62,7 @@ Indirectly, through the preset a later session is composed from; [`dsh-agent-pre
 
 #### KV Cache effect
 
-No direct invalidation. Changing the default never touches a running session's prefix; a session created afterwards establishes its own prefix from its own composition.
+Changing the default recomposes listed sessions, so later turns of those sessions start a new prefix from the new composition. A header pick does the same for one session. Historical tool calls still resolve against the standing mount of the preset that produced them.
 
 ## Known Limitations and Deferred Work
 

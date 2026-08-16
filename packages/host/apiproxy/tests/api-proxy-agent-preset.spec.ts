@@ -427,19 +427,22 @@ describe('agentPreset.select', () => {
     expect(resolveSessionPreset(session)).toBe('standard')
   })
 
-  it('refuses once the conversation has started', async () => {
+  it('recomposes a session after its conversation has started', async () => {
     const { api, ctx } = await harness(['standard', 'minimal'])
     await api.sessions.create(request({ sessionId: SessionId('sel-2'), agentPreset: 'standard' }))
-    // One turn is enough: the history from here on was produced under
-    // `standard`'s tools, and a swap would strand those tool calls.
+    // A started session may still switch: later turns run the new
+    // composition, and the log is what a restart replays.
     ctx.sessions.get(SessionId('sel-2'))?.append('turn/start', { turn: 0 })
 
     const response = await api.agentPresets.select(
       request({ sessionId: SessionId('sel-2'), agentPreset: 'minimal' }))
 
-    expect(response.result.ok).toBe(false)
-    if (response.result.ok) throw new Error('unreachable')
-    expect(response.result.error.code).toBe('agent-preset-locked')
+    expect(response.result.ok).toBe(true)
+    if (!response.result.ok) throw new Error('unreachable')
+    expect(response.result.value.agentPreset).toBe('minimal')
+    const session = ctx.sessions.get(SessionId('sel-2'))
+    if (session === undefined) throw new Error('unreachable')
+    expect(resolveSessionPreset(session)).toBe('minimal')
   })
 
   it('reports an unknown preset without disturbing the session', async () => {

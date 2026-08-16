@@ -437,10 +437,10 @@ export class AgentPresets extends Service {
   /**
    * Re-link one agent to a different preset's standing composition.
    *
-   * Only valid while the agent has produced nothing: swapping tools mid
-   * conversation would leave logged tool calls the new composition cannot
-   * make. The CALLER owns that check — this method does not read session
-   * history.
+   * A started conversation may switch too. Later turns run the new
+   * composition; earlier tool calls still resolve against the standing
+   * mount of the preset that produced them. This method does not read
+   * session history.
    *
    * The swap is a parent re-link, not an unmount: standing mounts are shared
    * and permanent, so the old composition stays for its other agents and the

@@ -61,7 +61,7 @@ function fakeApi(
   presets: Map<string, FakePreset>,
   defaultId: { id: string },
   options: FakeOptions = {},
-): Pick<IApiClient, 'agentPresets' | 'settings'> {
+): Pick<IApiClient, 'agentPresets' | 'settings' | 'sessions'> {
   const record = (method: string, payload: unknown): void => { options.calls?.push({ method, payload }) }
   return {
     agentPresets: {
@@ -131,7 +131,13 @@ function fakeApi(
         return ok({})
       },
     },
-  } as unknown as Pick<IApiClient, 'agentPresets' | 'settings'>
+    sessions: {
+      list: () => {
+        record('sessions.list', {})
+        return ok({ items: [] })
+      },
+    },
+  } as unknown as Pick<IApiClient, 'agentPresets' | 'settings' | 'sessions'>
 }
 
 function seed(): Map<string, FakePreset> {
@@ -534,7 +540,7 @@ describe('deleting', () => {
         remove: () => Promise.reject(new Error('socket closed')),
       },
       settings: {},
-    } as unknown as Pick<IApiClient, 'agentPresets' | 'settings'>)
+    } as unknown as Pick<IApiClient, 'agentPresets' | 'settings' | 'sessions'>)
     broken.confirmDelete('mine')
 
     await broken.remove()

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import {
-  AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController, messageOf,
+  AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController, applyPresetToListedSessions, messageOf,
 } from '../src/client/settings-store.ts'
 import { AgentPresetSeatController } from '../src/client/seat-store.ts'
 import type { SeatSessionSummary } from '../src/client/seat-store.ts'
@@ -24,6 +24,11 @@ function fakeApi(
     failList?: string
     failWriteWith?: Error
     readOnly?: boolean
+    sessions?: { sessionId: string; agentPreset?: string; parentSessionId?: string; origin?: 'subagent' }[]
+    selects?: string[]
+    failSessionsList?: boolean
+    throwSessionsList?: boolean
+    throwSelect?: boolean
   } = {},
 ): IApiClient {
   return {
@@ -31,6 +36,26 @@ function fakeApi(
       list: () => Promise.resolve(options.failList === undefined
         ? { rpcId: 'r', result: { ok: true as const, value: { presets } } }
         : { rpcId: 'r', result: { ok: false as const, error: { code: 'internal', message: options.failList, details: {} } } }),
+      select: (payload: { sessionId: string; agentPreset: string }) => {
+        if (options.throwSelect === true) return Promise.reject(new Error('resume failed'))
+        options.selects?.push(`${payload.sessionId}:${payload.agentPreset}`)
+        return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { agentPreset: payload.agentPreset } } })
+      },
+    },
+    sessions: {
+      list: () => {
+        if (options.throwSessionsList === true) return Promise.reject(new Error('list down'))
+        if (options.failSessionsList === true) {
+          return Promise.resolve({
+            rpcId: 'r',
+            result: { ok: false as const, error: { code: 'internal', message: 'list refused', details: {} } },
+          })
+        }
+        return Promise.resolve({
+          rpcId: 'r',
+          result: { ok: true as const, value: { items: options.sessions ?? [] } },
+        })
+      },
     },
     settings: {
       // Loopback-only in production; a read-only provider answers writable:false
@@ -143,6 +168,29 @@ describe('the agent-preset settings controller', () => {
     expect(controller.store.getSnapshot().currentValue).toBe('minimal')
   })
 
+  it('recomposes every listed root session onto the new default', async () => {
+    const selects: string[] = []
+    const controller = new AgentPresetSettingsController(fakeApi([
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'minimal', trust: 'system', isDefault: false },
+    ], {
+      selects,
+      sessions: [
+        { sessionId: 'keep', agentPreset: 'minimal' },
+        { sessionId: 'switch', agentPreset: 'standard' },
+        { sessionId: 'child', agentPreset: 'standard', parentSessionId: 'switch' },
+        { sessionId: 'sub', agentPreset: 'standard', origin: 'subagent' },
+      ],
+    }))
+    await controller.load()
+
+    await controller.select('minimal')
+
+    // Already-on-default, child, and subagent rows stay put; only the other
+    // root session is asked to switch.
+    expect(selects).toEqual(['switch:minimal'])
+  })
+
   it('restores the previous value and surfaces the message when the write fails', async () => {
     const controller = new AgentPresetSettingsController(fakeApi([
       { id: 'standard', trust: 'system', isDefault: true },
@@ -220,6 +268,66 @@ describe('the agent-preset settings controller', () => {
     expect(controller.store.getSnapshot()).toMatchObject({ status: 'error', error: 'socket closed' })
   })
 
+  it('keeps the default write when listed sessions cannot be read or switched', async () => {
+    const writes: Recorded[] = []
+    const refused = new AgentPresetSettingsController(fakeApi([
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'minimal', trust: 'system', isDefault: false },
+    ], { writes, failSessionsList: true }))
+    await refused.load()
+    await refused.select('minimal')
+    expect(writes).toEqual([{ ns: AGENT_PRESET_SETTINGS_NS, patch: { default: 'minimal' } }])
+    expect(refused.store.getSnapshot().currentValue).toBe('minimal')
+
+    const down = new AgentPresetSettingsController(fakeApi([
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'minimal', trust: 'system', isDefault: false },
+    ], { throwSessionsList: true }))
+    await down.load()
+    await down.select('minimal')
+    expect(down.store.getSnapshot().currentValue).toBe('minimal')
+  })
+})
+
+describe('applyPresetToListedSessions', () => {
+  it('skips a session whose select rejects and continues the rest', async () => {
+    const selects: string[] = []
+    let calls = 0
+    const api = {
+      sessions: {
+        list: () => Promise.resolve({
+          rpcId: 'r',
+          result: {
+            ok: true as const,
+            value: {
+              items: [
+                { sessionId: 'a', agentPreset: 'standard' },
+                { sessionId: 'b', agentPreset: 'standard' },
+              ],
+            },
+          },
+        }),
+      },
+      agentPresets: {
+        select: (payload: { sessionId: string; agentPreset: string }) => {
+          calls += 1
+          if (calls === 1) return Promise.reject(new Error('resume failed'))
+          selects.push(`${payload.sessionId}:${payload.agentPreset}`)
+          return Promise.resolve({
+            rpcId: 'r',
+            result: { ok: true as const, value: { agentPreset: payload.agentPreset } },
+          })
+        },
+      },
+    } as unknown as IApiClient
+
+    await applyPresetToListedSessions(api, 'minimal')
+
+    expect(selects).toEqual(['b:minimal'])
+  })
+})
+
+describe('the settings controller after a dead list', () => {
   it('reports a transport that rejects mid-write and keeps the old default showing', async () => {
     const controller = new AgentPresetSettingsController(fakeApi([
       { id: 'standard', trust: 'system', isDefault: true },

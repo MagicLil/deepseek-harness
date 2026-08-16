@@ -1,14 +1,13 @@
 /**
  * Agent-preset surface plugin, browser half — four surfaces over one roster:
  * a General-settings row for the default preset, a chip on the new-session
- * screen for the session about to start, a read-only label in the session
- * header, and a settings section that manages the roster (copy, delete,
+ * screen for the session about to start, a picker in the session header for
+ * THIS session, and a settings section that manages the roster (copy, delete,
  * default, and the way into a preset's own files).
  *
- * A running session keeps the composition it began with (the host refuses to
- * adopt an existing session under a different preset). That is what splits
- * the choice from the display: the General row and the hero chip are both
- * before-the-fact, while the header only reports what a session already runs.
+ * A settings write (the General row or "set as default") recomposes every
+ * listed root session onto that default. A pick in the session header
+ * recomposes only that session and does not write the default.
  */
 
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
@@ -32,7 +31,7 @@ import { AgentPresetSeatController } from './seat-store.ts'
 import type { SeatSessionSummary } from './seat-store.ts'
 import { AgentPresetSectionController } from './section-store.ts'
 import { en, zh } from './locales.ts'
-import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './settings-store.ts'
+import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController, messageOf } from './settings-store.ts'
 
 export type { AgentPresetLabelInjected, AgentPresetLabelProps } from './AgentPresetLabel.tsx'
 export type { AgentPresetRowInjected, AgentPresetRowProps } from './AgentPresetRow.tsx'
@@ -43,7 +42,7 @@ export {
   draftBlocker, type AgentPresetSectionState, type CopyDraft, type PresetRow, type PresetView,
 } from './section-store.ts'
 export type { AgentPresetOption, AgentPresetSettingsState } from './settings-store.ts'
-export { AGENT_PRESET_SETTINGS_NS, writeDefaultPreset } from './settings-store.ts'
+export { AGENT_PRESET_SETTINGS_NS, applyPresetToListedSessions, writeDefaultPreset } from './settings-store.ts'
 
 /** Required services (cordis fiber inject). */
 export const inject = ['slots', 'locale', 'connection', 'remote']
@@ -125,6 +124,16 @@ export function apply(ctx: ClientContext): void {
     const labelInjected = (): AgentPresetLabelInjected => ({
       hooks: { agentPresets: controller.store },
       load: () => controller.load(),
+      select: async (sessionId, id) => {
+        try {
+          const response = await api.agentPresets.select({ sessionId: sessionId as never, agentPreset: id })
+          if (!response.result.ok) return response.result.error.message
+          scope.sessions.noteAgentPreset(sessionId as never, response.result.value.agentPreset)
+          return undefined
+        } catch (error) {
+          return messageOf(error)
+        }
+      },
     })
 
     scope.effect(() => {

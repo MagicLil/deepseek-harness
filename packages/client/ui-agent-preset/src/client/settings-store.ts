@@ -4,7 +4,8 @@
  * Options and the current default both come from one `agentPreset.list` call:
  * the roster already reports which id a session with no explicit choice gets,
  * so the row needs no schema introspection. Writes target the settings
- * namespace's `default` field, which is what the host resolves at creation.
+ * namespace's `default` field. A successful write then recomposes every
+ * listed root session onto that default.
  */
 
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
@@ -25,7 +26,7 @@ export function messageOf(error: unknown): string {
 }
 
 /**
- * Persist one preset as the default for sessions created later.
+ * Persist one preset as the default and recompose every listed root session.
  *
  * The default is a settings field rather than a preset property, so both the
  * General row and the management section write it here — one home for which
@@ -47,6 +48,42 @@ export async function writeDefaultPreset(
     return messageOf(error)
   }
   return response.result.ok ? undefined : response.result.error.message
+}
+
+/**
+ * Recompose every listed root session onto one preset.
+ *
+ * Settings writes the deployment default and then calls this so every
+ * project session follows that default. Sessions that already run it are
+ * skipped. Child / subagent rows are skipped: they inherit at spawn and
+ * are not a user-facing picker target. A refused or rejected select is
+ * skipped so one dead session cannot roll back the default write.
+ * @param api - the session list and preset-select wire faces.
+ * @param agentPreset - the preset every listed root session should run.
+ * @returns once every listed root session has been attempted.
+ */
+export async function applyPresetToListedSessions(
+  api: Pick<IApiClient, 'agentPresets' | 'sessions'>,
+  agentPreset: string,
+): Promise<void> {
+  let listed
+  try {
+    listed = await api.sessions.list({})
+  } catch {
+    // The default write already landed; a list transport failure must not
+    // present the settings row as if the write itself failed.
+    return
+  }
+  if (!listed.result.ok) return
+  for (const item of listed.result.value.items) {
+    if (item.parentSessionId !== undefined || item.origin === 'subagent') continue
+    if (item.agentPreset === agentPreset) continue
+    try {
+      await api.agentPresets.select({ sessionId: item.sessionId, agentPreset })
+    } catch {
+      // One session's resume or recompose failure must not stop the rest.
+    }
+  }
 }
 
 /** One selectable preset. */
@@ -233,11 +270,11 @@ export class AgentPresetSettingsController {
   }
 
   /**
-   * Persist one preset as the default for sessions created later. Running
-   * sessions keep the composition they were created with, so this never
-   * disturbs work in progress.
+   * Persist one preset as the default and recompose every listed root
+   * session onto it. A pick in a session header overrides only that
+   * session; this write is the global one.
    * @param id - the preset to make default.
-   * @returns once the write settled and the roster was re-read.
+   * @returns once the write settled, listed sessions were attempted, and the roster was re-read.
    */
   async select(id: string): Promise<void> {
     const before = this.store.getSnapshot()
@@ -248,6 +285,7 @@ export class AgentPresetSettingsController {
       this.set({ status: 'ready', currentValue: before.currentValue, error: failure })
       return
     }
+    await applyPresetToListedSessions(this.api, id)
     // Re-read rather than trust the patch: the host resolves the default
     // through the same roster the row displays.
     await this.load()

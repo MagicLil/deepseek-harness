@@ -40,7 +40,7 @@ subagent 的子 agent 通过 `composeFrom()` 加入其父方的常驻组装，�
 
 ### 会话实际运行的是哪个 preset
 
-创建头部记录的是会话**以什么开始**，`resolveSessionPreset(session)` 给出的才是它**实际运行的**。空白会话一旦切换过，两者就不同，因此所有重建路径——选择器读取的摘要、resume、fork——都走解析，而非直接读头部。
+创建头部记录的是会话**以什么开始**，`resolveSessionPreset(session)` 给出的才是它**实际运行的**。会话一旦切换过，两者就不同，因此所有重建路径——选择器读取的摘要、resume、fork——都走解析，而非直接读头部。
 
 头部保持冻结，因为它是创建期事实。切换以 `agent-preset/selected` 会话事件记录，在替换提交之后追加；这正是 model-visible ⟺ logged 规则的要求：preset 决定模型看到的工具 schema 与提示词段落，因此必须能从日志重建。服务会把这项已提交事实重新发为不带 scope 的 cordis 事件 `agent-preset/selected(sessionId, agentPreset)`，其声明位于 client-safe 的 `./types` 出口，使远端消费方无需导入 Host 运行时类型即可让会话派生状态失效。只读头部会让切换过的会话按创建时的组装重建，从而重放新工具集无法执行的历史——这正是「仅空白可切」那道锁要防的危险。
 
@@ -48,7 +48,7 @@ subagent 的子 agent 通过 `composeFrom()` 加入其父方的常驻组装，�
 
 `recompose()` 先卸载已装入的子树、再装入新的，因为两份组装无法共存——它们会把相同的工具名注册进同一个层。挂载失败会恢复先前的组装，而不是让 agent 一无所有；未知 id 则在任何东西被拆除之前就被拒绝。
 
-"仅限尚未产出任何内容的 agent"是一条产品规则而非机制约束：在对话进行中调换工具，会留下新组装无法执行的、已被记录的工具调用。该规则由网关在传输层执行（[`dsh-apiproxy`](../../host/apiproxy/README.md) 返回 `agent-preset-locked`），因为会话历史在那里才拿得到。
+已开始的对话也可以切换。此后的轮次跑新组装；更早的工具调用仍对照产生它们的那份 preset 的常驻挂载解析。网关在传输层暴露这次切换（[`dsh-apiproxy`](../../host/apiproxy/README.md) 的 `agentPreset.select`）。
 
 ## 创作
 

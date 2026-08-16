@@ -16,7 +16,7 @@
 
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { beginRosterRead, messageOf, writeDefaultPreset } from './settings-store.ts'
+import { applyPresetToListedSessions, beginRosterRead, messageOf, writeDefaultPreset } from './settings-store.ts'
 
 /** Ids a preset directory may be named, mirroring the host's own rule. */
 const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
@@ -133,7 +133,7 @@ export class AgentPresetSectionController {
   readonly store: SnapshotStore<AgentPresetSectionState> = createSnapshotStore(INITIAL)
 
   constructor(
-    private readonly api: Pick<IApiClient, 'agentPresets' | 'settings'>,
+    private readonly api: Pick<IApiClient, 'agentPresets' | 'settings' | 'sessions'>,
     /**
      * Called after this page changes the roster DIRECTORY, so the other
      * surfaces reading the same roster re-read it. A settings field moving is
@@ -332,10 +332,10 @@ export class AgentPresetSectionController {
   }
 
   /**
-   * Make one preset the default for sessions created later. Running sessions
-   * keep the composition they began with, so this never disturbs work.
+   * Make one preset the default and recompose every listed root session
+   * onto it. A pick in a session header overrides only that session.
    * @param id - the preset to make default.
-   * @returns once the write settled and the roster was re-read.
+   * @returns once the write settled, listed sessions were attempted, and the roster was re-read.
    */
   async makeDefault(id: string): Promise<void> {
     const failure = await writeDefaultPreset(this.api, id)
@@ -343,6 +343,7 @@ export class AgentPresetSectionController {
       this.set({ error: failure })
       return
     }
+    await applyPresetToListedSessions(this.api, id)
     await this.load()
   }
 }
