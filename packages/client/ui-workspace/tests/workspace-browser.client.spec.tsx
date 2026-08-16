@@ -387,15 +387,26 @@ describe('WorkspaceBrowser', () => {
     expect(startSession).toHaveBeenCalledWith(wid('alpha'), { forceNew: true })
   })
 
-  it('focuses a Workspace on header click without minting', () => {
+  it('toggles a Workspace on header click without switching session', () => {
     const startSession = vi.fn()
-    mount({
+    const open = vi.fn()
+    const b = mount({
       useSessions: hook(sessionState([summary('alpha-s', 1)])),
       useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
       startSession,
+      open,
     })
+    expect(screen.queryByText('alpha-s')).toBeNull()
     fireEvent.click(screen.getByText('alpha'))
-    expect(startSession).toHaveBeenCalledWith(wid('alpha'), { preferExisting: true })
+    expect(startSession).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
+    expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: true })
+    expect(screen.getByText('alpha-s')).toBeTruthy()
+    fireEvent.click(screen.getByText('alpha'))
+    expect(startSession).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
+    expect(b.store.getSnapshot().groupExpansion).toEqual({ alpha: false })
+    expect(screen.queryByText('alpha-s')).toBeNull()
   })
 
   it('auto-expands the Ungrouped bucket for a loose current session; its header has no menu and its ＋ is inert', () => {
