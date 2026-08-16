@@ -26,6 +26,8 @@ describe('desktopAppMenuSpec', () => {
       { type: 'command', id: 'activity-explorer', label: '资源管理器' },
       { type: 'command', id: 'activity-git', label: '源代码管理' },
       { type: 'command', id: 'sidebar-conversation', label: '切换对话', accelerator: 'CommandOrControl+Alt+B' },
+      { type: 'command', id: 'view-problems', label: '问题' },
+      { type: 'command', id: 'view-checks', label: '检查' },
     ]))
     expect(view?.submenu.some(row => row.type === 'command' && row.id === 'activity-tasks')).toBe(false)
     const go = desktopAppMenuSpec(labels)[2]

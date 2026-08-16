@@ -41,6 +41,8 @@ export type AppMenuCommand =
   | 'sidebar-primary'
   | 'sidebar-sessions'
   | 'sidebar-conversation'
+  | 'view-problems'
+  | 'view-checks'
   | 'terminal-new'
   | 'terminal-toggle'
 
