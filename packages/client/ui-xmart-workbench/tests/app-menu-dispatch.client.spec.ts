@@ -24,6 +24,7 @@ function deps(overrides: Partial<AppMenuDispatchDeps> = {}): AppMenuDispatchDeps
     toggleConversation: record('toggleConversation'),
     newTerminal: record('newTerminal'),
     toggleTerminal: record('toggleTerminal'),
+    openBottomTab: record('openBottomTab'),
     dispatch: record('dispatch'),
     calls,
     ...overrides,
@@ -74,6 +75,9 @@ describe('dispatchAppMenu', () => {
     ])
     expect(d.calls.newTerminal).toEqual([['s1']])
     expect(d.calls.toggleTerminal).toEqual([['s1']])
+    dispatchAppMenu('view-problems', d)
+    dispatchAppMenu('view-checks', d)
+    expect(d.calls.openBottomTab).toEqual([['s1', 'problems'], ['s1', 'checks']])
   })
 })
 

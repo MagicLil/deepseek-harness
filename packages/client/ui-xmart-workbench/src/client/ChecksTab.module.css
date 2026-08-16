@@ -1,0 +1,105 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+.toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.toolbar button {
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.error {
+  padding: 6px 10px;
+  color: var(--dsw-alias-status-danger, #d13438);
+  font-size: 12px;
+}
+
+.rows {
+  flex: none;
+  max-height: 40%;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+  list-style: none;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.rows li {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.kind {
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+}
+
+.script {
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rows li[data-status='passed'] .status { color: var(--dsw-alias-status-success, #5BB73B); }
+.rows li[data-status='failed'] .status { color: var(--dsw-alias-status-danger, #d13438); }
+.rows li[data-status='running'] .status { color: var(--dsw-alias-label-primary); }
+.rows li[data-status='skipped'] .status { color: var(--dsw-alias-label-tertiary); }
+
+.log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty {
+  padding: 12px 10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}

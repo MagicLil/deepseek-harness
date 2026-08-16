@@ -91,6 +91,36 @@ describe('BottomPanel', () => {
     expect(screen.queryByTestId('xmart-bottom-body')).toBeNull()
   })
 
+  it('renders problems and checks tabs alongside terminals', () => {
+    const { closeTab } = mount({
+      height: 200,
+      view: {
+        ...EMPTY_WORKBENCH_VIEW,
+        activeTabId: 'problems:1',
+        tabs: [
+          { id: 'problems:1', type: 'problems', title: '问题' },
+          { id: 'checks:1', type: 'checks', title: '检查' },
+          { id: 'terminal:1', type: 'terminal', title: '终端 1' },
+        ],
+      },
+    })
+    expect(screen.getByTestId('xmart-bottom-tab-problems:1')).toBeTruthy()
+    expect(screen.getByTestId('xmart-bottom-tab-checks:1')).toBeTruthy()
+    expect(screen.getByTestId('xmart-bottom-body').textContent).toBe('问题')
+    act(() => {
+      screen.getByTestId('xmart-bottom-tab-problems:1')
+        .querySelector('button[aria-label]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(closeTab).toHaveBeenCalledWith('problems:1')
+    act(() => {
+      screen.getByTestId('xmart-bottom-tab-checks:1')
+        .querySelector('button[aria-label]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(closeTab).toHaveBeenCalledWith('checks:1')
+  })
+
   it('disables + at the session quota', () => {
     mount({
       height: 200,

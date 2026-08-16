@@ -180,6 +180,9 @@ export function MenuBar({
           { id: 'sidebar-primary', label: t('menu.view.primary') },
           { id: 'sidebar-sessions', label: t('menu.view.sessions') },
           { id: 'sidebar-conversation', label: t('menu.view.conversation') },
+          { type: 'separator', id: 'view-sep-2' },
+          { id: 'view-problems', label: t('menu.view.problems') },
+          { id: 'view-checks', label: t('menu.view.checks') },
         ]}
         onSelect={(id) => { select(id as AppMenuCommand) }}
         onClose={close}

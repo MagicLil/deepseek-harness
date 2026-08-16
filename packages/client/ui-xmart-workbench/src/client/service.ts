@@ -17,6 +17,7 @@ import {
   XMART_WORKBENCH_FEATURES,
   XMART_WORKBENCH_VERSION,
   isPrimaryActivity,
+  isBottomPanelTabType,
   type ActivityDescriptor,
   type FileViewerDescriptor,
   type OpenTabSeed,
@@ -542,7 +543,7 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   inheritSession(fromId: string, toId: string): boolean {
     if (fromId === toId) return false
     const from = this.#ensure(fromId).getSnapshot()
-    const tabs = from.tabs.filter(tab => tab.type !== 'terminal').map(tab => ({ ...tab }))
+    const tabs = from.tabs.filter(tab => !isBottomPanelTabType(tab.type)).map(tab => ({ ...tab }))
     const active = tabs.some(tab => tab.id === from.activeTabId)
       ? from.activeTabId
       : (tabs[tabs.length - 1]?.id ?? null)

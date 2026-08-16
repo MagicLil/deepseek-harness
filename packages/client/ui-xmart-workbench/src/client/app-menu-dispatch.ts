@@ -25,6 +25,8 @@ export type AppMenuCommand =
   | 'sidebar-primary'
   | 'sidebar-sessions'
   | 'sidebar-conversation'
+  | 'view-problems'
+  | 'view-checks'
   | 'terminal-new'
   | 'terminal-toggle'
 
@@ -45,6 +47,9 @@ export const WORKBENCH_EDITOR_ACTION_EVENT = 'dsh:workbench-editor-action'
 
 /** Window event that asks the settings shell to open its modal. */
 export const OPEN_SETTINGS_EVENT = 'dsh:open-settings'
+
+/** Window event that focuses the search pane input. */
+export const WORKBENCH_SEARCH_EVENT = 'dsh:workbench-search'
 
 /** Menu commands that run a Monaco action on the focused editor. */
 export const EDITOR_ACTION_BY_COMMAND: Partial<Record<AppMenuCommand, string>> = {
@@ -67,6 +72,7 @@ export type AppMenuDispatchDeps = {
   toggleConversation: () => void
   newTerminal: (sessionId: string) => void
   toggleTerminal: (sessionId: string) => void
+  openBottomTab: (sessionId: string, type: 'problems' | 'checks') => void
   dispatch: (name: string, detail?: string) => void
 }
 
@@ -146,6 +152,14 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
   }
   if (command === 'terminal-new') {
     deps.newTerminal(sessionId)
+    return
+  }
+  if (command === 'view-problems') {
+    deps.openBottomTab(sessionId, 'problems')
+    return
+  }
+  if (command === 'view-checks') {
+    deps.openBottomTab(sessionId, 'checks')
     return
   }
   deps.toggleTerminal(sessionId)

@@ -1,10 +1,10 @@
 /**
- * Editor-stacked bottom panel. Hosts terminal tab instances under the editor.
- * Height 0 unmounts the body; host PTYs stay alive until the tab is closed.
+ * Editor-stacked bottom panel. Hosts problems / checks / terminal tabs.
+ * Height 0 unmounts the body; host PTYs stay alive until the terminal tab is closed.
  */
 import { IconPlusOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { BottomPanelProps } from './contract.ts'
-import { TERMINAL_TAB_LIMIT } from './types.ts'
+import { TERMINAL_TAB_LIMIT, isBottomPanelTabType } from './types.ts'
 import css from './BottomPanel.module.css'
 
 /** Bottom panel (see module doc). */
@@ -20,9 +20,12 @@ export function BottomPanel({
 }: BottomPanelProps) {
   const view = useWorkbenchSession(s => s)
   if (height === 0) return null
-  const tabs = view.tabs.filter(tab => tab.type === 'terminal')
-  const active = tabs.find(tab => tab.id === view.activeTabId) ?? tabs[tabs.length - 1]
-  const Body = resolveBody('terminal')
+  const tabs = view.tabs.filter(tab => isBottomPanelTabType(tab.type))
+  const active = tabs.find(tab => tab.id === view.activeTabId)
+    ?? tabs.find(tab => tab.type === 'terminal')
+    ?? tabs[tabs.length - 1]
+  const Body = active === undefined ? undefined : resolveBody(active.type)
+  const terminalCount = tabs.filter(tab => tab.type === 'terminal').length
   return (
     <div className={css.root} data-testid="xmart-bottom-panel">
       <div className={css.bar} data-testid="xmart-bottom-tabbar">
@@ -63,7 +66,7 @@ export function BottomPanel({
           className={css.add}
           aria-label={t('menu.terminal.new')}
           data-testid="xmart-bottom-new"
-          disabled={tabs.length >= TERMINAL_TAB_LIMIT}
+          disabled={terminalCount >= TERMINAL_TAB_LIMIT}
           onClick={() => { newTerminal() }}
         >
           <IconPlusOutline16 />
