@@ -4,8 +4,8 @@
  * index transform taps, and the single fallback seat for everything no route
  * claims). Knows no harness concepts and serves no files; the composing
  * application's frontend plugin owns dist serving through the fallback hook.
- * Web shape only — Electron loads dist over file:// and carries fetch over an
- * IPC bridge. This package never prints: the URL line belongs to the shell.
+ * Web shape only — the composing application owns how the window loads the
+ * same HTTP surface. This package never prints: the URL line belongs to the shell.
  */
 
 import { createServer } from 'node:http'
@@ -41,6 +41,9 @@ export interface WebUpgradeRoute {
   handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>
 }
 
+/** Whether a request-guard lets the request continue to named routes. */
+export type WebGuardVerdict = 'allow' | 'deny'
+
 /** Gateway config: the listen address. */
 export interface Config {
   /** Listen host; the two supported values are loopback and all-interfaces. */
@@ -67,7 +70,9 @@ export class WebServer extends Service {
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
+  private readonly guards = new Set<(req: IncomingMessage) => WebGuardVerdict>()
   private fallback: WebRoute['handler'] | undefined
+  private unauthorized: WebRoute['handler'] | undefined
   private server!: Server
   private listenedPort!: number
 
@@ -131,6 +136,56 @@ export class WebServer extends Service {
   }
 
   /**
+   * Register a request guard. Every guard runs before named routes and the
+   * fallback; any `deny` answers through {@link setUnauthorizedHandler}
+   * (default 401) and also closes unmatched upgrades.
+   * @param guard - allow/deny decision for one request.
+   * @returns the disposer removing the guard.
+   */
+  registerGuard(guard: (req: IncomingMessage) => WebGuardVerdict): () => void {
+    this.guards.add(guard)
+    return () => { this.guards.delete(guard) }
+  }
+
+  /**
+   * Claim the unauthorized-response seat used when a guard returns `deny`.
+   * One owner only — a second registration throws.
+   * @param handler - owns the 401 (or login-page) response.
+   * @returns the disposer releasing the seat (default 401 text/plain returns).
+   */
+  setUnauthorizedHandler(handler: WebRoute['handler']): () => void {
+    if (this.unauthorized !== undefined) {
+      throw new Error('webserver: unauthorized handler already registered')
+    }
+    this.unauthorized = handler
+    return () => { this.unauthorized = undefined }
+  }
+
+  /**
+   * Bind `{host, port}` first, then close the previous listener. A failed
+   * bind leaves the old listen in place and throws.
+   * @param next - the new listen address.
+   */
+  async rebind(next: Config): Promise<void> {
+    const previousServer = this.server
+    const previousPort = this.listenedPort
+    const previousConfig = this.config
+    const previousUpgraded = [...this.upgradedSockets]
+    this.config = { ...next }
+    this.upgradedSockets.clear()
+    try {
+      await this.openListen()
+    } catch (error) {
+      this.server = previousServer
+      this.listenedPort = previousPort
+      this.config = previousConfig
+      for (const socket of previousUpgraded) this.upgradedSockets.add(socket)
+      throw error
+    }
+    await this.shutdownServer(previousServer, previousUpgraded)
+  }
+
+  /**
    * Register an index.html transform, applied by the fallback owner to every
    * index response ({@link applyIndexTaps}) in registration order.
    * @param transform - pure html-to-html function.
@@ -146,7 +201,35 @@ export class WebServer extends Service {
 
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
+    await this.openListen()
+    this.ctx.effect(() => async () => {
+      await this.closeListen()
+    }, 'webServer.listen')
+  }
+
+  private denied(req: IncomingMessage): boolean {
+    for (const guard of this.guards) {
+      if (guard(req) === 'deny') return true
+    }
+    return false
+  }
+
+  private async answerUnauthorized(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const handler = this.unauthorized
+    if (handler !== undefined) {
+      await handler(req, res)
+      return
+    }
+    res.writeHead(401, { 'content-type': 'text/plain; charset=utf-8' })
+    res.end('unauthorized')
+  }
+
+  private async openListen(): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      if (this.denied(req)) {
+        await this.answerUnauthorized(req, res)
+        return
+      }
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
@@ -188,6 +271,10 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
+      if (this.denied(req)) {
+        socket.destroy()
+        return
+      }
       let route: WebUpgradeRoute | undefined
       try {
         /* v8 ignore next -- node:http always sets url on server requests. */
@@ -222,20 +309,25 @@ export class WebServer extends Service {
         resolve()
       })
     })
+  }
 
-    // Node does not include upgraded sockets in closeAllConnections(). The service
-    // owns them with the other connections, so it tracks and destroys them explicitly.
-    this.ctx.effect(() => async () => {
-      const serverClosed = new Promise<void>((resolve) => {
-        this.server.close(() => { resolve() })
-      })
-      this.server.closeAllConnections()
-      const upgradedClosed = [...this.upgradedSockets].map(socket => new Promise<void>((resolve) => {
-        socket.once('close', () => { resolve() })
-        socket.destroy()
-      }))
-      await Promise.all([serverClosed, ...upgradedClosed])
-    }, 'webServer.listen')
+  private async closeListen(): Promise<void> {
+    await this.shutdownServer(this.server, [...this.upgradedSockets])
+    this.upgradedSockets.clear()
+  }
+
+  private async shutdownServer(server: Server, upgraded: readonly Duplex[]): Promise<void> {
+    /* v8 ignore next -- shutdown runs after openListen assigned the server. */
+    if (server === undefined) return
+    const serverClosed = new Promise<void>((resolve) => {
+      server.close(() => { resolve() })
+    })
+    server.closeAllConnections()
+    const upgradedClosed = upgraded.map(socket => new Promise<void>((resolve) => {
+      socket.once('close', () => { resolve() })
+      socket.destroy()
+    }))
+    await Promise.all([serverClosed, ...upgradedClosed])
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */

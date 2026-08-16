@@ -200,6 +200,84 @@ describe('real Loader composition', () => {
     await expect(request(port, '/probe')).rejects.toThrow()
   })
 
+  it('denies HTTP through the default 401 and a custom unauthorized handler', { timeout: 60_000 }, async () => {
+    const ctx = await loadComposition(0)
+    const server = ctx.webServer
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    const releaseGuard = server.registerGuard(() => 'deny')
+    expect(await request(server.port, '/probe')).toMatchObject({ status: 401, body: 'unauthorized' })
+    const release = server.setUnauthorizedHandler((_req, res) => {
+      res.writeHead(401, { 'content-type': 'text/html; charset=utf-8' })
+      res.end('<form>login</form>')
+    })
+    expect(() => server.setUnauthorizedHandler(() => {})).toThrow(/unauthorized handler already registered/)
+    expect((await request(server.port, '/probe')).body).toContain('<form>')
+    release()
+    expect(await request(server.port, '/probe')).toMatchObject({ status: 401, body: 'unauthorized' })
+    releaseGuard()
+    const allow = server.registerGuard(() => 'allow')
+    const denySecond = server.registerGuard(() => 'deny')
+    expect(await request(server.port, '/probe')).toMatchObject({ status: 401, body: 'unauthorized' })
+    denySecond()
+    expect(await request(server.port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    allow()
+  })
+
+  it('closes upgrades that a guard denies', { timeout: 60_000 }, async () => {
+    const ctx = await loadComposition(0)
+    const server = ctx.webServer
+    server.registerGuard(() => 'deny')
+    server.registerUpgrade({
+      path: '/events',
+      handler: (_req, socket) => {
+        socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
+      },
+    })
+    const socket = connect(server.port, '127.0.0.1')
+    socket.on('error', () => { /* denied upgrades reset the client. */ })
+    await once(socket, 'connect')
+    const closed = once(socket, 'close')
+    socket.write([
+      'GET /events HTTP/1.1',
+      `Host: 127.0.0.1:${String(server.port)}`,
+      'Connection: Upgrade',
+      'Upgrade: dsh-test',
+      '',
+      '',
+    ].join('\r\n'))
+    await closed
+  })
+
+  it('rebinds to a new port and restores the old listen when the next bind fails', { timeout: 60_000 }, async () => {
+    const ctx = await loadComposition(0)
+    const firstRoot = root
+    const server = ctx.webServer
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    const first = server.port
+    expect(await request(first, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+
+    await server.rebind({ host: '127.0.0.1', port: 0 })
+    const second = server.port
+    expect(second).not.toBe(first)
+    expect(await request(second, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+
+    const blocker = await loadComposition(0)
+    const blockerRoot = root
+    try {
+      const taken = blocker.webServer.port
+      await expect(server.rebind({ host: '127.0.0.1', port: taken })).rejects.toThrow(/EADDRINUSE/)
+      expect(server.port).toBe(second)
+      expect(await request(second, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+      await blocker.fiber.dispose()
+    } finally {
+      context = ctx
+      if (blockerRoot !== undefined && blockerRoot !== firstRoot) {
+        await rm(blockerRoot, { recursive: true, force: true })
+      }
+      root = firstRoot
+    }
+  })
+
   it('fails the fiber when the port is already taken (fail-loud at activation)', { timeout: 60_000 }, async () => {
     const first = await loadComposition()
     const takenPort = first.webServer.port
