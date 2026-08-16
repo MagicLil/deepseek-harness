@@ -10,7 +10,7 @@
 
 ## 决策
 
-**强调色走 L2 token 覆盖。** `ui-xmart-workbench` 调用 `ctx.theme.overrideTokens`，叠万物智汇绿（深色 `#5BB73B` / 浅色字色 `#3D8C28`）。改写的别名是 `state-business-primary`、`state-business-tertiary`、`button-info-fill/hover`、`brand-primary-new-colorprimary-new-color`、`sidebar-nav-item-active-accent`。成功 / 失败 / 警告仍用自己的 token。轨迹图里直接绑 `--dsw-static-blue-*` 的系列色保持蓝。
+**强调色走 L2 token 覆盖。** `ui-xmart-workbench` 调用 `ctx.theme.overrideTokens`，叠万物智汇绿（深色 `#5BB73B` / 浅色字色 `#3D8C28`）。改写的别名是 `state-business-primary`、`state-business-tertiary`、`button-info-fill/hover`、`brand-primary-new-colorprimary-new-color`、`sidebar-nav-item-active-accent`，以及 `specific-bubble` / `specific-bubble-highlight`。对话列仍直接绑的静态档 `--dsw-static-deepseek-200/450/500` 也一并改写，这样 `Xmarting...` 闪动和进行中圆点才会变绿。成功 / 失败 / 警告仍用自己的 token。轨迹图里直接绑 `--dsw-static-blue-*` 的系列色保持蓝。
 
 **字号和运行态文案是 L3。** 助手正文、用户气泡、输入卡片从 16px 改为 13px。运行态改成 `Xmarting...`。这些值写死在 `ui-conversation`，没有槽位或文案键可覆盖。
 
