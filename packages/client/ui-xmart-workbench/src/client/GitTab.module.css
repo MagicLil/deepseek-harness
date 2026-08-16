@@ -335,27 +335,6 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.glyph {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-}
-
-.ts { background: #3178c6; }
-.tsx { background: #3178c6; }
-.js { background: #c6a325; }
-.css { background: #2b7489; }
-.md { background: #5a7a9b; }
-.json { background: #c9a227; }
-.other { background: var(--dsw-alias-label-tertiary); }
-
 .path {
   display: flex;
   flex: 1;

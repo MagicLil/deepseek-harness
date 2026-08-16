@@ -151,6 +151,19 @@ describe('GitTab', () => {
     expect(await screen.findByText('Git 状态读取失败。')).toBeTruthy()
   })
 
+  it('uses Material file icons for changed files', async () => {
+    mount({
+      gitStatus: async () => ({
+        ...status,
+        changes: [{ path: 'src/foo/a.ts', status: 'modified', area: 'worktree' }],
+      }),
+    })
+
+    const changeRow = await screen.findByTestId('xmart-git-row-worktree:src/foo/a.ts')
+    expect(changeRow.querySelector('[data-file-icon="typescript"]')).toBeTruthy()
+    expect(within(changeRow).queryByText('A')).toBeNull()
+  })
+
   it('renders changes, commits, and opens a worktree diff', async () => {
     const { gitCommit, openDiff, openFile, files } = mount({
       gitStatus: async () => ({

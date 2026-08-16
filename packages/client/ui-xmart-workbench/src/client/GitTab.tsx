@@ -17,10 +17,11 @@ import type { WorkbenchKey } from './locales.ts'
 import type { WorkbenchFilesStore } from './files-store.ts'
 import { letter, markKind } from './git-marks.ts'
 import { absPath, basename } from './route-file.ts'
+import { FileIcon } from './FileIcon.tsx'
 import {
   probeGitRoots, readGitSnapshot, visibleChildDirectories,
 } from './git-root.ts'
-import { gitFileKind, gitPathParts } from './git-display.ts'
+import { gitPathParts } from './git-display.ts'
 import {
   GIT_GRAPH_DOT, GIT_GRAPH_MERGE_DOT, GIT_GRAPH_MERGE_RING, GIT_GRAPH_MID, GIT_GRAPH_ROW,
   gitGraphMergePath, gitGraphPageWidth, gitGraphX, gitLaneClass, gitRefClass,
@@ -921,15 +922,12 @@ function GitChangeRow(props: {
 }) {
   const kind = markKind(props.change.status)
   const parts = gitPathParts(props.change.path)
-  const fileKind = gitFileKind(parts.name)
   return (
     <div
       className={css.row}
       data-testid={`xmart-git-row-${gitChangeKey(props.change)}`}
     >
-      <span className={`${css.glyph} ${css[fileKind]}`} aria-hidden>
-        {parts.name.slice(0, 1).toUpperCase()}
-      </span>
+      <FileIcon path={parts.name} kind="file" />
       <button
         type="button"
         className={css.path}
