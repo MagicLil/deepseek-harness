@@ -74,13 +74,15 @@ describe('prepareMonacoHighlight', () => {
     ])
     resetMonacoHighlight()
     createHighlighterCore.mockResolvedValueOnce({
+      id: 'core',
       codeToTokens: (code: string) => ({
-        tokens: code.split('\n').map(line => [{ content: line }]),
+        tokens: code.split('\n').map(line => [{ content: line, color: '' }]),
       }),
     })
     await expect(highlightSource('x', 'java', true)).resolves.toEqual([[{ text: 'x' }]])
     resetMonacoHighlight()
     createHighlighterCore.mockResolvedValueOnce({
+      id: 'core',
       codeToTokens: () => { throw new Error('bad grammar') },
     })
     await expect(highlightSource('x', 'typescript', false)).resolves.toEqual([[{ text: 'x' }]])

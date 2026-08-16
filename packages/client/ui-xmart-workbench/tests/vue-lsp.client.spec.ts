@@ -23,6 +23,7 @@ describe('bindVueLsp', () => {
       definition: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
       hover: vi.fn(async () => ({ ok: true as const, value: {} })),
       references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
+      implementation: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
     }
     const client = bindVueLsp(remote, '/ws')
     await client.open('/ws/A.vue', '<template />')

@@ -21,13 +21,14 @@ const BASE: LanStatus = {
 function props(overrides: Partial<LanSettingsProps> = {}): LanSettingsProps {
   return {
     t,
+    close: vi.fn(),
     status: vi.fn(async () => BASE),
     setEnabled: vi.fn(async enabled => ({ ...BASE, enabled, lanUrl: enabled ? 'http://192.168.1.5:3080/' : null })),
     setPort: vi.fn(async port => ({ ...BASE, port })),
     rotateToken: vi.fn(async () => ({ ...BASE, token: 'next-token' })),
     copyText: vi.fn(async () => {}),
     ...overrides,
-  }
+  } as unknown as LanSettingsProps
 }
 
 describe('LanSettingsSection', () => {

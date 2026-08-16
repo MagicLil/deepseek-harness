@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
 import { SkillsSettingsSection } from '../src/client/SkillsSettingsSection.tsx'
 import type { ManagedSkillSummary, SkillsSettingsProps } from '../src/client/contract.ts'
 import { en, type SkillsKey } from '../src/client/locales.ts'
@@ -49,16 +50,35 @@ const CURSOR: ManagedSkillSummary = {
   origin: 'cursor',
 }
 
+function workspaceHook(
+  items: readonly { workspaceId: string; path: string }[],
+  recentWorkspaceId?: string,
+): SkillsSettingsProps['useWorkspaces'] {
+  const state = {
+    items,
+    archivedSessionIds: [],
+    state: 'idle',
+    phase: 'ready',
+    error: null,
+    baselinesReady: true,
+    recentWorkspaceId,
+  } as unknown as WorkspaceListState
+  return select => select(state)
+}
+
 function props(overrides: Partial<SkillsSettingsProps> = {}): SkillsSettingsProps {
   return {
     t,
-    useWorkspaces: (select: (state: { items: readonly { workspaceId: string; path: string }[]; recentWorkspaceId: string }) => unknown) =>
-      select({ items: [{ workspaceId: 'w', path: '/proj/deepseek-harness' }], recentWorkspaceId: 'w' }),
+    close: vi.fn(),
+    useWorkspaces: workspaceHook(
+      [{ workspaceId: 'w', path: '/proj/deepseek-harness' }],
+      'w',
+    ),
     listOwned: vi.fn(async () => [OWNED]),
     listProject: vi.fn(async () => [PROJECT, AGENTS, CLAUDE, CURSOR]),
     setEnabled: vi.fn(async () => ({ ok: true })),
     ...overrides,
-  }
+  } as unknown as SkillsSettingsProps
 }
 
 describe('SkillsSettingsSection', () => {
@@ -139,16 +159,13 @@ describe('SkillsSettingsSection', () => {
       projectRoot === '/a' ? [PROJECT] : [CLAUDE]
     ))
     render(<SkillsSettingsSection {...props({
-      useWorkspaces: (select: (state: {
-        items: readonly { workspaceId: string; path: string }[]
-        recentWorkspaceId: string
-      }) => unknown) => select({
-        items: [
+      useWorkspaces: workspaceHook(
+        [
           { workspaceId: 'a', path: '/a' },
           { workspaceId: 'b', path: '/b/other' },
         ],
-        recentWorkspaceId: 'a',
-      }),
+        'a',
+      ),
       listProject,
     })} />)
     await waitFor(() => { expect(screen.getByText('mes-intake')).toBeTruthy() })
@@ -165,8 +182,7 @@ describe('SkillsSettingsSection', () => {
     const listOwned = vi.fn(async () => [])
     const listProject = vi.fn(async () => [])
     render(<SkillsSettingsSection {...props({
-      useWorkspaces: (select: (state: { items: readonly []; recentWorkspaceId: undefined }) => unknown) =>
-        select({ items: [], recentWorkspaceId: undefined }),
+      useWorkspaces: workspaceHook([]),
       listOwned,
       listProject,
     })} />)
@@ -231,16 +247,13 @@ describe('SkillsSettingsSection', () => {
 
   it('hides project groups that do not match the search', async () => {
     render(<SkillsSettingsSection {...props({
-      useWorkspaces: (select: (state: {
-        items: readonly { workspaceId: string; path: string }[]
-        recentWorkspaceId: string
-      }) => unknown) => select({
-        items: [
+      useWorkspaces: workspaceHook(
+        [
           { workspaceId: 'a', path: '/a' },
           { workspaceId: 'b', path: '/b/other' },
         ],
-        recentWorkspaceId: 'a',
-      }),
+        'a',
+      ),
       listProject: vi.fn(async (projectRoot: string) => (
         projectRoot === '/a' ? [PROJECT] : [CLAUDE]
       )),

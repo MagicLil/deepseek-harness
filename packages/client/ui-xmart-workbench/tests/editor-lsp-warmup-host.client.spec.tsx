@@ -26,7 +26,9 @@ function remote() {
     hover: vi.fn(async () => ({ ok: true as const, value: {} })),
     references: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
     implementation: vi.fn(async () => ({ ok: true as const, value: { items: [] } })),
-    warmup: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    warmup: vi.fn(async (): Promise<
+      { ok: true; value: undefined } | { ok: false; error: { code: string; message: string } }
+    > => ({ ok: true, value: undefined })),
   }
 }
 

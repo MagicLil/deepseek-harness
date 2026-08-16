@@ -87,6 +87,7 @@ describe('observeGitHistorySentinel', () => {
       takeRecords(): IntersectionObserverEntry[] { return [] }
       readonly root = null
       readonly rootMargin = ''
+      readonly scrollMargin = ''
       readonly thresholds = []
     } as typeof IntersectionObserver
     const target = {} as Element

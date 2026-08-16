@@ -136,7 +136,7 @@ describe('SearchTab', () => {
     vi.useFakeTimers()
     let release!: (value: FileSearchResult) => void
     const first = new Promise<FileSearchResult>((resolve) => { release = resolve })
-    const search = vi.fn((path: string, query: string) => {
+    const search = vi.fn((_path: string, query: string) => {
       if (query === 'a') return first
       return Promise.resolve(page({ hits: [], fileCount: 0 }))
     })
@@ -158,7 +158,7 @@ describe('SearchTab', () => {
     vi.useFakeTimers()
     let fail!: (error: unknown) => void
     const first = new Promise<FileSearchResult>((_, reject) => { fail = reject })
-    const search = vi.fn((path: string, query: string) => {
+    const search = vi.fn((_path: string, query: string) => {
       if (query === 'a') return first
       return Promise.resolve(page({ hits: [], fileCount: 0 }))
     })

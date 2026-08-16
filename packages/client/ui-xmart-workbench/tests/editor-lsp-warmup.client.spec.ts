@@ -210,7 +210,7 @@ describe('editor-lsp-warmup helpers', () => {
       line: 0,
       character: 0,
     })
-    vue.open.mockResolvedValueOnce({ ok: false as const, error: { code: 'x', message: 'no' } })
+    vi.mocked(vue.open).mockResolvedValueOnce({ ok: false as const, error: { code: 'x', message: 'no' } })
     expect(await seedLanguageServer(
       { root: '/mono/apps/web', languages: ['vue'] },
       'vue',
@@ -218,7 +218,7 @@ describe('editor-lsp-warmup helpers', () => {
       listEntries,
       readFile,
     )).toBe(false)
-    vue.hover.mockRejectedValueOnce(new Error('hover'))
+    vi.mocked(vue.hover).mockRejectedValueOnce(new Error('hover'))
     expect(await seedLanguageServer(
       { root: '/mono/apps/web', languages: ['vue'] },
       'vue',
@@ -233,7 +233,7 @@ describe('editor-lsp-warmup helpers', () => {
       listEntries,
       undefined,
     )).toBe(false)
-    vue.open.mockResolvedValueOnce({ ok: false as const, error: { code: 'x', message: 'no' } })
+    vi.mocked(vue.open).mockResolvedValueOnce({ ok: false as const, error: { code: 'x', message: 'no' } })
     expect(await seedLanguageServer(
       { root: '/empty', languages: ['vue'] },
       'vue',
@@ -242,7 +242,7 @@ describe('editor-lsp-warmup helpers', () => {
       readFile,
     )).toBe(false)
     const boom = remote()
-    boom.open.mockRejectedValueOnce(new Error('open'))
+    vi.mocked(boom.open).mockRejectedValueOnce(new Error('open'))
     expect(await seedLanguageServer(
       { root: '/mono/apps/web', languages: ['vue'] },
       'vue',

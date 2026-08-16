@@ -97,7 +97,7 @@ describe('hoverWhenReady', () => {
       complete: vi.fn(async () => []),
       diagnostics: vi.fn(async () => []),
       definition: vi.fn(async () => []),
-      hover: vi.fn(async () => ({ contents: 'doc' })),
+      hover: vi.fn(async (): Promise<{ contents: string } | undefined> => ({ contents: 'doc' })),
       references: vi.fn(async () => []),
       implementation: vi.fn(async () => []),
     }

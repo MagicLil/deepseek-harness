@@ -51,7 +51,8 @@ describe('skills settings helpers', () => {
     expect(matchesSkillQuery(item, 'ask')).toBe(true)
     expect(matchesSkillQuery(item, 'new mes')).toBe(true)
     expect(matchesSkillQuery(item, 'personal')).toBe(true)
-    expect(matchesSkillQuery({ ...item, whenToUse: undefined }, 'new mes')).toBe(false)
+    const { whenToUse: _whenToUse, ...noWhen } = item
+    expect(matchesSkillQuery(noWhen, 'new mes')).toBe(false)
     expect(filterSkills([item], 'qms')).toEqual([])
     expect(filterSkills([item], 'intake')).toEqual([item])
     expect(filterProjectGroups([
