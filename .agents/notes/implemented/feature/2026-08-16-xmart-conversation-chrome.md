@@ -22,4 +22,4 @@ The conversation column still used DeepSeek blue accents and 16px body type. The
 
 ## Consequences
 
-Selected tabs, the send button, focus rings, and markdown links turn green wherever they consume the remapped aliases. Chat text is denser. Fiber dispose removes the overlay. Sync cost is the four `ui-conversation` files plus snapshots.
+Selected tabs, the send button, and focus rings turn green wherever they consume the remapped aliases. Markdown links no longer use that accent; they follow body text per [X-Mart neutral chrome](2026-08-17-xmart-neutral-chrome.md). Chat text is denser. Fiber dispose removes the overlay. Sync cost is the four `ui-conversation` files plus snapshots.

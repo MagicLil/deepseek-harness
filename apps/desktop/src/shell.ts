@@ -9,10 +9,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
+import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, nativeTheme, protocol, screen, shell as electronShell } from 'electron'
 import { desktopAppMenuLabels, desktopAppMenuSpec, type AppMenuCommand } from './app-menu.ts'
 import { DSH_DESKTOP_ORIGIN, isDesktopRendererUrl } from './page-url.ts'
-import { applyDesktopTitleBarOverlay, DESKTOP_TITLE_BAR_OVERLAY, desktopTitleBarChrome } from './title-bar.ts'
+import {
+  applyDesktopTitleBarOverlay, desktopTitleBarChrome, desktopTitleBarOverlay,
+  resolveInitialTitleBarScheme,
+} from './title-bar.ts'
 import { checkDesktopUpdatesNow, showCloseToTrayHint, startDesktopAutoUpdate } from './auto-update.ts'
 import { consumeCloseToTrayHint } from './desktop-prefs.ts'
 import { desktopIconFilePath, ensureDesktopIconFile } from './icon.ts'
@@ -27,6 +30,7 @@ import {
   DSH_FETCH_ABORT_CHANNEL,
   DSH_FETCH_CHANNEL,
   DSH_LOAD_BUNDLE_CHANNEL,
+  DSH_TITLE_BAR_OVERLAY_CHANNEL,
   type IpcFetchChunk,
   type IpcFetchEnd,
   type IpcFetchRequest,
@@ -429,8 +433,9 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   const packageRoot = fileURLToPath(new URL('..', import.meta.url))
   const iconPath = ensureDesktopIconFile(desktopIconFilePath(packageRoot), app.isPackaged)
   const iconImage = nativeImage.createFromPath(iconPath)
+  const titleBarScheme = resolveInitialTitleBarScheme(nativeTheme.shouldUseDarkColors)
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
-    ...(applyDesktopTitleBarOverlay() ? desktopTitleBarChrome() : {}),
+    ...(applyDesktopTitleBarOverlay() ? desktopTitleBarChrome(titleBarScheme) : {}),
     width: restored?.width ?? DEFAULT_WINDOW_WIDTH,
     height: restored?.height ?? DEFAULT_WINDOW_HEIGHT,
     show: false,
@@ -448,8 +453,14 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
     windowOptions.y = restored.y
   }
   const win = new BrowserWindow(windowOptions)
+  const onTitleBarOverlay = (_event: Electron.IpcMainEvent, scheme: unknown): void => {
+    if (scheme !== 'light' && scheme !== 'dark') return
+    if (win.isDestroyed()) return
+    win.setTitleBarOverlay(desktopTitleBarOverlay(scheme))
+  }
   if (applyDesktopTitleBarOverlay()) {
-    win.setTitleBarOverlay(DESKTOP_TITLE_BAR_OVERLAY)
+    win.setTitleBarOverlay(desktopTitleBarOverlay(titleBarScheme))
+    ipcMain.on(DSH_TITLE_BAR_OVERLAY_CHANNEL, onTitleBarOverlay)
     // Native caption is gone; the HTML title track paints the menu.
     // Keep the application menu for accelerators, but do not show a
     // second native menu bar under the 32px overlay.
@@ -687,6 +698,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
       ipcMain.removeHandler(DSH_FETCH_CHANNEL)
       ipcMain.removeHandler(DSH_LOAD_BUNDLE_CHANNEL)
       ipcMain.removeListener(DSH_FETCH_ABORT_CHANNEL, abortListener)
+      ipcMain.removeListener(DSH_TITLE_BAR_OVERLAY_CHANNEL, onTitleBarOverlay)
       try {
         protocol.unhandle('dsh')
       } catch {

@@ -17,7 +17,7 @@ Auto-update runs only on a **packaged NSIS install**. `pnpm dsh desktop` and the
 
 ## Preload
 
-[`preload.mjs`](preload.mjs) is checked in as CommonJS (`require('electron')`) so the sandboxed renderer can load it without a prior TypeScript build. ESM `import` throws `Cannot use import statement outside a module` in that sandbox and leaves `window.__DSH_IPC__` missing. It exposes `window.__DSH_IPC__` (`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu`). The page rebuilds `Response` objects itself — `contextBridge` cannot deliver them.
+[`preload.mjs`](preload.mjs) is checked in as CommonJS (`require('electron')`) so the sandboxed renderer can load it without a prior TypeScript build. ESM `import` throws `Cannot use import statement outside a module` in that sandbox and leaves `window.__DSH_IPC__` missing. It exposes `window.__DSH_IPC__` (`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu` + `setTitleBarOverlay`). The page rebuilds `Response` objects itself — `contextBridge` cannot deliver them.
 
 Closing the window (or cancelling a streamed `Response`) aborts in-flight Host fetches before IPC handlers are removed.
 

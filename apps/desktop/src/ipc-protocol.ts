@@ -21,6 +21,9 @@ export const DSH_FETCH_ABORT_CHANNEL = 'dsh:fetch-abort' as const
 /** Main → renderer: a click on the native application menu. */
 export const DSH_APP_MENU_CHANNEL = 'dsh:app-menu' as const
 
+/** Renderer → main: follow the resolved light/dark caption overlay. */
+export const DSH_TITLE_BAR_OVERLAY_CHANNEL = 'dsh:title-bar-overlay' as const
+
 /** Commands the native application menu can send to the renderer. */
 export type AppMenuCommand =
   | 'session-new'
@@ -114,4 +117,6 @@ export interface DshIpcBridge {
    * @returns disposer that drops the listener.
    */
   onAppMenu(listener: (command: AppMenuCommand) => void): () => void
+  /** Push the resolved appearance onto the native caption-button overlay. */
+  setTitleBarOverlay(colorScheme: 'light' | 'dark'): void
 }

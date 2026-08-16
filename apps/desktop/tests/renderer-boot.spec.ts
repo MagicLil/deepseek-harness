@@ -6,6 +6,8 @@ describe('desktop renderer boot invariants', () => {
     const preload = readFileSync(new URL('../preload.mjs', import.meta.url), 'utf8')
     expect(preload).toContain("require('electron')")
     expect(preload).not.toMatch(/^import /m)
+    expect(preload).toContain('dsh:title-bar-overlay')
+    expect(preload).toContain('setTitleBarOverlay')
   })
 
   it('allows unsafe-eval so the inlined cordis loader can construct !!js evaluators', () => {

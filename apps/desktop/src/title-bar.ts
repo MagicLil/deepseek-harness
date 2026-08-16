@@ -7,12 +7,21 @@
 /** Overlay strip height; keep in lockstep with ui-layout `TITLE_BAR_HEIGHT`. */
 export const DESKTOP_TITLE_BAR_HEIGHT = 32
 
-/** Caption-button overlay colors; match dark `--dsw-alias-bg-base` (`rgb(21, 21, 23)`). */
-export const DESKTOP_TITLE_BAR_OVERLAY = {
-  color: '#151517',
-  symbolColor: '#c8c8c8',
-  height: DESKTOP_TITLE_BAR_HEIGHT,
-} as const
+export type TitleBarColorScheme = 'light' | 'dark'
+
+export function desktopTitleBarOverlay(scheme: TitleBarColorScheme): {
+  color: string
+  symbolColor: string
+  height: number
+} {
+  return scheme === 'light'
+    ? { color: '#F5F5F5', symbolColor: '#333333', height: DESKTOP_TITLE_BAR_HEIGHT }
+    : { color: '#141414', symbolColor: '#C8C8C8', height: DESKTOP_TITLE_BAR_HEIGHT }
+}
+
+export function resolveInitialTitleBarScheme(shouldUseDarkColors: boolean): TitleBarColorScheme {
+  return shouldUseDarkColors ? 'dark' : 'light'
+}
 
 /**
  * Hidden title + WCO so the renderer can sit a chat toggle next to
@@ -35,12 +44,12 @@ export function desktopSecondInstanceAction(packaged: boolean): 'relaunch' | 'fo
  * BrowserWindow chrome that keeps native min/max/close and frees the rest
  * of the title bar for HTML (Window Controls Overlay).
  */
-export function desktopTitleBarChrome(): {
+export function desktopTitleBarChrome(scheme: TitleBarColorScheme): {
   titleBarStyle: 'hidden'
-  titleBarOverlay: typeof DESKTOP_TITLE_BAR_OVERLAY
+  titleBarOverlay: ReturnType<typeof desktopTitleBarOverlay>
 } {
   return {
     titleBarStyle: 'hidden',
-    titleBarOverlay: DESKTOP_TITLE_BAR_OVERLAY,
+    titleBarOverlay: desktopTitleBarOverlay(scheme),
   }
 }

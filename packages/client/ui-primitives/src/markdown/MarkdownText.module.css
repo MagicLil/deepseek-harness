@@ -56,10 +56,9 @@
 }
 
 .markdown a {
-  /* deepsuite markdown.css uses brand-text (blue in newDesign); this sheet
-     keeps design-platform brand-text as near-black, so links use the blue
-     business-primary alias instead. */
-  color: var(--dsw-alias-state-business-primary);
+  /* Body text, not business-primary: that alias is the chrome accent
+     (tabs / send). Links stay readable without recasting the page green. */
+  color: var(--dsw-alias-label-primary);
   transition: box-shadow var(--ds-transition-duration) var(--ds-ease-in-out);
   position: relative;
   text-decoration: none;
@@ -75,11 +74,11 @@
 .markdown a:hover,
 .markdown a:focus {
   outline: none;
-  text-decoration: underline var(--dsw-alias-state-business-primary);
+  text-decoration: underline var(--dsw-alias-label-primary);
 }
 
 .markdown a:focus-visible {
-  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px var(--dsw-alias-label-primary);
 }
 
 .markdown :where(ul, ol) {
@@ -243,7 +242,7 @@
 }
 
 /* Inline file mention: the same link language this sheet gives anchors (and
-   thereby URL-promoted inline code) — link-blue at rest, underline only on
+   thereby URL-promoted inline code) — body text at rest, underline only on
    hover/focus. An underline at rest reads badly inside the code chip, where
    it collides with monospace descenders and the pill background. */
 .fileMention {
@@ -252,7 +251,7 @@
   border: none;
   background: none;
   font: inherit;
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
   text-decoration: none;
   cursor: pointer;
 }
@@ -260,6 +259,6 @@
 .fileMention:hover,
 .fileMention:focus {
   outline: none;
-  text-decoration: underline var(--dsw-alias-state-business-primary);
+  text-decoration: underline var(--dsw-alias-label-primary);
   text-underline-offset: 3px;
 }

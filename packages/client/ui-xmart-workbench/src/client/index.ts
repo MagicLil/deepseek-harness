@@ -19,6 +19,7 @@ import type {
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
 import { XMART_ACCENT_TOKENS } from './brand-accent.ts'
+import { syncTitleBarOverlay } from './title-bar-sync.ts'
 import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
 import {
   createWorkbenchStore, EMPTY_PERSIST_SOURCE, inheritWorkbenchPersist, NOOP_PERSIST_ACTIONS,
@@ -114,6 +115,13 @@ export function apply(ctx: ClientContext): void {
     () => ctx.theme.overrideTokens('ui-xmart-workbench', XMART_ACCENT_TOKENS),
     'ui-xmart-workbench: brand accent',
   )
+  ctx.effect(() => {
+    const push = (snapshot: { active: { colorScheme: 'light' | 'dark' } }): void => {
+      syncTitleBarOverlay(snapshot.active.colorScheme)
+    }
+    push(ctx.theme.getTheme())
+    return ctx.on('theme/change', push)
+  }, 'ui-xmart-workbench: title-bar overlay')
 
   const workbench = new XmartWorkbenchController()
   const files = createWorkbenchFilesStore()

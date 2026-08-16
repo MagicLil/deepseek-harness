@@ -32,11 +32,37 @@ import themeLight from '@shikijs/themes/min-light'
 import type { Monaco } from './monaco-loader.ts'
 import type { DiffToken } from './diff-patch.ts'
 import { languageFromPath } from './language-from-path.ts'
+import { XMART_CANVAS_DARK, XMART_LAYER_1_DARK } from './brand-accent.ts'
 
 /** Shiki / Monaco theme id used while the app is in dark appearance. */
 export const EDITOR_DARK_THEME = 'one-dark-pro'
 /** Shiki / Monaco theme id used while the app is in light appearance. */
 export const EDITOR_LIGHT_THEME = 'min-light'
+
+/** Surfaces One Dark Pro paints as `#282c34` / `#2c313c` (bluish). */
+const CHARCOAL_EDITOR_COLORS = {
+  'editor.background': XMART_CANVAS_DARK,
+  'editor.lineHighlightBackground': XMART_LAYER_1_DARK,
+  'editorGroup.background': XMART_CANVAS_DARK,
+  'minimap.background': XMART_CANVAS_DARK,
+  'peekViewEditor.background': XMART_CANVAS_DARK,
+  'walkThrough.embeddedEditorBackground': XMART_LAYER_1_DARK,
+  'settings.focusedRowBackground': XMART_CANVAS_DARK,
+} as const
+
+/**
+ * Keep One Dark Pro token colors; retint the editor canvas to the workbench
+ * charcoal so the largest pane matches `--dsw-alias-bg-base`.
+ */
+export function charcoalOneDarkPro<T extends { colors?: Record<string, string> }>(theme: T): T {
+  return {
+    ...theme,
+    colors: {
+      ...theme.colors,
+      ...CHARCOAL_EDITOR_COLORS,
+    },
+  }
+}
 
 /**
  * Shiki JS-regex constructor: compile the whole pattern eagerly.
@@ -112,7 +138,7 @@ export async function highlightSource(
     })
     return result.tokens.map(row => row.map(token => ({
       text: token.content,
-      ...token.color === undefined ? {} : { color: token.color },
+      ...token.color ? { color: token.color } : {},
     })))
   }
   catch {
@@ -132,7 +158,7 @@ export function resetMonacoHighlight(): void {
 async function ensureHighlighter(): Promise<HighlighterCore> {
   if (highlighter !== undefined) return highlighter
   highlighterPending ??= createHighlighterCore({
-    themes: [themeDark, themeLight],
+    themes: [charcoalOneDarkPro(themeDark), themeLight],
     langs: [...SHIKI_LANGS],
     engine: regexEngine,
   }).then((created) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyDesktopTitleBarOverlay, DESKTOP_TITLE_BAR_HEIGHT, desktopSecondInstanceAction,
-  desktopTitleBarChrome,
+  desktopTitleBarChrome, desktopTitleBarOverlay, resolveInitialTitleBarScheme,
 } from '../src/title-bar.ts'
 
 describe('applyDesktopTitleBarOverlay', () => {
@@ -10,15 +10,33 @@ describe('applyDesktopTitleBarOverlay', () => {
   })
 })
 
+describe('desktopTitleBarOverlay', () => {
+  it('uses the locked light and dark chrome pairs', () => {
+    expect(desktopTitleBarOverlay('dark')).toEqual({
+      color: '#141414',
+      symbolColor: '#C8C8C8',
+      height: DESKTOP_TITLE_BAR_HEIGHT,
+    })
+    expect(desktopTitleBarOverlay('light')).toEqual({
+      color: '#F5F5F5',
+      symbolColor: '#333333',
+      height: DESKTOP_TITLE_BAR_HEIGHT,
+    })
+  })
+})
+
+describe('resolveInitialTitleBarScheme', () => {
+  it('maps the OS dark flag to a scheme', () => {
+    expect(resolveInitialTitleBarScheme(true)).toBe('dark')
+    expect(resolveInitialTitleBarScheme(false)).toBe('light')
+  })
+})
+
 describe('desktopTitleBarChrome', () => {
   it('hides the title bar and keeps a 32px caption overlay', () => {
-    expect(desktopTitleBarChrome()).toEqual({
+    expect(desktopTitleBarChrome('light')).toEqual({
       titleBarStyle: 'hidden',
-      titleBarOverlay: {
-        color: '#151517',
-        symbolColor: '#c8c8c8',
-        height: DESKTOP_TITLE_BAR_HEIGHT,
-      },
+      titleBarOverlay: desktopTitleBarOverlay('light'),
     })
     expect(DESKTOP_TITLE_BAR_HEIGHT).toBe(32)
   })

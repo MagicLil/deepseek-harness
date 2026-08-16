@@ -22,4 +22,4 @@
 
 ## 后果
 
-消费这些别名的选中页签、发送按钮、焦点环、Markdown 链接都会变绿。对话正文更密。fiber 卸载会撤掉覆盖层。同步成本是 `ui-conversation` 的四个文件加快照。
+消费这些别名的选中页签、发送按钮、焦点环都会变绿。Markdown 链接不再用这颗强调色，正文色见 [X-Mart neutral chrome](2026-08-17-xmart-neutral-chrome.md)。对话正文更密。fiber 卸载会撤掉覆盖层。同步成本是 `ui-conversation` 的四个文件加快照。

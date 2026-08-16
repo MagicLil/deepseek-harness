@@ -17,7 +17,7 @@
 
 ## Preload
 
-[`preload.mjs`](preload.mjs) 以 CommonJS（`require('electron')`）入库，这样沙箱渲染进程无需先做 TypeScript 构建即可加载。在该沙箱里写 ESM `import` 会抛 `Cannot use import statement outside a module`，`window.__DSH_IPC__` 也就不会出现。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
+[`preload.mjs`](preload.mjs) 以 CommonJS（`require('electron')`）入库，这样沙箱渲染进程无需先做 TypeScript 构建即可加载。在该沙箱里写 ESM `import` 会抛 `Cannot use import statement outside a module`，`window.__DSH_IPC__` 也就不会出现。它暴露 `window.__DSH_IPC__`（`fetch` + `subscribeFetchStream` + `abortFetch` + `loadBundle` + `onAppMenu` + `setTitleBarOverlay`）。页面自己重建 `Response` 对象 —— `contextBridge` 无法传递它们。
 
 关闭窗口（或取消流式 `Response`）会在移除 IPC handler 之前中止进行中的 Host fetch。
 

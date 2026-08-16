@@ -15,6 +15,7 @@ import {
   DSH_FETCH_CHUNK_CHANNEL,
   DSH_FETCH_END_CHANNEL,
   DSH_LOAD_BUNDLE_CHANNEL,
+  DSH_TITLE_BAR_OVERLAY_CHANNEL,
   type AppMenuCommand,
   type DshIpcBridge,
   type IpcFetchChunk,
@@ -58,6 +59,9 @@ const bridge: DshIpcBridge = {
     }
     ipcRenderer.on(DSH_APP_MENU_CHANNEL, handler)
     return () => { ipcRenderer.removeListener(DSH_APP_MENU_CHANNEL, handler) }
+  },
+  setTitleBarOverlay(colorScheme) {
+    ipcRenderer.send(DSH_TITLE_BAR_OVERLAY_CHANNEL, colorScheme)
   },
 }
 

@@ -128,11 +128,17 @@ async function bench() {
   ctx.provide('connection', { api: { host: {} } })
   ctx.provide('remote', { $on: () => () => {} })
   const overrideTokens = vi.fn(() => () => {})
-  ctx.provide('theme', { overrideTokens })
+  const getTheme = vi.fn(() => ({
+    preference: 'light' as const,
+    active: { id: 'light', colorScheme: 'light' as const, tokens: {} },
+    themes: [],
+    revision: 1,
+  }))
+  ctx.provide('theme', { overrideTokens, getTheme })
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
     setDraft, conversationEvents, sessions,
-    sessionById, workspaceState, overrideTokens, sessionList, sessionListeners,
+    sessionById, workspaceState, overrideTokens, getTheme, sessionList, sessionListeners,
     workspaces,
   }
 }
@@ -205,6 +211,31 @@ describe('ui-xmart-workbench apply', () => {
     expect(service.matchFileViewer('a.bin', new Uint8Array([0]))?.id).toBe('binary-download')
     expect(b.locale.bind('workbench')('tab.demo')).toBe('演示')
     expect(b.overrideTokens).toHaveBeenCalledWith('ui-xmart-workbench', XMART_ACCENT_TOKENS)
+  })
+
+  it('pushes the resolved scheme to the desktop caption overlay', async () => {
+    const setTitleBarOverlay = vi.fn()
+    const g = globalThis as { __DSH_IPC__?: { setTitleBarOverlay: typeof setTitleBarOverlay } }
+    const previous = g.__DSH_IPC__
+    g.__DSH_IPC__ = { setTitleBarOverlay }
+    try {
+      const b = await bench()
+      declare(b.slots)
+      const fiber = b.ctx.plugin({ inject: [...inject], apply })
+      await fiber.await()
+      expect(setTitleBarOverlay).toHaveBeenCalledWith('light')
+      b.ctx.emit('theme/change', {
+        preference: 'dark',
+        active: { id: 'dark', colorScheme: 'dark', tokens: {} },
+        themes: [],
+        revision: 2,
+      })
+      expect(setTitleBarOverlay).toHaveBeenCalledWith('dark')
+      await fiber.dispose()
+    } finally {
+      if (previous === undefined) delete g.__DSH_IPC__
+      else g.__DSH_IPC__ = previous
+    }
   })
 
   it('registers the column, activity bar, primary sidebar, bottom panel, and settings section', async () => {

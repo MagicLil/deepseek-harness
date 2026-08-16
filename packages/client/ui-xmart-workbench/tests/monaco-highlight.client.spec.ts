@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { XMART_CANVAS_DARK, XMART_LAYER_1_DARK } from '../src/client/brand-accent.ts'
 import {
-  EDITOR_DARK_THEME, EDITOR_LIGHT_THEME, highlightSource, prepareMonacoHighlight,
-  resetMonacoHighlight, shikiRegexConstructor,
+  EDITOR_DARK_THEME, EDITOR_LIGHT_THEME, charcoalOneDarkPro, highlightSource,
+  prepareMonacoHighlight, resetMonacoHighlight, shikiRegexConstructor,
 } from '../src/client/monaco-highlight.ts'
 
 const { createHighlighterCore, shikiToMonaco } = vi.hoisted(() => ({
@@ -49,9 +50,29 @@ describe('prepareMonacoHighlight', () => {
     await expect(prepareMonacoHighlight(monaco as never, '/a.ts')).resolves.toBe('typescript')
     await expect(prepareMonacoHighlight(monaco as never, '/b.ts')).resolves.toBe('typescript')
     expect(createHighlighterCore).toHaveBeenCalledOnce()
+    const options = createHighlighterCore.mock.calls[0]?.[0] as {
+      themes: Array<{ name?: string; colors?: Record<string, string> }>
+    }
+    expect(options.themes[0]?.name).toBe('one-dark-pro')
+    expect(options.themes[0]?.colors?.['editor.background']).toBe(XMART_CANVAS_DARK)
     expect(monaco.languages.register).toHaveBeenCalledWith({ id: 'typescript' })
     expect(monaco.languages.register).toHaveBeenCalledOnce()
     expect(shikiToMonaco).toHaveBeenCalledTimes(2)
+  })
+
+  it('retints One Dark Pro editor chrome to the workbench charcoal', () => {
+    const patched = charcoalOneDarkPro({
+      name: 'one-dark-pro',
+      colors: {
+        'editor.background': '#282c34',
+        'editor.foreground': '#abb2bf',
+        'editor.lineHighlightBackground': '#2c313c',
+      },
+    })
+    expect(patched.colors['editor.background']).toBe(XMART_CANVAS_DARK)
+    expect(patched.colors['editor.lineHighlightBackground']).toBe(XMART_LAYER_1_DARK)
+    expect(patched.colors['minimap.background']).toBe(XMART_CANVAS_DARK)
+    expect(patched.colors['editor.foreground']).toBe('#abb2bf')
   })
 
   it('installs a Monarch ignore grammar and leaves plaintext / Monaco builtins alone', async () => {

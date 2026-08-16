@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-16-xmart-conversation-chrome.md
-2026-08-16-xmart-conversation-chrome.md: ae78992fffa3861f1416d61b7e951ae6e5aab947
-2026-08-16-xmart-conversation-chrome.zh.md: d734e97ba1c6781ff522c7fb7c6eaeccb4976a43
+2026-08-16-xmart-conversation-chrome.md: b4c91fab7c557db598adf8be12477d8e78c85d51
+2026-08-16-xmart-conversation-chrome.zh.md: e873c8a5c293e46e711d84cfe3004a1ca0f6dcac

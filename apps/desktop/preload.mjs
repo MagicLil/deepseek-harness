@@ -13,6 +13,7 @@ const DSH_FETCH_CHANNEL = 'dsh:fetch'
 const DSH_LOAD_BUNDLE_CHANNEL = 'dsh:load-bundle'
 const DSH_FETCH_ABORT_CHANNEL = 'dsh:fetch-abort'
 const DSH_APP_MENU_CHANNEL = 'dsh:app-menu'
+const DSH_TITLE_BAR_OVERLAY_CHANNEL = 'dsh:title-bar-overlay'
 const CHUNK_CHANNEL = 'dsh:fetch-chunk'
 const END_CHANNEL = 'dsh:fetch-end'
 
@@ -48,5 +49,8 @@ contextBridge.exposeInMainWorld('__DSH_IPC__', {
     const handler = (_event, command) => { listener(command) }
     ipcRenderer.on(DSH_APP_MENU_CHANNEL, handler)
     return () => { ipcRenderer.removeListener(DSH_APP_MENU_CHANNEL, handler) }
+  },
+  setTitleBarOverlay(colorScheme) {
+    ipcRenderer.send(DSH_TITLE_BAR_OVERLAY_CHANNEL, colorScheme)
   },
 })
