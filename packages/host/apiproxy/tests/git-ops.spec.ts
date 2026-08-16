@@ -161,7 +161,8 @@ describe('collect git ops', () => {
   it('pages older log rows with --skip', async () => {
     runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
     await collectGitLog('/ws', 80, undefined, 80)
-    expect(runGit.mock.calls[0]?.[0]).toEqual(expect.arrayContaining(['log', '--all', '-n80', '--skip=80']))
+    expect(runGit.mock.calls[0]?.[0]).toEqual(expect.arrayContaining(['log', '-n80', '--skip=80']))
+    expect(runGit.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining(['--all']))
     runGit.mockClear()
     runGit.mockResolvedValue({ ok: true, stdout: 'abc\x1fs\x1fa\x1f1\n' })
     await collectGitLog('/ws', 80, undefined, 0)

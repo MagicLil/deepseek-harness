@@ -122,8 +122,9 @@ export async function collectGitDiscard(
 }
 
 /**
- * Recent commits (`git log --all -n`). `--all` is the SCM graph walk
- * (every local/remote/tag tip), not the current branch spine.
+ * Recent commits (`git log -n`) from HEAD. Walking every tip (`--all`)
+ * paints a barcode of remote-branch rails; the SCM graph follows the
+ * current checkout the way Cursor's history list does.
  * @param path - any path inside the work tree.
  * @param limit - max rows (caller-clamped).
  * @param signal - aborts the git child process.
@@ -139,7 +140,7 @@ export async function collectGitLog(
   if (!root.ok) return root
   const n = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : DEFAULT_LOG_LIMIT
   const offset = Number.isFinite(skip) && skip > 0 ? Math.min(Math.floor(skip), 100_000) : 0
-  const args = ['-C', root.root, 'log', '--all', `-n${n}`]
+  const args = ['-C', root.root, 'log', `-n${n}`]
   if (offset > 0) args.push(`--skip=${offset}`)
   args.push(`--format=${LOG_FORMAT}`, '--shortstat')
   const ran = await runGit(args, signal)

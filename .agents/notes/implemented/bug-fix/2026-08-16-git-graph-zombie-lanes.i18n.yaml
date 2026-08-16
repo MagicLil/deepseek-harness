@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-16-git-graph-zombie-lanes.md
+2026-08-16-git-graph-zombie-lanes.md: 4e31d6a0ba33d7d4d6cb68acf40fc04477fb5956
+2026-08-16-git-graph-zombie-lanes.zh.md: a74b411c2e41b5d6ebaa9ea906ba218c2ff5d48d
