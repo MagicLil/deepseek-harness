@@ -261,7 +261,7 @@ export function EditorTab({
           <>
             <button type="button" className={previewMode === 'edit' ? `${css.tool} ${css.toolActive}` : css.tool} onClick={() => { setPreviewMode('edit') }}>{t('editor.modeEdit')}</button>
             <button type="button" className={previewMode === 'preview' ? `${css.tool} ${css.toolActive}` : css.tool} onClick={() => { setPreviewMode('preview') }}>{t('editor.modePreview')}</button>
-            <button type="button" className={previewMode === 'split' ? `${css.tool} ${css.toolActive}` : css.tool} onClick={() => { setPreviewMode('split') }}>{t('editor.modeSplit')}</button>
+            <button type="button" className={previewMode === 'split' ? `${css.tool} ${css.toolActive}` : css.tool} onClick={() => { setPreviewMode(previewMode === 'split' ? 'edit' : 'split') }}>{t('editor.modeSplit')}</button>
           </>
         )}
       </div>

@@ -154,6 +154,18 @@ describe('EditorTab', () => {
     expect(screen.getByText('保存失败')).toBeTruthy()
   })
 
+  it('closes markdown split when the split button is clicked again', async () => {
+    mount({ path: '/a.md', readFile: async () => '# hi' })
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('xmart-workbench-md-preview')).toBeTruthy()
+    expect(screen.getByTestId('xmart-workbench-plain')).toBeTruthy()
+    fireEvent.click(screen.getByText('分栏'))
+    expect(screen.queryByTestId('xmart-workbench-md-preview')).toBeNull()
+    expect(screen.getByTestId('xmart-workbench-plain')).toBeTruthy()
+    fireEvent.click(screen.getByText('分栏'))
+    expect(screen.getByTestId('xmart-workbench-md-preview')).toBeTruthy()
+  })
+
   it('toggles markdown preview modes and the reload banner', async () => {
     const files = createWorkbenchFilesStore()
     mount({ path: '/a.md', files, readFile: async () => '# hi' })
