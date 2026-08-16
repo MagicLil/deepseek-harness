@@ -12,9 +12,23 @@ import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import { desktopElectronUserArgv } from './launch-argv.ts'
 import { markAppQuitting } from './lifecycle.ts'
+import { installElectronEvalSpawn } from './node-eval-spawn.ts'
 import { desktopSplitProxyPacScript, resolveDesktopProxyServer } from './proxy-env.ts'
 import { desktopSecondInstanceAction } from './title-bar.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
+
+// dsh-market's one-click restart does `spawn(process.execPath, ['-e', helper])`.
+// Under Electron that is `electron.exe -e <source>`, which becomes
+// "Error launching app". Relaunch this process instead; other `-e` helpers
+// run as Node via DSH_NODE_EXEC_PATH / ELECTRON_RUN_AS_NODE.
+installElectronEvalSpawn({
+  execPath: process.execPath,
+  nodePath: process.env.DSH_NODE_EXEC_PATH,
+  onRelaunch: () => {
+    markAppQuitting()
+    app.relaunch()
+  },
+})
 
 registerDesktopSchemes()
 app.setName('xmart')
