@@ -341,13 +341,24 @@ describe('AppFrame', () => {
     expect(tracks(frame)[1]).toBe(WORKBENCH_DEFAULT + 40)
   })
 
-  it('primary drag toward two-thirds shrinks conversation', () => {
+  it('primary drag past two-thirds shrinks conversation', () => {
     const { frame, instance } = mountFrame()
-    const want = workbenchMax(1920)
-    drag(handleOf(frame, 'primary'), ACTIVITY_WIDTH + WORKBENCH_DEFAULT, ACTIVITY_WIDTH + want)
-    expect(tracks(frame)[1]).toBeGreaterThan(WORKBENCH_DEFAULT)
-    expect(tracks(frame)[1]).toBeLessThanOrEqual(want)
+    const past = Math.floor(1920 * 2 / 3) + 80
+    drag(handleOf(frame, 'primary'), ACTIVITY_WIDTH + WORKBENCH_DEFAULT, ACTIVITY_WIDTH + past)
+    expect(tracks(frame)[1]).toBeGreaterThan(Math.floor(1920 * 2 / 3))
+    expect(tracks(frame)[1]).toBeLessThanOrEqual(workbenchMax(1920))
     expect(tracks(frame)[2]).toBeLessThan(CONVERSATION_DEFAULT)
+    expect(instance.getSnapshot().workbench).toBe(tracks(frame)[1])
+  })
+
+  it('primary drag can grow past two-thirds after conversation has closed', () => {
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.closeConversation() })
+    const twoThirds = Math.floor(1920 * 2 / 3)
+    const past = twoThirds + 80
+    drag(handleOf(frame, 'primary'), ACTIVITY_WIDTH + WORKBENCH_DEFAULT, ACTIVITY_WIDTH + past)
+    expect(tracks(frame)[1]).toBeGreaterThan(twoThirds)
+    expect(tracks(frame)[1]).toBeLessThanOrEqual(workbenchMax(1920))
     expect(instance.getSnapshot().workbench).toBe(tracks(frame)[1])
   })
 

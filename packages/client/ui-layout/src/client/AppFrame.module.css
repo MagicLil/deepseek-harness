@@ -136,19 +136,22 @@
   border-top: none;
 }
 
-/* Drag handles are frame children (columns clip overflow): an 8px hit
-   strip centered on the column border. Cursor-style sash — hover/drag
-   paints a 2px accent line the full length, not a mid-column pill.
-   z-index sits above shell.overlay (20) so the strip stays hittable. */
+/* Drag handles are frame children (columns clip overflow): a 16px hit
+   strip sitting mostly on the editor side of the border so a Windows
+   scrollbar / row-action cluster cannot steal the pointer. Cursor-style
+   sash — hover/drag paints a 2px accent line the full length, not a
+   mid-column pill. z-index sits above shell.overlay (20). Electron must
+   not treat the strip as a window-move region. */
 .handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 16px;
   margin-left: -4px;
   cursor: col-resize;
   z-index: 21;
   touch-action: none;
+  -webkit-app-region: no-drag;
   transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
@@ -285,6 +288,7 @@
   cursor: row-resize;
   z-index: 21;
   touch-action: none;
+  -webkit-app-region: no-drag;
   transition: top var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 

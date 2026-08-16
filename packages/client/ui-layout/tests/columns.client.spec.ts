@@ -162,14 +162,15 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(cols.conversation).toBe(1280)
   })
 
-  it('keeps a two-thirds primary after conversation has closed', () => {
-    const want = workbenchMax(1920)
+  it('keeps a primary past two-thirds after conversation has closed', () => {
+    const past = Math.floor(1920 * 2 / 3) + 80
     const cols = computeColumns(
-      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(want), closed(CONVERSATION_DEFAULT),
+      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(past), closed(CONVERSATION_DEFAULT),
     )
-    expect(cols.primary).toBe(want)
+    expect(past).toBeGreaterThan(Math.floor(1920 * 2 / 3))
+    expect(cols.primary).toBe(past)
     expect(cols.conversation).toBe(0)
-    expect(cols.editor).toBe(1920 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - want)
+    expect(cols.editor).toBe(1920 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - past)
   })
 
   it('primary keeps its preference after conversation has auto-closed when it still fits', () => {
@@ -224,16 +225,38 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(restored.primary).toBe(WORKBENCH_DEFAULT)
   })
 
-  it('a preferred primary drag to two-thirds shrinks conversation', () => {
+  it('a preferred primary drag past two-thirds shrinks conversation', () => {
+    const past = Math.floor(1920 * 2 / 3) + 80
+    const cols = computeColumns(
+      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(past), open(CONVERSATION_DEFAULT),
+      'primary',
+    )
+    expect(cols.primary).toBe(past)
+    expect(cols.conversation).toBeLessThan(CONVERSATION_DEFAULT)
+  })
+
+  it('a preferred primary drag to the ceiling closes conversation and keeps the leftover', () => {
     const want = workbenchMax(1920)
     const cols = computeColumns(
       1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(want), open(CONVERSATION_DEFAULT),
       'primary',
     )
-    expect(want).toBe(Math.floor(1920 * 2 / 3))
-    expect(cols.primary).toBeGreaterThan(WORKBENCH_DEFAULT)
-    expect(cols.primary).toBeLessThanOrEqual(want)
-    expect(cols.conversation).toBeLessThan(CONVERSATION_DEFAULT)
+    expect(cols.primary).toBe(1920 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT)
+    expect(cols.conversation).toBe(0)
+    expect(cols.editor).toBe(0)
+  })
+
+  it('lets a primary drag grow past two-thirds when conversation is closed', () => {
+    const viewport = 1440
+    const twoThirds = Math.floor(viewport * 2 / 3)
+    const past = twoThirds + 80
+    const cols = computeColumns(
+      viewport, closed(300), closed(DETAILS_DEFAULT), open(past), closed(CONVERSATION_DEFAULT),
+      'primary',
+    )
+    expect(workbenchMax(viewport)).toBeGreaterThan(twoThirds)
+    expect(cols.primary).toBeGreaterThan(twoThirds)
+    expect(cols.primary).toBe(Math.min(past, workbenchMax(viewport)))
   })
 
   it('primary hits its floor before conversation leaves its preference', () => {

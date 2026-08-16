@@ -62,6 +62,8 @@ describe('AppFrame column layout contract', () => {
   it('paints a Cursor-style full-length sash line above the overlay', () => {
     expect(css).toMatch(/\.handle \{[\s\S]*z-index:\s*21/)
     expect(css).toMatch(/\.handleRow \{[\s\S]*z-index:\s*21/)
+    expect(css).toMatch(/\.handle \{[\s\S]*width:\s*16px/)
+    expect(css).toMatch(/\.handle \{[\s\S]*-webkit-app-region:\s*no-drag/)
     expect(css).toMatch(/\.handle::after \{[\s\S]*top:\s*0;[\s\S]*bottom:\s*0;[\s\S]*width:\s*2px/)
     expect(css).toMatch(/--dsw-alias-state-business-primary/)
     expect(block('handle')).not.toMatch(/height:\s*32px/)

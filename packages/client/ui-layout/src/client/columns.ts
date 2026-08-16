@@ -52,13 +52,18 @@ export const DETAILS_MAX = 520
 export const DETAILS_DEFAULT = 360
 /** Primary-sidebar (Explorer/Git/Tasks) drag clamp floor. `workbench` store field. */
 export const WORKBENCH_MIN = 200
-/** Primary sidebar may grow to this fraction of the frame (user drag ceiling). */
-export const WORKBENCH_MAX_RATIO = 2 / 3
 /**
- * Store-side primary ceiling: 2/3 of a 4K frame. The solver still caps
- * each paint at {@link workbenchMax} for the live viewport.
+ * Pixels left for the editor when a primary drag hits its ceiling.
+ * Conversation still caps at {@link CONVERSATION_MAX_RATIO}; the Git /
+ * Explorer column may keep growing until this remainder.
  */
-export const WORKBENCH_MAX = Math.floor(3840 * WORKBENCH_MAX_RATIO)
+export const WORKBENCH_EDITOR_REMAINDER = 160
+/**
+ * Store-side primary ceiling: a 4K frame minus the activity bar and
+ * {@link WORKBENCH_EDITOR_REMAINDER}. Live paints still cap at
+ * {@link workbenchMax} for the current viewport.
+ */
+export const WORKBENCH_MAX = 3840 - ACTIVITY_WIDTH - WORKBENCH_EDITOR_REMAINDER
 /** Primary-sidebar width before any user drag. */
 export const WORKBENCH_DEFAULT = 260
 /** Conversation-column drag clamp floor. */
@@ -83,12 +88,13 @@ export function conversationMax(viewport: number): number {
 }
 
 /**
- * Live primary-sidebar drag ceiling: two-thirds of the current frame.
+ * Live primary-sidebar drag ceiling: grow until the editor would drop
+ * below {@link WORKBENCH_EDITOR_REMAINDER} (activity bar never concedes).
  * @param viewport - available frame width in px.
  * @returns the clamp max, never below {@link WORKBENCH_MIN}.
  */
 export function workbenchMax(viewport: number): number {
-  return Math.max(WORKBENCH_MIN, Math.floor(viewport * WORKBENCH_MAX_RATIO))
+  return Math.max(WORKBENCH_MIN, viewport - ACTIVITY_WIDTH - WORKBENCH_EDITOR_REMAINDER)
 }
 
 /** Which flexible column a live sash drag should keep. */
@@ -249,8 +255,8 @@ export function clampWidth(px: number, min: number, max: number): number {
  * store boundary and callers may still supply stale ranges.
  * Concession order: details, then the non-preferred flexible column
  * (primary when idle / conversation-drag, conversation when primary-drag),
- * then the leftover shrink. A 2/3 drag may drop the editor below
- * EDITOR_MIN, same as the existing conversation ceiling. The session
+ * then the leftover shrink. A wide primary drag may drop the editor below
+ * EDITOR_MIN, same as a 2/3 conversation drag. The session
  * sidebar is fixed at its preference (or the rail AppFrame already chose).
  * @param viewport - available frame width in px.
  * @param sidebar - session-sidebar width preference in px (0 = rail).
@@ -295,8 +301,8 @@ export function computeColumns(
 
   if (fits(sOpen, p0, c0, 0)) return pack(sOpen, p0, c0, 0)
 
-  // A live primary drag (up to 2/3) wins over conversation, same as a
-  // conversation drag winning over the primary. Idle paints keep chat.
+  // A live primary drag (up to the editor remainder) wins over conversation,
+  // same as a conversation drag winning over the primary. Idle paints keep chat.
   if (prefer === 'primary' && p0 > 0) {
     if (c0 > 0) {
       const c1 = Math.max(CONVERSATION_MIN, viewport - activity - sOpen - p0 - EDITOR_MIN)
@@ -309,6 +315,8 @@ export function computeColumns(
       if (cFit >= CONVERSATION_MIN) return pack(sOpen, p0, cFit, 0)
     }
     if (activity + sOpen + p0 <= viewport) return pack(sOpen, p0, 0, 0)
+    const pFit = viewport - activity - sOpen
+    if (pFit >= WORKBENCH_MIN) return pack(sOpen, pFit, 0, 0)
   }
 
   // A wide conversation (up to 2/3) wins over the primary sidebar so a drag
