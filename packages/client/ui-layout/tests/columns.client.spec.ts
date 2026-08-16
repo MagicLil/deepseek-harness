@@ -315,11 +315,12 @@ describe('planPrimaryReveal', () => {
 })
 
 describe('chromeTitleBarVisible', () => {
-  it('is desktop-only', () => {
-    expect(chromeTitleBarVisible('dsh:')).toBe(true)
-    expect(chromeTitleBarVisible('http:')).toBe(false)
-    expect(chromeTitleBarVisible('https:')).toBe(false)
-    expect(chromeTitleBarVisible('')).toBe(false)
+  it('is desktop-only unless Electron preload is present', () => {
+    expect(chromeTitleBarVisible('dsh:', false)).toBe(true)
+    expect(chromeTitleBarVisible('http:', false)).toBe(false)
+    expect(chromeTitleBarVisible('https:', false)).toBe(false)
+    expect(chromeTitleBarVisible('', false)).toBe(false)
+    expect(chromeTitleBarVisible('http:', true)).toBe(true)
   })
 })
 
@@ -334,11 +335,12 @@ describe('conversationToggleLabel', () => {
 })
 
 describe('chromeMenuBarVisible', () => {
-  it('hides the HTML strip on the desktop dsh: renderer', () => {
-    expect(chromeMenuBarVisible('dsh:')).toBe(false)
-    expect(chromeMenuBarVisible('http:')).toBe(true)
-    expect(chromeMenuBarVisible('https:')).toBe(true)
-    expect(chromeMenuBarVisible('')).toBe(true)
+  it('hides the HTML strip on the desktop renderer', () => {
+    expect(chromeMenuBarVisible('dsh:', false)).toBe(false)
+    expect(chromeMenuBarVisible('http:', false)).toBe(true)
+    expect(chromeMenuBarVisible('https:', false)).toBe(true)
+    expect(chromeMenuBarVisible('', false)).toBe(true)
+    expect(chromeMenuBarVisible('http:', true)).toBe(false)
   })
 })
 

@@ -168,24 +168,43 @@ export const MENU_BAR_HEIGHT = 28
 /** Desktop title-bar overlay track (Window Controls Overlay); never dragged. */
 export const TITLE_BAR_HEIGHT = 32
 
+/** Electron preload bridge. Present in the desktop window even on loopback HTTP. */
+type DesktopIpcWindow = { __DSH_IPC__?: unknown }
+
 /**
- * The standalone HTML menu-bar row is web-only. Desktop paints that menu
- * inside the 32px title track so a second strip does not appear.
- * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
+ * Desktop chrome: the `dsh:` renderer, or loopback HTTP with Electron preload.
+ * Protocol-only checks drop the title-track brand after the window moved to
+ * `http://127.0.0.1`.
  */
-export function chromeMenuBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {
-  return protocol !== 'dsh:'
+function isDesktopChrome(protocol: string, desktopIpc: boolean): boolean {
+  return protocol === 'dsh:' || desktopIpc
 }
 
 /**
- * Desktop `dsh:` renderer always owns a 32px title-bar track so a chat
- * toggle can sit next to Minimize. Electron applies Window Controls Overlay
- * on the same surface; the track is a real grid row and never paints over
- * the columns underneath.
- * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
+ * The standalone HTML menu-bar row is web-only. Desktop paints that menu
+ * inside the 32px title track so a second strip does not appear.
+ * @param protocol - `location.protocol`.
+ * @param desktopIpc - whether `window.__DSH_IPC__` is installed.
  */
-export function chromeTitleBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {
-  return protocol === 'dsh:'
+export function chromeMenuBarVisible(
+  protocol: string = globalThis.location?.protocol ?? '',
+  desktopIpc: boolean = (globalThis as DesktopIpcWindow).__DSH_IPC__ !== undefined,
+): boolean {
+  return !isDesktopChrome(protocol, desktopIpc)
+}
+
+/**
+ * Desktop owns a 32px title-bar track so the brand and a chat toggle can
+ * sit in the Window Controls Overlay. The track is a real grid row and
+ * never paints over the columns underneath.
+ * @param protocol - `location.protocol`.
+ * @param desktopIpc - whether `window.__DSH_IPC__` is installed.
+ */
+export function chromeTitleBarVisible(
+  protocol: string = globalThis.location?.protocol ?? '',
+  desktopIpc: boolean = (globalThis as DesktopIpcWindow).__DSH_IPC__ !== undefined,
+): boolean {
+  return isDesktopChrome(protocol, desktopIpc)
 }
 
 /**

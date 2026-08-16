@@ -219,6 +219,30 @@ describe('AppFrame', () => {
     }
   })
 
+  it('reserves the title-bar brand on loopback HTTP when Electron preload is present', () => {
+    const previousLocation = window.location
+    const g = globalThis as { __DSH_IPC__?: unknown }
+    const previousIpc = g.__DSH_IPC__
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('http://127.0.0.1:3080/'),
+    })
+    g.__DSH_IPC__ = {}
+    try {
+      const { frame, queryByTestId, getByTestId } = mountFrame()
+      expect(frame.getAttribute('data-title-overlay')).not.toBeNull()
+      expect(queryByTestId('layout-title-drag')).toBeTruthy()
+      expect(getByTestId('layout-title-brand').textContent).toContain('万物智汇')
+      expect(getByTestId('menu-content').closest('[data-testid="layout-title-drag"]')).toBeTruthy()
+      expect(frame.getAttribute('data-chrome-menu')).toBeNull()
+      expect(frame.style.gridTemplateRows.startsWith('32px 0px ')).toBe(true)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: previousLocation })
+      if (previousIpc === undefined) delete g.__DSH_IPC__
+      else g.__DSH_IPC__ = previousIpc
+    }
+  })
+
   it('keeps the HTML menu inside the title track without a second chrome row', () => {
     const previous = window.location
     Object.defineProperty(window, 'location', {
