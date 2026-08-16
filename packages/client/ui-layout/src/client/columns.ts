@@ -152,10 +152,15 @@ export function planPrimaryReveal(
     conversation: conversationOut,
   }
 }
+/** Editor column vertical floor above the bottom panel. */
+export const EDITOR_MIN_HEIGHT = 160
 /** Bottom-panel drag clamp floor. */
 export const BOTTOM_MIN = 120
-/** Bottom-panel drag clamp ceiling. */
-export const BOTTOM_MAX = 400
+/**
+ * Store-side bottom ceiling: leave {@link EDITOR_MIN_HEIGHT} on a 4K-tall
+ * frame. Live paints still shrink via {@link computeBottom} / {@link bottomMax}.
+ */
+export const BOTTOM_MAX = Math.max(BOTTOM_MIN, 2160 - EDITOR_MIN_HEIGHT)
 /** Bottom-panel height before any user drag. */
 export const BOTTOM_DEFAULT = 200
 /** Top menu-bar track; never dragged and never conceded. */
@@ -198,8 +203,14 @@ export function conversationToggleLabel(
   return open ? 'Collapse chat' : 'Open chat'
 }
 
-/** Editor column vertical floor above the bottom panel. */
-export const EDITOR_MIN_HEIGHT = 160
+/**
+ * Live bottom-panel drag ceiling: leave the editor vertical floor.
+ * @param frameHeight - available frame height in px (below chrome).
+ * @returns the clamp max, never below {@link BOTTOM_MIN}.
+ */
+export function bottomMax(frameHeight: number): number {
+  return Math.max(BOTTOM_MIN, frameHeight - EDITOR_MIN_HEIGHT)
+}
 
 /**
  * Clamp a panel width into its contract range.
@@ -320,9 +331,9 @@ export function computeColumns(
  */
 export function computeBottom(frameHeight: number, preference: number): number {
   if (preference === 0) return 0
-  const pref = clampWidth(preference, BOTTOM_MIN, BOTTOM_MAX)
+  const pref = clampWidth(preference, BOTTOM_MIN, Math.min(BOTTOM_MAX, bottomMax(frameHeight)))
   if (pref + EDITOR_MIN_HEIGHT <= frameHeight) return pref
-  const shrunk = Math.max(BOTTOM_MIN, frameHeight - EDITOR_MIN_HEIGHT)
+  const shrunk = bottomMax(frameHeight)
   if (shrunk + EDITOR_MIN_HEIGHT <= frameHeight) return shrunk
   return 0
 }

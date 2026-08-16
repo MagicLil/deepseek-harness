@@ -351,6 +351,11 @@ describe('computeBottom', () => {
     expect(computeBottom(1080, BOTTOM_DEFAULT)).toBe(BOTTOM_DEFAULT)
   })
 
+  it('allows a tall preference up to the editor floor', () => {
+    expect(computeBottom(1080, 800)).toBe(800)
+    expect(computeBottom(1080, 9999)).toBe(1080 - EDITOR_MIN_HEIGHT)
+  })
+
   it('shrinks toward the minimum then auto-closes', () => {
     expect(computeBottom(EDITOR_MIN_HEIGHT + BOTTOM_MIN, BOTTOM_DEFAULT)).toBe(BOTTOM_MIN)
     expect(computeBottom(EDITOR_MIN_HEIGHT + BOTTOM_MIN - 1, BOTTOM_DEFAULT)).toBe(0)
