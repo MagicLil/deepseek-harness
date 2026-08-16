@@ -3,13 +3,13 @@
  * bar, primary sidebar, bottom panel, and the Workbench settings section.
  */
 import type {
-  HostObservable, InjectFace, PropsLocale, PropsRuntime, PropsStore,
+  HostObservable, InjectFace, PropsLocale, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ComponentType } from 'react'
 import type { FileListing } from '@deepseek-ai/dsh-client-runtime/client'
-import type { createWorkbenchStore } from './stores.ts'
+import type { WorkbenchPersistBoundActions, WorkbenchPersistState } from './stores.ts'
 import type { WorkbenchKey } from './locales.ts'
 import type { AppMenuCommand } from './app-menu-dispatch.ts'
 import type {
@@ -149,18 +149,25 @@ export interface PrimarySidebarInjected {
    * restore so a same-project switch keeps the live explorer width.
    */
   keepLiveWidth: () => boolean
+  /** Persist writes for this session (no-ops while session-maybe is blank). */
+  actions: WorkbenchPersistBoundActions
   hooks: {
     /** Per-session activity and tab list. */
     workbenchSession: HostObservable<WorkbenchView>
     /** Registered activities for the title and pane list. */
     workbenchRegistry: HostObservable<WorkbenchRegistrySnapshot>
+    /**
+     * Per-session open/width memory. Not the framework store seat —
+     * session-maybe has no session id on the blank incarnation, so a
+     * declared store never binds and `useStore` crashes the slot.
+     */
+    workbenchPersist: HostObservable<WorkbenchPersistState>
   }
 }
 
 /** Full composed props for the primary sidebar. */
 export type PrimarySidebarProps =
   & PropsRuntime<'primarySidebar'>
-  & PropsStore<ReturnType<typeof createWorkbenchStore>>
   & PropsLocale<'workbench'>
   & InjectFace<PrimarySidebarInjected>
 

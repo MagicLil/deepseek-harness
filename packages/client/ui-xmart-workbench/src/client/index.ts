@@ -20,7 +20,10 @@ import type {
 } from './contract.ts'
 import { XMART_ACCENT_TOKENS } from './brand-accent.ts'
 import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
-import { createWorkbenchStore, inheritWorkbenchPersist } from './stores.ts'
+import {
+  createWorkbenchStore, EMPTY_PERSIST_SOURCE, inheritWorkbenchPersist, NOOP_PERSIST_ACTIONS,
+  WORKBENCH_PERSIST_DEFAULT,
+} from './stores.ts'
 import { EMPTY_SESSION_SOURCE, XmartWorkbenchController } from './service.ts'
 import { WorkbenchColumn } from './WorkbenchColumn.tsx'
 import { ActivityBar } from './ActivityBar.tsx'
@@ -710,7 +713,14 @@ export function apply(ctx: ClientContext): void {
   const activityInjected = (sessionId: SessionId | undefined): ActivityBarInjected => ({
     setActivity: (id) => { if (sessionId !== undefined) workbench.setActivity(id, { sessionId }) },
     resolveIcon: id => workbench.getActivity(id)?.icon,
-    openPrimary: () => { ctx.layout.openWorkbench() },
+    openPrimary: () => {
+      if (sessionId !== undefined) {
+        const inst = persist.create(sessionId)
+        const remembered = inst.getSnapshot().width
+        inst.actions.rememberOpen(remembered > 0 ? remembered : WORKBENCH_PERSIST_DEFAULT)
+      }
+      ctx.layout.openWorkbench()
+    },
     closePrimary: () => { ctx.layout.closeWorkbench() },
     hooks: {
       workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
@@ -721,18 +731,23 @@ export function apply(ctx: ClientContext): void {
       },
     },
   })
-  const primaryInjected = (sessionId: SessionId | undefined): PrimarySidebarInjected => ({
-    closeWorkbench: () => { ctx.layout.closeWorkbench() },
-    setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
-    resolveBody: type => workbench.getActivity(type)?.component ?? workbench.getTab(type)?.component,
-    refreshExplorer: () => { files.bumpRefresh() },
-    projectKey,
-    keepLiveWidth: () => sessionId !== undefined && skipPersistRestoreFor === sessionId,
-    hooks: {
-      workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
-      workbenchRegistry: workbench.observeRegistry(),
-    },
-  })
+  const primaryInjected = (sessionId: SessionId | undefined): PrimarySidebarInjected => {
+    const inst = sessionId === undefined ? undefined : persist.create(sessionId)
+    return {
+      closeWorkbench: () => { ctx.layout.closeWorkbench() },
+      setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
+      resolveBody: type => workbench.getActivity(type)?.component ?? workbench.getTab(type)?.component,
+      refreshExplorer: () => { files.bumpRefresh() },
+      projectKey,
+      keepLiveWidth: () => sessionId !== undefined && skipPersistRestoreFor === sessionId,
+      actions: inst?.actions ?? NOOP_PERSIST_ACTIONS,
+      hooks: {
+        workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
+        workbenchRegistry: workbench.observeRegistry(),
+        workbenchPersist: inst ?? EMPTY_PERSIST_SOURCE,
+      },
+    }
+  }
   const menuInjected = (sessionId: SessionId | undefined): MenuBarInjected => ({
     run: (command) => { runMenu(sessionId, command) },
     hooks: {
@@ -763,7 +778,7 @@ export function apply(ctx: ClientContext): void {
     ActivityBar,
   ))
   ctx.slots.inject('primarySidebar', () => ctx.slots.register(
-    { name: 'primarySidebar', store: persist, inject: primaryInjected, locale: NS },
+    { name: 'primarySidebar', inject: primaryInjected, locale: NS },
     PrimarySidebar,
   ))
   ctx.slots.inject('workbench', () => ctx.slots.register(

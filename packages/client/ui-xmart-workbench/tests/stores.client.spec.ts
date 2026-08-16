@@ -3,7 +3,10 @@
  * createWorkbenchStore: init, remember open/closed, and session-scoped persist.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createWorkbenchStore, inheritWorkbenchPersist, WORKBENCH_PERSIST_DEFAULT } from '../src/client/stores.ts'
+import {
+  createWorkbenchStore, EMPTY_PERSIST_SOURCE, EMPTY_WORKBENCH_PERSIST, inheritWorkbenchPersist,
+  NOOP_PERSIST_ACTIONS, WORKBENCH_PERSIST_DEFAULT,
+} from '../src/client/stores.ts'
 
 beforeEach(() => { localStorage.clear() })
 
@@ -41,5 +44,16 @@ describe('createWorkbenchStore', () => {
     persist.create('s1').actions.rememberClosed()
     expect(inheritWorkbenchPersist(persist, 's1', 's3')).toEqual({ open: false, width: 400 })
     expect(persist.create('s3').getSnapshot()).toEqual({ open: false, width: 400 })
+  })
+
+  it('exposes a stable blank persist source and no-op writes', () => {
+    expect(EMPTY_PERSIST_SOURCE.getSnapshot()).toEqual(EMPTY_WORKBENCH_PERSIST)
+    expect(EMPTY_PERSIST_SOURCE.subscribe(() => {})()).toBeUndefined()
+    NOOP_PERSIST_ACTIONS.rememberOpen(400)
+    NOOP_PERSIST_ACTIONS.rememberClosed()
+    expect(EMPTY_PERSIST_SOURCE.getSnapshot()).toEqual({
+      open: true,
+      width: WORKBENCH_PERSIST_DEFAULT,
+    })
   })
 })

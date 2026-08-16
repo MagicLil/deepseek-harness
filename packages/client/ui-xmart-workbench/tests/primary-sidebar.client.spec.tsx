@@ -45,7 +45,7 @@ function mount(
   const props = {
     width,
     sessionId: scope as SessionId,
-    useStore: hookOf(instance),
+    useWorkbenchPersist: hookOf(instance),
     actions: instance.actions,
     useSession: (() => null) as never,
     useSessions: (() => null) as never,
@@ -185,11 +185,35 @@ describe('PrimarySidebar', () => {
     expect(setWorkbench).toHaveBeenCalledWith(300)
   })
 
-  it('closes a leftover layout preference when this session last left the panel closed', () => {
+  it('does not auto-close a leftover layout preference on first bind', () => {
     const { closeWorkbench } = mount(260, 's-closed', (inst) => {
       inst.actions.rememberClosed()
     })
-    expect(closeWorkbench).toHaveBeenCalledOnce()
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+  })
+
+  it('keeps the rail when sessionId is still hydrating', () => {
+    const { closeWorkbench } = mount(260, 's-hydrate-gap')
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+  })
+
+  it('still paints chrome when sessionId is missing but the column has width', () => {
+    const { rerender } = mount(260, 's-maybe')
+    rerender({ sessionId: undefined })
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-primary-pane-explorer')).toBeNull()
+  })
+
+  it('does not re-close after the user opens a persist-closed rail', () => {
+    const { closeWorkbench, rerender } = mount(0, 's-reopen-click', (inst) => {
+      inst.actions.rememberClosed()
+    })
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    act(() => { rerender({ width: 260, keepLiveWidth: () => false }) })
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(screen.getByTestId('xmart-primary-sidebar')).toBeTruthy()
   })
 
   it('persists a later drag width after the session sync', () => {
@@ -246,7 +270,7 @@ describe('PrimarySidebar', () => {
       ...shared,
       width: 0,
       sessionId: 's-closed-a' as SessionId,
-      useStore: hookOf(first),
+      useWorkbenchPersist: hookOf(first),
       actions: first.actions,
     } as PrimarySidebarProps
     const utils = render(<PrimarySidebar {...firstProps} />)
@@ -256,7 +280,7 @@ describe('PrimarySidebar', () => {
         <PrimarySidebar
           {...firstProps}
           sessionId={'s-closed-b' as SessionId}
-          useStore={hookOf(next)}
+          useWorkbenchPersist={hookOf(next)}
           actions={next.actions}
         />,
       )
@@ -310,7 +334,7 @@ describe('PrimarySidebar', () => {
       ...shared,
       width: 300,
       sessionId: 's-a' as SessionId,
-      useStore: hookOf(first),
+      useWorkbenchPersist: hookOf(first),
       actions: first.actions,
     } as PrimarySidebarProps
     const utils = render(<PrimarySidebar {...firstProps} />)
@@ -321,7 +345,7 @@ describe('PrimarySidebar', () => {
         <PrimarySidebar
           {...firstProps}
           sessionId={'s-b' as SessionId}
-          useStore={hookOf(next)}
+          useWorkbenchPersist={hookOf(next)}
           actions={next.actions}
         />,
       )
@@ -357,7 +381,7 @@ describe('PrimarySidebar', () => {
       ...shared,
       width: 300,
       sessionId: 's-a' as SessionId,
-      useStore: hookOf(first),
+      useWorkbenchPersist: hookOf(first),
       actions: first.actions,
     } as PrimarySidebarProps
     const utils = render(<PrimarySidebar {...firstProps} />)
@@ -368,7 +392,7 @@ describe('PrimarySidebar', () => {
         <PrimarySidebar
           {...firstProps}
           sessionId={'s-other' as SessionId}
-          useStore={hookOf(next)}
+          useWorkbenchPersist={hookOf(next)}
           actions={next.actions}
         />,
       )
@@ -389,7 +413,7 @@ describe('PrimarySidebar', () => {
           ...{
             width: 400,
             sessionId: 's-remount' as SessionId,
-            useStore: hookOf(dest),
+            useWorkbenchPersist: hookOf(dest),
             actions: dest.actions,
             closeWorkbench,
             setWorkbench,

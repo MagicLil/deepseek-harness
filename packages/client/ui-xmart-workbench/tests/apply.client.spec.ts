@@ -321,12 +321,22 @@ describe('ui-xmart-workbench apply', () => {
     const bottom = (
       b.slots.entries('bottomPanel')[0]!.inject as unknown as (id: string) => BottomPanelInjected
     )('s1')
+    expect(primary.hooks.workbenchPersist.getSnapshot()).toMatchObject({ open: true, width: 260 })
+    const blankPrimary = (
+      b.slots.entries('primarySidebar')[0]!.inject as unknown as (
+        id: string | undefined,
+      ) => PrimarySidebarInjected
+    )(undefined)
+    expect(blankPrimary.hooks.workbenchPersist.getSnapshot()).toMatchObject({ open: true, width: 260 })
+    blankPrimary.actions.rememberOpen(400)
+    blankPrimary.actions.rememberClosed()
     primary.closeWorkbench()
     primary.setWorkbench(480)
     expect(b.layout.closeWorkbench).toHaveBeenCalledOnce()
     expect(b.layout.setWorkbench).toHaveBeenCalledWith(480)
     activity.setActivity('git')
     activity.openPrimary()
+    expect(b.layout.openWorkbench).toHaveBeenCalledOnce()
     activity.closePrimary()
     const offBadge = activity.hooks.gitBadge.subscribe(() => {})
     offBadge()

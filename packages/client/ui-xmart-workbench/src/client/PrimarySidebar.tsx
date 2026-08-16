@@ -39,7 +39,8 @@ export class ActivityPaneBoundary extends Component<
 export function PrimarySidebar({
   width,
   sessionId,
-  useStore,
+  useSessions,
+  useWorkbenchPersist,
   actions,
   closeWorkbench,
   setWorkbench,
@@ -50,11 +51,13 @@ export function PrimarySidebar({
   useWorkbenchRegistry,
   t,
 }: PrimarySidebarProps) {
-  const persisted = useStore(s => s)
+  const persisted = useWorkbenchPersist(s => s)
   const persistRef = useRef(persisted)
   persistRef.current = persisted
   const writes = useRef({ closeWorkbench, setWorkbench, actions })
   writes.current = { closeWorkbench, setWorkbench, actions }
+  const keepLiveRef = useRef(keepLiveWidth)
+  keepLiveRef.current = keepLiveWidth
   const syncGen = useRef(0)
   const seenGen = useRef(-1)
   const activity = useWorkbenchSession(s => s.activity)
@@ -62,30 +65,39 @@ export function PrimarySidebar({
   const ids = registered.length > 0 ? registered.map(row => row.id) : [...PRIMARY_ACTIVITIES]
   const title = registered.find(row => row.id === activity)?.title
     ?? (isPrimaryActivity(activity) ? t(TITLE_KEY[activity]) : activity)
-  const prevSession = useRef(sessionId)
+  const listedCurrent = useSessions(s => s.current)
+  const boundSession = sessionId ?? (typeof listedCurrent === 'string' ? listedCurrent : undefined)
+  // Start unset so the first bind is a hydrate (restore open persist, never
+  // auto-close). Initializing to sessionId made first mount look like a
+  // remount and closed the rail whenever persist said closed — then a later
+  // keepLiveWidth identity change closed it again after the user clicked open.
+  const prevSession = useRef<string | undefined>(undefined)
 
   useLayoutEffect(() => {
     const prev = prevSession.current
     prevSession.current = sessionId
     if (sessionId === undefined) return
-    if (prev === undefined) {
-      syncGen.current += 1
-      const snap = persistRef.current
-      if (snap.open) writes.current.setWorkbench(snap.width)
-      return
-    }
-    if (prev !== sessionId || keepLiveWidth()) {
+    if (keepLiveRef.current()) {
       syncGen.current += 1
       seenGen.current = syncGen.current
       if (width > 0) writes.current.actions.rememberOpen(width)
       else writes.current.actions.rememberClosed()
       return
     }
-    syncGen.current += 1
-    const snap = persistRef.current
-    if (snap.open) writes.current.setWorkbench(snap.width)
-    else if (width > 0) writes.current.closeWorkbench()
-  }, [keepLiveWidth, sessionId])
+    if (prev === undefined) {
+      syncGen.current += 1
+      const snap = persistRef.current
+      if (snap.open) writes.current.setWorkbench(snap.width)
+      return
+    }
+    if (prev !== sessionId) {
+      syncGen.current += 1
+      seenGen.current = syncGen.current
+      if (width > 0) writes.current.actions.rememberOpen(width)
+      else writes.current.actions.rememberClosed()
+      return
+    }
+  }, [sessionId])
 
   useEffect(() => {
     if (seenGen.current !== syncGen.current) {
@@ -94,7 +106,7 @@ export function PrimarySidebar({
     }
     const snap = persistRef.current
     if (width > 0) {
-      if (!snap.open && snap.width !== width) {
+      if (!snap.open && snap.width > 0 && snap.width !== width) {
         writes.current.setWorkbench(snap.width)
         return
       }
@@ -104,14 +116,13 @@ export function PrimarySidebar({
     if (snap.open) writes.current.actions.rememberClosed()
   }, [width])
 
-  if (sessionId === undefined || width === 0) return null
-  const boundSession = sessionId
+  if (width === 0) return null
 
   return (
     <div className={css.root} data-testid="xmart-primary-sidebar">
       <div className={css.title}>
         <div className={css.titleLabel} data-testid="xmart-primary-title">{title}</div>
-        {activity === 'explorer' && (
+        {activity === 'explorer' && boundSession !== undefined && (
           <button
             type="button"
             className={css.refresh}
@@ -123,37 +134,39 @@ export function PrimarySidebar({
           </button>
         )}
       </div>
-      {ids.map((id) => {
-        const Body = resolveBody(id)
-        const active = id === activity
-        // Keep Explorer mounted across icon switches so the file tree does
-        // not remount. Git mounts only while selected.
-        if (!active && id !== 'explorer') return null
-        const fallback = (
-          <div className={css.fallback} data-testid={`xmart-primary-fallback-${id}`}>
-            {t(Body === undefined ? 'sidebar.missing' : 'sidebar.crashed')}
-          </div>
-        )
-        return (
-          <div
-            key={id}
-            className={active ? css.pane : `${css.pane} ${css.paneInactive}`}
-            data-testid={`xmart-primary-pane-${id}`}
-          >
-            <ActivityPaneBoundary fallback={fallback}>
-              {Body === undefined
-                ? fallback
-                : (
-                  <Body
-                    tab={{ id, type: id, title: id }}
-                    visible={active}
-                    sessionId={boundSession}
-                  />
-                )}
-            </ActivityPaneBoundary>
-          </div>
-        )
-      })}
+      {boundSession === undefined
+        ? null
+        : ids.map((id) => {
+          const Body = resolveBody(id)
+          const active = id === activity
+          // Keep Explorer mounted across icon switches so the file tree does
+          // not remount. Git mounts only while selected.
+          if (!active && id !== 'explorer') return null
+          const fallback = (
+            <div className={css.fallback} data-testid={`xmart-primary-fallback-${id}`}>
+              {t(Body === undefined ? 'sidebar.missing' : 'sidebar.crashed')}
+            </div>
+          )
+          return (
+            <div
+              key={id}
+              className={active ? css.pane : `${css.pane} ${css.paneInactive}`}
+              data-testid={`xmart-primary-pane-${id}`}
+            >
+              <ActivityPaneBoundary fallback={fallback}>
+                {Body === undefined
+                  ? fallback
+                  : (
+                    <Body
+                      tab={{ id, type: id, title: id }}
+                      visible={active}
+                      sessionId={boundSession}
+                    />
+                  )}
+              </ActivityPaneBoundary>
+            </div>
+          )
+        })}
     </div>
   )
 }

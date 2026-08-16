@@ -5,6 +5,7 @@
  * only — a module-level handle would pin identity across plugin reloads.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** Default width written when a session first opens the primary sidebar (matches ui-layout WORKBENCH_DEFAULT). */
 export const WORKBENCH_PERSIST_DEFAULT = 260
@@ -15,6 +16,33 @@ export type WorkbenchPersistState = {
   open: boolean
   /** Last non-zero width preference in px. */
   width: number
+}
+
+/** Bound persist writes (draft is already closed over by defineStore). */
+export type WorkbenchPersistBoundActions = {
+  rememberOpen: (width: number) => void
+  rememberClosed: () => void
+}
+
+/** Open-by-default snapshot while session-maybe has no current session. */
+export const EMPTY_WORKBENCH_PERSIST: WorkbenchPersistState = {
+  open: true,
+  width: WORKBENCH_PERSIST_DEFAULT,
+}
+
+/**
+ * Stable persist source for the session-less chrome incarnation.
+ * session-maybe slots cannot use the framework store seat (no session id).
+ */
+export const EMPTY_PERSIST_SOURCE: HostObservable<WorkbenchPersistState> = {
+  getSnapshot: () => EMPTY_WORKBENCH_PERSIST,
+  subscribe: () => () => {},
+}
+
+/** No-op persist writes while no session is bound. */
+export const NOOP_PERSIST_ACTIONS: WorkbenchPersistBoundActions = {
+  rememberOpen: () => {},
+  rememberClosed: () => {},
 }
 
 /**
