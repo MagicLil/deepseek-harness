@@ -1,7 +1,7 @@
 /**
  * Git tab: Cursor-style staged / changes lists, hover verbs, commit, log, diff.
- * When the session cwd is a multi-project folder, discovers git repos in
- * immediate child directories (VS Code `git.autoRepositoryDetection`).
+ * Discovers repositories from registered Workspaces, with immediate-child
+ * fallback when the session cwd is a multi-project parent folder.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
@@ -19,7 +19,7 @@ import { letter, markKind } from './git-marks.ts'
 import { absPath, basename } from './route-file.ts'
 import { FileIcon } from './FileIcon.tsx'
 import {
-  probeGitRoots, readGitSnapshot, visibleChildDirectories,
+  discoverGitRoots, gitRootKey, readGitSnapshot, uniqueGitPaths,
 } from './git-root.ts'
 import { gitPathParts } from './git-display.ts'
 import {
@@ -144,6 +144,7 @@ function GitToolbarSelect(props: {
 export type GitTabProps = TabBodyProps & {
   t: Translate
   getCwd: (sessionId: string) => string | undefined
+  getWorkspacePaths: () => readonly string[]
   watchSessions: (fn: () => void) => () => void
   listEntries: (path: string, signal?: AbortSignal) => Promise<FileListing>
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>
@@ -178,12 +179,13 @@ export type GitTabProps = TabBodyProps & {
 
 /** Git SCM tab body. */
 export function GitTab({
-  sessionId, t, getCwd, watchSessions, listEntries, gitStatus, gitStage, gitUnstage,
+  sessionId, t, getCwd, getWorkspacePaths, watchSessions, listEntries, gitStatus, gitStage, gitUnstage,
   gitDiscard, gitCommit, gitLog, gitSync, gitBranches, gitCheckout, gitCheckoutCommit,
   gitSuggestCommit, openFile, openDiff, openCommit, files, gitBadge,
   checks, checksRemote, listCheckEntries, readCheckFile, askAgent, openChecks,
 }: GitTabProps) {
   const [cwd, setCwd] = useState(() => getCwd(sessionId))
+  const [workspacePaths, setWorkspacePaths] = useState(() => [...getWorkspacePaths()])
   const [phase, setPhase] = useState<Phase>('loading')
   const [status, setStatus] = useState<GitStatus | undefined>()
   const [log, setLog] = useState<GitLogEntry[]>([])
@@ -217,8 +219,15 @@ export function GitTab({
   const moreLock = useRef(false)
   const rootRef = useRef<string | undefined>()
   logRef.current = log
+  const workspacePathsKey = workspacePaths.join('\0')
 
-  useEffect(() => watchSessions(() => { setCwd(getCwd(sessionId)) }), [getCwd, sessionId, watchSessions])
+  useEffect(() => watchSessions(() => {
+    setCwd(getCwd(sessionId))
+    setWorkspacePaths((current) => {
+      const next = getWorkspacePaths()
+      return current.join('\0') === next.join('\0') ? current : [...next]
+    })
+  }), [getCwd, getWorkspacePaths, sessionId, watchSessions])
   useEffect(() => files.subscribe(() => { setNonce(files.getSnapshot().refreshNonce) }), [files])
   useEffect(() => {
     if (checks === undefined) return
@@ -288,25 +297,28 @@ export function GitTab({
       gitBadge.set(sessionId, EMPTY_GIT_BADGE)
     }
     void (async () => {
-      const first = await readGitSnapshot(selected ?? cwd, gitStatus, gitLog, controller.signal)
-      if (controller.signal.aborted) return
+      const primaryPath = selected ?? cwd
+      const first = await readGitSnapshot(primaryPath, gitStatus, gitLog, controller.signal)
       if (first.ok) {
-        await apply(first.status, first.log)
+        const extra = uniqueGitPaths(workspacePaths)
+          .filter(path => gitRootKey(path) !== gitRootKey(primaryPath))
+        const registered = await discoverGitRoots(
+          undefined, extra, gitStatus, listEntries, controller.signal,
+        )
+        if (controller.signal.aborted) return
+        const roots = uniqueGitPaths([first.status.root, ...registered])
+          .sort((a, b) => a.localeCompare(b))
+        await apply(first.status, first.log, roots.length > 1 ? roots : undefined)
         return
       }
+      if (controller.signal.aborted) return
       if (selected !== undefined || !first.unavailable) {
         fail(first.unavailable, first.message)
         return
       }
-      let children: string[]
-      try {
-        children = visibleChildDirectories(await listEntries(cwd, controller.signal))
-      }
-      catch {
-        fail(true, first.message)
-        return
-      }
-      const found = await probeGitRoots(children, gitStatus, controller.signal)
+      const found = await discoverGitRoots(
+        cwd, workspacePaths, gitStatus, listEntries, controller.signal,
+      )
       const pick = found[0]
       if (pick === undefined) {
         fail(true, first.message)
@@ -321,7 +333,10 @@ export function GitTab({
       setSelected(pick)
     })()
     return () => { controller.abort() }
-  }, [cwd, nonce, selected, sessionId, gitStatus, gitLog, gitBranches, listEntries, gitBadge])
+  }, [
+    cwd, workspacePaths, workspacePathsKey, nonce, selected, sessionId,
+    gitStatus, gitLog, gitBranches, listEntries, gitBadge,
+  ])
 
   const requestMore = () => {
     const nextRoot = rootRef.current

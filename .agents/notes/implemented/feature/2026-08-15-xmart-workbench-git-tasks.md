@@ -12,6 +12,8 @@ Phase 2 shipped explorer and multi-file edit. Users still could not stage or com
 
 **Git verbs extend the existing ApiProxy seam.** `host.gitDiff` / `gitStage` / `gitUnstage` / `gitCommit` / `gitDiscard` / `gitLog` sit next to `host.gitStatus`. They only run git CLI. They never write `user.name` / `user.email` and never push / pull / fetch. Client failures stay `GitAccessError`. The Git tab is a normal `registerTab` type; the hidden `diff` tab shows unified text (not a Monaco DiffEditor). D7's file-tool refresh nonce also reloads Git status.
 
+**Repository discovery follows the live Workspace registry.** The Git tab probes every non-empty registered Workspace path through `host.gitStatus`, canonicalizes duplicate paths to the returned repository root, and refreshes the repository picker when the Workspace list changes. The current session cwd remains the initial selection. A non-repository cwd still falls back to probing its visible immediate child directories.
+
 **Tasks stay L2.** The tasks tab reads the live turn (`SessionSummary.running` plus the bound session's `runningCalls`), `jobsBySession`, and `subagentsByParent`. It stops the current turn or a child through `ctx.sessions`. It does not import `ui-jobs` / `ui-subagent`. In-column split is gone ([drop workbench split](../simplification/2026-08-15-drop-workbench-split.md)). The reserved terminal body occupies the AppFrame `bottomPanel` track; a real PTY is still deferred ([Cursor-style shell](2026-08-15-xmart-cursor-shell.md)).
 
 **Terminal is an honest reserved seat.** Default web/desktop bundles do not mount `ctx.terminals`, and desktop has no page WebSocket. The bottom panel explains that instead of faking a PTY.
@@ -26,6 +28,10 @@ Phase 2 shipped explorer and multi-file edit. Users still could not stage or com
 
 **Kill/output for background jobs.** Rejected: those verbs are not on the client sessions face. Listing what the snapshot already has is the L2 maximum.
 
+**Discover repositories only from the current session cwd.** Rejected: registering another Workspace does not necessarily change that session's cwd, so the picker would retain its first repository and provide no route to the new one.
+
+**Recursively scan the filesystem for repositories.** Rejected: it would probe unrelated and unregistered folders without a product-owned search bound. Registered Workspace paths plus the existing one-level parent fallback cover the supported choices.
+
 ## Consequences
 
-A session with a cwd can open Git, stage one file, commit with Ctrl+Enter, and open a unified diff tab. Tasks lists the live turn, jobs, and subagents. The old editor tab is gone from both bundles. Interactive terminal, job kill/output, chat-open-in-workbench, image bytes, and rename/delete remain out of scope.
+A session with a cwd can open Git, switch among live registered repositories, stage one file, commit with Ctrl+Enter, and open a unified diff tab. Adding a Workspace updates the picker without remounting the Git tab; every Git verb still targets the selected canonical root. Tasks lists the live turn, jobs, and subagents. The old editor tab is gone from both bundles. Interactive terminal, job kill/output, chat-open-in-workbench, image bytes, and rename/delete remain out of scope.

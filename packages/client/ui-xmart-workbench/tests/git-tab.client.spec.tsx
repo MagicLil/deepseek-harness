@@ -32,6 +32,8 @@ const emptyListing: FileListing = { path: '/ws', entries: [], truncated: false }
 
 function mount(opts?: {
   cwd?: string
+  getWorkspacePaths?: () => readonly string[]
+  watchSessions?: (fn: () => void) => () => void
   gitStatus?: (path: string) => Promise<GitStatus>
   gitLog?: (
     path: string,
@@ -67,17 +69,19 @@ function mount(opts?: {
   const openFile = vi.fn()
   const openDiff = vi.fn()
   const openCommit = opts?.openCommit ?? vi.fn()
-  render(
+  const cwd = opts?.cwd === undefined ? '/ws' : opts.cwd
+  const view = render(
     <GitTab
       tab={{ id: 'g', type: 'git', title: 'Git' }}
       visible
       sessionId="s1"
       t={t}
-      getCwd={() => opts?.cwd === undefined ? '/ws' : opts.cwd}
-      watchSessions={(fn) => {
+      getCwd={() => cwd}
+      getWorkspacePaths={opts?.getWorkspacePaths ?? (() => cwd === '' ? [] : [cwd])}
+      watchSessions={opts?.watchSessions ?? ((fn) => {
         fn()
         return () => {}
-      }}
+      })}
       listEntries={opts?.listEntries ?? (async () => emptyListing)}
       gitStatus={gitStatus}
       gitStage={gitStage}
@@ -99,7 +103,7 @@ function mount(opts?: {
   )
   return {
     files, gitBadge, gitStage, gitUnstage, gitDiscard, gitCommit, gitSync, gitCheckout,
-    gitCheckoutCommit, gitSuggestCommit, openFile, openDiff, openCommit, gitLog,
+    gitCheckoutCommit, gitSuggestCommit, openFile, openDiff, openCommit, gitLog, view,
   }
 }
 
@@ -191,6 +195,7 @@ describe('GitTab', () => {
     fireEvent.submit(screen.getByLabelText('提交说明（Ctrl+Enter）').closest('form') as HTMLFormElement)
     expect(gitCommit).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('提交说明（Ctrl+Enter）'), { target: { value: 'fix' } })
+    fireEvent.click(screen.getByTestId('xmart-git-confirm'))
     fireEvent.keyDown(screen.getByLabelText('提交说明（Ctrl+Enter）'), { key: 'Enter', ctrlKey: true })
     fireEvent.submit(screen.getByLabelText('提交说明（Ctrl+Enter）').closest('form') as HTMLFormElement)
     await act(async () => { await Promise.resolve() })
@@ -439,9 +444,9 @@ describe('GitTab', () => {
       gitBranches: async () => [
         { name: 'anruisen', current: true },
         { name: 'main', current: false },
-        { name: 'origin' },
-        { name: 'origin/anruisen' },
-        { name: 'origin/dagen' },
+        { name: 'origin', current: false },
+        { name: 'origin/anruisen', current: false },
+        { name: 'origin/dagen', current: false },
       ],
     })
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
@@ -484,6 +489,97 @@ describe('GitTab', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
     expect(screen.getByTestId('xmart-workbench-git-repo-name').textContent).toBe('deepseek-harness')
     expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
+  })
+
+  it('adds a newly registered workspace repository without changing the session cwd', async () => {
+    let workspacePaths: readonly string[] = ['/code/deepseek-harness']
+    let notifyWorkspaceChange = () => {}
+    mount({
+      cwd: '/code/deepseek-harness',
+      getWorkspacePaths: () => workspacePaths,
+      watchSessions: (fn) => {
+        notifyWorkspaceChange = fn
+        fn()
+        return () => {}
+      },
+      gitStatus: async path => path === '/code/dsh-cursor-acp'
+        ? { ...status, root: path, branch: 'plugin' }
+        : { ...status, root: '/code/deepseek-harness', branch: 'harness' },
+    })
+    expect(await screen.findByText('harness')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
+
+    workspacePaths = ['/code/deepseek-harness', '/code/dsh-cursor-acp']
+    act(() => { notifyWorkspaceChange() })
+
+    const picker = await screen.findByTestId('xmart-workbench-git-repo')
+    fireEvent.click(picker)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
+    expect(await screen.findByText('plugin')).toBeTruthy()
+  })
+
+  it('discovers sibling repos when a parent workspace is registered beside the current git root', async () => {
+    mount({
+      cwd: '/code/deepseek-harness',
+      getWorkspacePaths: () => ['/code/deepseek-harness', '/code'],
+      gitStatus: async (path) => {
+        if (path === '/code') {
+          throw new GitAccessError({ code: 'git-unavailable', message: 'not a git repository' } as never)
+        }
+        if (path.endsWith('dsh-cursor-acp')) {
+          return { ...status, root: '/code/dsh-cursor-acp', branch: 'plugin' }
+        }
+        return { ...status, root: '/code/deepseek-harness', branch: 'harness' }
+      },
+      listEntries: async path => path === '/code'
+        ? {
+          path: '/code',
+          truncated: false,
+          entries: [
+            { name: 'deepseek-harness', path: '/code/deepseek-harness', kind: 'directory', hidden: false },
+            { name: 'dsh-cursor-acp', path: '/code/dsh-cursor-acp', kind: 'directory', hidden: false },
+          ],
+        }
+        : emptyListing,
+    })
+    expect(await screen.findByText('harness')).toBeTruthy()
+    fireEvent.click(await screen.findByTestId('xmart-workbench-git-repo'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
+    expect(await screen.findByText('plugin')).toBeTruthy()
+  })
+
+  it('treats slash-spelled workspace paths as extra seeds', async () => {
+    mount({
+      cwd: 'D:\\code\\deepseek-harness',
+      getWorkspacePaths: () => ['D:/code/deepseek-harness', 'D:/code/dsh-cursor-acp'],
+      gitStatus: async (path) => {
+        const key = path.replace(/\\/g, '/').toLowerCase()
+        if (key.endsWith('dsh-cursor-acp')) {
+          return { ...status, root: 'D:/code/dsh-cursor-acp', branch: 'plugin' }
+        }
+        return { ...status, root: 'D:/code/deepseek-harness', branch: 'harness' }
+      },
+    })
+    expect(await screen.findByText('harness')).toBeTruthy()
+    fireEvent.click(await screen.findByTestId('xmart-workbench-git-repo'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
+    expect(await screen.findByText('plugin')).toBeTruthy()
+  })
+
+  it('ignores a registered repository probe that settles after unmount', async () => {
+    let settle: (value: GitStatus) => void = () => {}
+    const { view } = mount({
+      getWorkspacePaths: () => ['/ws', '/other'],
+      gitStatus: path => path === '/other'
+        ? new Promise((resolve) => { settle = resolve })
+        : Promise.resolve(status),
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    view.unmount()
+    await act(async () => {
+      settle({ ...status, root: '/other' })
+      await Promise.resolve()
+    })
   })
 
   it('discovers git repos in child folders and can switch between them', async () => {
@@ -854,6 +950,7 @@ describe('GitTab', () => {
         sessionId="s1"
         t={t}
         getCwd={() => '/ws'}
+        getWorkspacePaths={() => ['/ws']}
         watchSessions={() => () => {}}
         listEntries={async () => emptyListing}
         gitStatus={async () => status}
@@ -888,6 +985,7 @@ describe('GitTab', () => {
         sessionId="s1"
         t={t}
         getCwd={() => '/ws'}
+        getWorkspacePaths={() => ['/ws']}
         watchSessions={() => () => {}}
         listEntries={async () => emptyListing}
         gitStatus={() => new Promise<GitStatus>((resolve) => { settle = resolve })}
@@ -920,6 +1018,7 @@ describe('GitTab', () => {
         sessionId="s1"
         t={t}
         getCwd={() => '/ws'}
+        getWorkspacePaths={() => ['/ws']}
         watchSessions={() => () => {}}
         listEntries={async () => emptyListing}
         gitStatus={() => new Promise((_, reject) => { fail = reject })}

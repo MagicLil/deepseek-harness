@@ -54,6 +54,7 @@ function mount(opts?: {
       sessionId="s1"
       t={t}
       getCwd={() => '/ws'}
+      getWorkspacePaths={() => ['/ws']}
       watchSessions={() => () => {}}
       listEntries={async () => ({ path: '/ws', entries: [], truncated: false })}
       gitStatus={async () => status}
@@ -130,6 +131,7 @@ describe('GitTab pre-commit', () => {
         sessionId="s1"
         t={t}
         getCwd={() => '/ws'}
+        getWorkspacePaths={() => ['/ws']}
         watchSessions={() => () => {}}
         listEntries={async () => ({ path: '/ws', entries: [], truncated: false })}
         gitStatus={async () => status}

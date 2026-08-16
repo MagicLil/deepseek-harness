@@ -94,5 +94,78 @@ export async function probeGitRoots(
       // Child is not a repo, or this probe was aborted.
     }
   }))
-  return [...new Set(found)].sort((a, b) => a.localeCompare(b))
+  return uniqueGitPaths(found).sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Compare repository / workspace folders across Windows and POSIX spellings.
+ * @param path - absolute folder.
+ */
+export function gitRootKey(path: string): string {
+  return path.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase()
+}
+
+/**
+ * Drop empty entries and collapse slash / drive-letter spellings.
+ * @param paths - candidate folders.
+ */
+export function uniqueGitPaths(paths: readonly (string | undefined)[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const path of paths) {
+    if (typeof path !== 'string' || path === '') continue
+    const key = gitRootKey(path)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(path)
+  }
+  return out
+}
+
+/**
+ * Find git work trees from the session cwd and every registered Workspace.
+ * A seed that is not itself a work tree contributes its immediate visible
+ * children (a VS Code multi-root parent sitting beside an already-open repo).
+ * @param cwd - session folder, when any.
+ * @param workspacePaths - live Workspace registry paths.
+ * @param gitStatus - host status RPC.
+ * @param listEntries - one directory listing (child-repo probe).
+ * @param signal - abort the probes.
+ */
+export async function discoverGitRoots(
+  cwd: string | undefined,
+  workspacePaths: readonly string[],
+  gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>,
+  listEntries: (path: string, signal?: AbortSignal) => Promise<FileListing>,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const found: string[] = []
+  const seen = new Set<string>()
+  const add = (root: string) => {
+    const key = gitRootKey(root)
+    if (seen.has(key)) return
+    seen.add(key)
+    found.push(root)
+  }
+  await Promise.all(uniqueGitPaths([cwd, ...workspacePaths]).map(async (path) => {
+    try {
+      add((await gitStatus(path, signal)).root)
+      return
+    }
+    catch (reason: unknown) {
+      if (!isGitUnavailable(reason) || signal?.aborted === true) return
+    }
+    try {
+      const nested = await probeGitRoots(
+        visibleChildDirectories(await listEntries(path, signal)),
+        gitStatus,
+        signal,
+      )
+      for (const root of nested) add(root)
+    }
+    catch {
+      // Listing failed, or this probe was aborted.
+    }
+  }))
+  return found.sort((a, b) => a.localeCompare(b))
 }

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-xmart-workbench-git-tasks.md
-2026-08-15-xmart-workbench-git-tasks.md: 7f32c04a76d4a3f343fc2a446f2880f9b0c9b366
-2026-08-15-xmart-workbench-git-tasks.zh.md: 6301c780e0b77383cee21f4651d91e0dd50ed59c
+2026-08-15-xmart-workbench-git-tasks.md: b79288d87093ea0e0b7abbc6153d6ce0bed32f74
+2026-08-15-xmart-workbench-git-tasks.zh.md: e9d6a6a9f7c9d8b6c3f5b183fab5065cee116d6f

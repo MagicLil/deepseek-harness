@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  gitErrorCode, gitErrorMessage, isGitUnavailable, probeGitRoots,
-  readGitSnapshot, visibleChildDirectories,
+  discoverGitRoots, gitErrorCode, gitErrorMessage, gitRootKey, isGitUnavailable,
+  probeGitRoots, readGitSnapshot, uniqueGitPaths, visibleChildDirectories,
 } from '../src/client/git-root.ts'
 
 const status = (root: string): GitStatus => ({
@@ -87,5 +87,76 @@ describe('git-root helpers', () => {
     )).resolves.toEqual(['/ws/backend', '/ws/web'])
     await expect(probeGitRoots(['/ws/dup', '/ws/dup'], async () => status('/ws/dup')))
       .resolves.toEqual(['/ws/dup'])
+  })
+
+  it('collapses Windows and POSIX spellings of the same folder', () => {
+    expect(gitRootKey('D:\\code\\deepseek-harness\\')).toBe('d:/code/deepseek-harness')
+    expect(uniqueGitPaths([
+      'D:\\code\\deepseek-harness',
+      'D:/code/deepseek-harness/',
+      'D:\\code\\dsh-cursor-acp',
+      '',
+      undefined,
+    ])).toEqual(['D:\\code\\deepseek-harness', 'D:\\code\\dsh-cursor-acp'])
+  })
+
+  it('discovers a sibling repo under a registered parent that is not a work tree', async () => {
+    const listing: FileListing = {
+      path: '/code',
+      truncated: false,
+      entries: [
+        { name: 'deepseek-harness', path: '/code/deepseek-harness', kind: 'directory', hidden: false },
+        { name: 'dsh-cursor-acp', path: '/code/dsh-cursor-acp', kind: 'directory', hidden: false },
+      ],
+    }
+    await expect(discoverGitRoots(
+      '/code/deepseek-harness',
+      ['/code/deepseek-harness', '/code'],
+      async (path) => {
+        if (path === '/code') throw unavailable
+        return status(path)
+      },
+      async () => listing,
+    )).resolves.toEqual(['/code/deepseek-harness', '/code/dsh-cursor-acp'])
+  })
+
+  it('does not treat a git-failed seed as a parent folder', async () => {
+    const listEntries = vi.fn(async () => ({
+      path: '/ws', truncated: false, entries: [],
+    }))
+    await expect(discoverGitRoots(
+      '/ws',
+      ['/other'],
+      async (path) => {
+        if (path === '/other') throw failed
+        return status(path)
+      },
+      listEntries,
+    )).resolves.toEqual(['/ws'])
+    expect(listEntries).not.toHaveBeenCalled()
+  })
+
+  it('skips a parent listing that throws or is aborted', async () => {
+    const listEntries = vi.fn(async () => { throw new Error('no list') })
+    await expect(discoverGitRoots(
+      undefined,
+      ['/parent'],
+      async () => { throw unavailable },
+      listEntries,
+    )).resolves.toEqual([])
+    expect(listEntries).toHaveBeenCalledOnce()
+    const controller = new AbortController()
+    const abortedList = vi.fn(async () => ({ path: '/parent', truncated: false, entries: [] }))
+    await expect(discoverGitRoots(
+      '/parent',
+      [],
+      async () => {
+        controller.abort()
+        throw unavailable
+      },
+      abortedList,
+      controller.signal,
+    )).resolves.toEqual([])
+    expect(abortedList).not.toHaveBeenCalled()
   })
 })
