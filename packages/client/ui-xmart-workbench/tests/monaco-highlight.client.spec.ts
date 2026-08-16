@@ -67,12 +67,12 @@ describe('prepareMonacoHighlight', () => {
         'editor.background': '#282c34',
         'editor.foreground': '#abb2bf',
         'editor.lineHighlightBackground': '#2c313c',
-      },
+      } as Record<string, string>,
     })
-    expect(patched.colors['editor.background']).toBe(XMART_CANVAS_DARK)
-    expect(patched.colors['editor.lineHighlightBackground']).toBe(XMART_LAYER_1_DARK)
-    expect(patched.colors['minimap.background']).toBe(XMART_CANVAS_DARK)
-    expect(patched.colors['editor.foreground']).toBe('#abb2bf')
+    expect(patched.colors?.['editor.background']).toBe(XMART_CANVAS_DARK)
+    expect(patched.colors?.['editor.lineHighlightBackground']).toBe(XMART_LAYER_1_DARK)
+    expect(patched.colors?.['minimap.background']).toBe(XMART_CANVAS_DARK)
+    expect(patched.colors?.['editor.foreground']).toBe('#abb2bf')
   })
 
   it('installs a Monarch ignore grammar and leaves plaintext / Monaco builtins alone', async () => {
