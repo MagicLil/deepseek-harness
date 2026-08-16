@@ -2,11 +2,13 @@
 /**
  * TerminalTab: unavailable, open/replay, raw write, output events (xterm mock).
  */
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TerminalTab } from '../src/client/TerminalTab.tsx'
+import { resetInflightTerminalOpens } from '../src/client/terminal-client.ts'
 import { resetTerminalSeats, setTerminalSeat } from '../src/client/terminal-seats.ts'
 import type { HostTerminalMethods, TerminalOutputPayload } from '../src/client/terminal-client.ts'
 import { zh } from '../src/client/locales.ts'
@@ -53,6 +55,7 @@ vi.mock('@xterm/addon-fit', () => ({
 afterEach(() => {
   cleanup()
   resetTerminalSeats()
+  resetInflightTerminalOpens()
 })
 
 beforeEach(() => {
@@ -159,6 +162,51 @@ describe('TerminalTab', () => {
         undefined,
       )
     })
+  })
+
+  it('attaches to a listed PTY with the same tab name instead of opening again', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({
+        available: true,
+        sessions: [{ id: 'pty-36', name: 'terminal:1', status: { kind: 'running' as const } }],
+      }),
+      terminalOpen: vi.fn(() => ok({
+        id: 'pty-new', motd: '', status: { kind: 'running' as const },
+      })),
+      terminalRead: () => ok({ text: 'replay\n' }),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.writes).toEqual(['replay\n'])
+    })
+    expect(host.terminalOpen).not.toHaveBeenCalled()
+  })
+
+  it('opens only one host PTY when Strict Mode remounts the tab', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: vi.fn(() => ok({
+        id: 'pty-1', motd: 'ready\n', status: { kind: 'running' as const },
+      })),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    render(
+      <StrictMode>
+        <TerminalTab
+          tab={{ id: 'terminal:36', type: 'terminal', title: '终端 36' }}
+          visible
+          sessionId="s1"
+          t={t}
+          host={host}
+          remote={{ $on: () => () => {} }}
+        />
+      </StrictMode>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('xmart-terminal-xterm')).toBeTruthy()
+    })
+    expect(host.terminalOpen).toHaveBeenCalledOnce()
   })
 
   it('replays scrollback for an existing seat', async () => {

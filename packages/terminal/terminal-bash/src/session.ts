@@ -496,6 +496,15 @@ export class LocalPtySession implements TerminalBackendSession {
       // on waiting for shell ownership instead of letting a child marker suppress
       // readiness until the absolute timeout.
       const handoffGrace = this.promptSeen ? this.config.handoffGraceMs : 0
+      if (foreground === undefined) {
+        const readyWithoutGroup = this.initializing
+          ? elapsed >= this.config.exactProbeAfterMs && idleFor >= this.config.pollIntervalMs
+          : startupHasOutput && idleFor >= this.config.pollIntervalMs
+        if (readyWithoutGroup) {
+          this.settleActive('inferred_idle')
+          return
+        }
+      }
       if (startupHasOutput && idleFor >= this.config.idleSilenceMs + handoffGrace) {
         this.settleActive('inferred_idle')
       }

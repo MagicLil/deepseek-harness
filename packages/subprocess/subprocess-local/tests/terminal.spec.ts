@@ -381,7 +381,22 @@ describe('LocalTerminalHandle', () => {
     const quiescent = handle.terminate()
     await vi.advanceTimersByTimeAsync(25)
     await quiescent
-    expect(inspector.processes).toEqual([[124, 'SIGTERM'], [124, 'SIGKILL']])
+    expect(inspector.processes).toEqual([[124, 'SIGTERM'], [124, 'SIGKILL'], [123, 'SIGTERM']])
+  })
+
+  it('signals the captured shell when node-pty kill leaves it running', async () => {
+    vi.useFakeTimers()
+    const pty = new FakePty()
+    pty.autoExitOnKill = false
+    const inspector = new FakeInspector()
+    inspector.alive.add(pty.pid)
+    inspector.removeOnSignal = false
+    const handle = new LocalTerminalHandle(pty.asPty(), inspector, 10)
+    const failed = expect(handle.terminate()).rejects.toThrow('surviving pid: 123')
+    await vi.advanceTimersByTimeAsync(25)
+    await failed
+    expect(inspector.processes).toEqual([[123, 'SIGTERM'], [123, 'SIGKILL']])
+    expect(pty.kills).toEqual(['SIGTERM', 'SIGKILL'])
   })
 
   it('reports a top-level process that ignores escalation', async () => {

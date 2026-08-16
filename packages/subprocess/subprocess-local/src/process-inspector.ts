@@ -1,7 +1,7 @@
 /** Platform process-table inspection for terminal readiness, signals, and teardown. */
 
 import { closeSync, openSync, readFileSync, readdirSync, readSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
@@ -32,7 +32,9 @@ export interface ProcessInspectorInternals {
   read(fd: number, buffer: Buffer, length: number, position: number): number
   close(fd: number): void
   exec(file: string, args: string[]): string
-  kill(pid: number, signal: NodeJS.Signals): void
+  kill(pid: number, signal: NodeJS.Signals | 0): void
+  /** Windows tree kill (`taskkill /T /F`); contained like POSIX ESRCH. */
+  taskkill(pid: number): void
 }
 
 /* v8 ignore start -- thin OS bindings; injected logic is unit-tested and real platform composition exercises them. */
@@ -42,8 +44,12 @@ const DEFAULT_INTERNALS: ProcessInspectorInternals = {
   open: path => openSync(path, 'r'),
   read: (fd, buffer, length, position) => readSync(fd, buffer, 0, length, position),
   close: closeSync,
-  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8' }),
+  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8', windowsHide: true }),
   kill: (pid, signal) => process.kill(pid, signal),
+  taskkill: (pid) => {
+    if (!Number.isSafeInteger(pid) || pid <= 0) return
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+  },
 }
 /* v8 ignore stop */
 
@@ -356,6 +362,89 @@ class MacProcessInspector extends PosixProcessInspector {
 
 }
 
+/** Injected Windows snapshot command; production DEFAULT exec misses this name and falls back to pid probes. */
+const WINDOWS_PROCESS_TABLE = 'windows-process-table'
+
+/**
+ * Parse `pid ppid started` rows from an injected Windows process snapshot.
+ * @param text - snapshot text; one process per line.
+ * @returns Rooted-tree entries, ignoring malformed rows.
+ */
+export function parseWindowsProcessTable(text: string): Array<ProcessIdentity & { parentPid: number }> {
+  return text.split(/\r?\n/).flatMap((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line)
+    if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) return []
+    const pid = Number(match[1])
+    const parentPid = Number(match[2])
+    if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(parentPid)) return []
+    return [{ pid, parentPid, started: match[3] }]
+  })
+}
+
+function windowsProcessTable(internals: ProcessInspectorInternals): ProcessTreeEntry[] {
+  try {
+    return parseWindowsProcessTable(internals.exec(WINDOWS_PROCESS_TABLE, []))
+  } catch (_snapshotUnavailable) {
+    return []
+  }
+}
+
+function processAlive(internals: ProcessInspectorInternals, pid: number): boolean {
+  try {
+    internals.kill(pid, 0)
+    return true
+  } catch (_missingProcess) {
+    return false
+  }
+}
+
+/**
+ * Windows ConPTY inspector: optional snapshot trees, otherwise the PTY root
+ * via `kill(pid, 0)`. No POSIX process groups or stdin-wait probes.
+ */
+class WindowsProcessInspector implements ProcessInspector {
+  constructor(private readonly internals: ProcessInspectorInternals) {}
+
+  foregroundPgid(_shellPid: number): number | undefined {
+    return undefined
+  }
+
+  isStdinWaiting(_pgid: number): boolean {
+    return false
+  }
+
+  processTree(rootPid: number): ProcessIdentity[] {
+    const entries = windowsProcessTable(this.internals)
+    if (entries.length > 0) return processTree(entries, rootPid)
+    return processAlive(this.internals, rootPid) ? [{ pid: rootPid, started: String(rootPid) }] : []
+  }
+
+  processSession(_sessionId: number): ProcessIdentity[] {
+    return []
+  }
+
+  isAlive(identity: ProcessIdentity): boolean {
+    const entries = windowsProcessTable(this.internals)
+    if (entries.length > 0) {
+      return entries.some(entry => entry.pid === identity.pid && entry.started === identity.started)
+    }
+    return identity.started === String(identity.pid) && processAlive(this.internals, identity.pid)
+  }
+
+  signalGroup(pgid: number, _signal: SubprocessTerminalSignal): void {
+    this.internals.taskkill(pgid)
+  }
+
+  signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void {
+    if (!this.isAlive(identity)) return
+    if (signal === 'SIGKILL') {
+      this.internals.taskkill(identity.pid)
+      return
+    }
+    this.internals.kill(identity.pid, signal)
+  }
+}
+
 /**
  * Create the supported platform inspector or fail at plugin load.
  * @param platform - target Node platform.
@@ -370,5 +459,6 @@ export function createProcessInspector(
 ): ProcessInspector {
   if (platform === 'linux') return new LinuxProcessInspector(arch, internals)
   if (platform === 'darwin') return new MacProcessInspector(internals)
+  if (platform === 'win32') return new WindowsProcessInspector(internals)
   throw new Error(`subprocess-local: terminal inspection is unsupported on platform ${platform}`)
 }

@@ -39,9 +39,10 @@ const windowsUnsupportedTests = process.platform === 'win32'
       ...windowsUnsupportedPackages.map(path => `${path}/tests/**/*.spec.ts`),
       'packages/subprocess/subprocess/tests/**/*.spec.ts',
       'packages/subprocess/subprocess-local/tests/local.spec.ts',
-      'packages/subprocess/subprocess-local/tests/process-inspector.spec.ts',
+      // process-inspector.spec.ts and terminal.spec.ts are fake-backed and must
+      // run here: Windows is the host that used to throw at inspector construct
+      // and whose node-pty kill does not terminate the ConPTY shell.
       'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
-      'packages/subprocess/subprocess-local/tests/terminal.spec.ts',
     ]
   : []
 

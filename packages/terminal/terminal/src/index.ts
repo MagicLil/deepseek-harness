@@ -177,6 +177,7 @@ export class TerminalSessionService extends Service {
         ...request.cwd !== undefined ? { cwd: request.cwd } : {},
         ...request.cols !== undefined ? { cols: request.cols } : {},
         ...request.rows !== undefined ? { rows: request.rows } : {},
+        ...request.waitReady === false ? { waitReady: false } : {},
         signal: backendSignal,
       })
       signal?.throwIfAborted()

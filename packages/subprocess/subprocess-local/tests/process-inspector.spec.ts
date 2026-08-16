@@ -3,6 +3,7 @@ import {
   createProcessInspector,
   linuxProcessGroupHasLiveMembers,
   parseProcStat,
+  parseWindowsProcessTable,
 } from '@deepseek-ai/dsh-subprocess-local/src/process-inspector.ts'
 import type { ProcessInspectorInternals } from '@deepseek-ai/dsh-subprocess-local/src/process-inspector.ts'
 
@@ -24,10 +25,13 @@ function fakeInternals() {
   const dirs = new Map<string, string[]>()
   const memories = new Map<string, Buffer>()
   const fds = new Map<number, string>()
-  const kills: Array<[number, NodeJS.Signals]> = []
+  const kills: Array<[number, NodeJS.Signals | 0]> = []
+  const taskkills: number[] = []
+  const dead = new Set<number>()
   let nextFd = 10
   let ps = ''
   let tpgid = '0'
+  let windowsTable: string | undefined
   const internals: ProcessInspectorInternals = {
     readFile(path) {
       const value = files.get(path)
@@ -53,16 +57,25 @@ function fakeInternals() {
       return source.copy(buffer, 0, position, Math.min(source.length, position + length))
     },
     close(fd) { fds.delete(fd) },
-    exec(_file, args) {
+    exec(file, args) {
+      if (file === 'windows-process-table') {
+        if (windowsTable === undefined) throw new Error('no windows process table')
+        return windowsTable
+      }
       if (args.includes('tpgid=')) return tpgid
       return ps
     },
-    kill(pid, signal) { kills.push([pid, signal]) },
+    kill(pid, signal) {
+      kills.push([pid, signal])
+      if (dead.has(pid)) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+    },
+    taskkill(pid) { taskkills.push(pid) },
   }
   return {
-    internals, files, dirs, memories, kills,
+    internals, files, dirs, memories, kills, taskkills, dead,
     setPs(value: string) { ps = value },
     setTpgid(value: string) { tpgid = value },
+    setWindowsTable(value: string | undefined) { windowsTable = value },
   }
 }
 
@@ -243,6 +256,62 @@ describe('macOS process inspector', () => {
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
     fake.internals.exec = () => { throw new Error('gone') }
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
-    expect(() => createProcessInspector('win32', 'x64', fake.internals)).toThrow('unsupported on platform win32')
+    expect(() => createProcessInspector('freebsd', 'x64', fake.internals)).toThrow('unsupported on platform freebsd')
+  })
+})
+
+describe('Windows process inspector', () => {
+  it('parses snapshot rows, captures only the rooted tree, and taskkills identities', () => {
+    expect(parseWindowsProcessTable('')).toEqual([])
+    expect(parseWindowsProcessTable('malformed\n 10 parent 2026\n9007199254740993 1 start\n')).toEqual([])
+    expect(parseWindowsProcessTable(' 10 1 2026-08-16T10:00:00Z\n 11 10 2026-08-16T10:00:01Z\n')).toEqual([
+      { pid: 10, parentPid: 1, started: '2026-08-16T10:00:00Z' },
+      { pid: 11, parentPid: 10, started: '2026-08-16T10:00:01Z' },
+    ])
+
+    const fake = fakeInternals()
+    fake.setWindowsTable(
+      ' 10 1 2026-08-16T10:00:00Z\n 11 10 2026-08-16T10:00:01Z\n 12 11 2026-08-16T10:00:02Z\n 13 99 2026-08-16T10:00:03Z\nmalformed\n',
+    )
+    const inspector = createProcessInspector('win32', 'x64', fake.internals)
+    expect(inspector.foregroundPgid(10)).toBeUndefined()
+    expect(inspector.isStdinWaiting(10)).toBe(false)
+    expect(inspector.processSession(10)).toEqual([])
+    expect(inspector.processTree(10)).toEqual([
+      { pid: 12, started: '2026-08-16T10:00:02Z' },
+      { pid: 11, started: '2026-08-16T10:00:01Z' },
+      { pid: 10, started: '2026-08-16T10:00:00Z' },
+    ])
+    expect(inspector.processTree(99)).toEqual([])
+    expect(inspector.isAlive({ pid: 11, started: '2026-08-16T10:00:01Z' })).toBe(true)
+    expect(inspector.isAlive({ pid: 11, started: 'missing' })).toBe(false)
+    inspector.signalGroup(10, 'SIGINT')
+    inspector.signalProcess({ pid: 11, started: '2026-08-16T10:00:01Z' }, 'SIGTERM')
+    inspector.signalProcess({ pid: 12, started: '2026-08-16T10:00:02Z' }, 'SIGKILL')
+    inspector.signalProcess({ pid: 13, started: 'missing' }, 'SIGKILL')
+    expect(fake.taskkills).toEqual([10, 12])
+    expect(fake.kills).toEqual([[11, 'SIGTERM']])
+
+    fake.setWindowsTable(' 10 11 2026-08-16T10:00:00Z\n 11 10 2026-08-16T10:00:01Z\n')
+    expect(inspector.processTree(10)).toEqual([
+      { pid: 11, started: '2026-08-16T10:00:01Z' },
+      { pid: 10, started: '2026-08-16T10:00:00Z' },
+    ])
+  })
+
+  it('falls back to pid-existence probes when no snapshot is available', () => {
+    const fake = fakeInternals()
+    const inspector = createProcessInspector('win32', 'x64', fake.internals)
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: '10' }])
+    expect(inspector.isAlive({ pid: 10, started: '10' })).toBe(true)
+    expect(inspector.isAlive({ pid: 10, started: 'old' })).toBe(false)
+    inspector.signalProcess({ pid: 10, started: '10' }, 'SIGTERM')
+    inspector.signalProcess({ pid: 10, started: '10' }, 'SIGKILL')
+    fake.dead.add(11)
+    expect(inspector.processTree(11)).toEqual([])
+    expect(inspector.isAlive({ pid: 11, started: '11' })).toBe(false)
+    inspector.signalProcess({ pid: 11, started: '11' }, 'SIGKILL')
+    expect(fake.kills.filter(([, signal]) => signal !== 0)).toEqual([[10, 'SIGTERM']])
+    expect(fake.taskkills).toEqual([10])
   })
 })

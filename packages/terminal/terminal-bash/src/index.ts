@@ -133,7 +133,7 @@ export class BashTerminalBackend implements TerminalBackend {
     })
     const session = this.createSession(terminal, this.config)
     try {
-      await initializeSession(session, spec.signal)
+      if (spec.waitReady !== false) await initializeSession(session, spec.signal)
       return session
     } catch (error) {
       try {

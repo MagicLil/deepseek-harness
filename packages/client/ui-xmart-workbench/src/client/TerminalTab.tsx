@@ -128,14 +128,26 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
         }
 
         let id = hostRef.current
-        if (id === undefined) {
+        const named = listed.sessions.find(row => row.name === tab.id)
+        if (named !== undefined) {
+          id = named.id
+          hostRef.current = id
+          setPtyId(id)
+          setTerminalSeat(sessionId, tab.id, id)
+          const text = await readTerminal(host, sessionId, id)
+          if (cancelled) return
+          if (text !== '') term.write(text)
+        } else if (id === undefined) {
           const opened = await openTerminal(host, sessionId, {
             name: tab.id,
             ...cwd === undefined || cwd === '' ? {} : { cwd },
             cols: term.cols,
             rows: term.rows,
           })
-          if (cancelled) return
+          if (cancelled) {
+            setTerminalSeat(sessionId, tab.id, opened.id)
+            return
+          }
           id = opened.id
           hostRef.current = id
           setPtyId(id)

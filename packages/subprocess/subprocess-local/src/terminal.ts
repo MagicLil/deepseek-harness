@@ -221,6 +221,15 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     return this.survivors(this.unionMembers(survivors, this.descendants()))
   }
 
+  private signalRoot(signal: 'SIGTERM' | 'SIGKILL'): void {
+    if (this.rootIdentity === undefined) return
+    try {
+      this.inspector.signalProcess(this.rootIdentity, signal)
+    } catch (_rootExitedDuringSignal) {
+      // Exact identity signalling contains both exit races and PID reuse.
+    }
+  }
+
   private async stopShell(): Promise<void> {
     if (!this.exited) {
       try {
@@ -228,6 +237,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       } catch (_topLevelAlreadyExitedDuringTerm) {
         // The exit callback is authoritative.
       }
+      this.signalRoot('SIGTERM')
       await Promise.race([this.done.then(() => undefined), delay(this.graceMs)])
     }
     if (!this.exited) {
@@ -236,6 +246,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       } catch (_topLevelAlreadyExitedDuringKill) {
         // The exit callback is authoritative.
       }
+      this.signalRoot('SIGKILL')
       await Promise.race([this.done.then(() => undefined), delay(this.graceMs)])
     }
     if (!this.exited) throw new Error(`terminal cleanup failed; surviving pid: ${this.pid}`)

@@ -25,7 +25,14 @@ export interface TerminalServiceFace {
   }>
   spawn(
     owner: Agent,
-    request: { type: string; name?: string; cwd?: string; cols?: number; rows?: number },
+    request: {
+      type: string
+      name?: string
+      cwd?: string
+      cols?: number
+      rows?: number
+      waitReady?: boolean
+    },
     signal?: AbortSignal,
   ): Promise<{
     sessionId: string
@@ -226,6 +233,7 @@ export function bindTerminalHost(ctx: Context, agentFor: TerminalAgentFor): Pick
           ...cwd === undefined || cwd === '' ? {} : { cwd },
           ...cols === undefined ? {} : { cols },
           ...rows === undefined ? {} : { rows },
+          waitReady: false,
         }, signal)
         ensureWatch(terminals, found.agent, request.payload.sessionId, spawned.sessionId)
         return ok(request, {

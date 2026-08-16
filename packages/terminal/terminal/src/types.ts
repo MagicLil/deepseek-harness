@@ -52,6 +52,12 @@ export interface TerminalSpawnRequest {
   cols?: number
   /** Optional initial rows (UI / FitAddon). */
   rows?: number
+  /**
+   * When false, the backend returns as soon as the PTY exists and does not
+   * wait for prompt readiness. UI xterm needs this: Windows PowerShell never
+   * emits the bash OSC marker, so the default wait stays on "starting".
+   */
+  waitReady?: boolean
 }
 
 /** Fully identified request handed from the registry to a backend. */

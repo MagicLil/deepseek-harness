@@ -124,6 +124,18 @@ async function unwrap<T>(response: Promise<RpcResponse<T>>): Promise<T> {
   return body.result.value
 }
 
+/** In-flight named opens; React Strict Mode remounts must not spawn a second PTY. */
+const inflightNamedOpens = new Map<string, Promise<TerminalOpenValue>>()
+
+function namedOpenKey(sessionId: string, name: string): string {
+  return `${sessionId}\0${name}`
+}
+
+/** Test-only: drop coalesced opens so specs start from an empty map. */
+export function resetInflightTerminalOpens(): void {
+  inflightNamedOpens.clear()
+}
+
 /**
  * List PTYs and whether the host mounted a backend.
  * @param host - duck-typed host methods.
@@ -159,7 +171,12 @@ export async function openTerminal(
   const cwd = options?.cwd
   const cols = options?.cols
   const rows = options?.rows
-  return unwrap(host.terminalOpen(
+  const key = name !== undefined && name !== '' ? namedOpenKey(sessionId, name) : undefined
+  if (key !== undefined) {
+    const inflight = inflightNamedOpens.get(key)
+    if (inflight !== undefined) return inflight
+  }
+  const pending = unwrap(host.terminalOpen(
     {
       sessionId,
       ...name === undefined || name === '' ? {} : { name },
@@ -168,7 +185,11 @@ export async function openTerminal(
       ...rows === undefined ? {} : { rows },
     },
     signal,
-  ))
+  )).finally(() => {
+    if (key !== undefined && inflightNamedOpens.get(key) === pending) inflightNamedOpens.delete(key)
+  })
+  if (key !== undefined) inflightNamedOpens.set(key, pending)
+  return pending
 }
 
 /**

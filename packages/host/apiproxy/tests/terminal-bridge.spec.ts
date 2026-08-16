@@ -116,7 +116,7 @@ describe('bindTerminalHost', () => {
         status: { kind: 'exited', exitCode: 1, signal: null },
       }],
       spawn: async (_agent, spec) => {
-        expect(spec).toEqual({ type: 'shell', name: 'term-1', cwd: '/explorer' })
+        expect(spec).toEqual({ type: 'shell', name: 'term-1', cwd: '/explorer', waitReady: false })
         return { sessionId: 'pty-2', name: 'term-1', motd: 'hi', status: { kind: 'running' } }
       },
     })
@@ -134,7 +134,7 @@ describe('bindTerminalHost', () => {
   it('falls back to the session header cwd when the request omits cwd', async () => {
     const terminals = face({
       spawn: async (_agent, spec) => {
-        expect(spec).toEqual({ type: 'shell', cwd: '/ws' })
+        expect(spec).toEqual({ type: 'shell', cwd: '/ws', waitReady: false })
         return { sessionId: 'pty-3', motd: '', status: { kind: 'running' } }
       },
     })

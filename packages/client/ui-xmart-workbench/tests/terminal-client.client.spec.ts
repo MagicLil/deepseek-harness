@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TerminalAccessError, hostTerminalsOf, interruptTerminal, killTerminal, listTerminals,
-  openTerminal, readTerminal, sendTerminal, subscribeTerminalOutput,
+  openTerminal, readTerminal, resetInflightTerminalOpens, sendTerminal, subscribeTerminalOutput,
   type HostTerminalMethods,
 } from '../src/client/terminal-client.ts'
+
+afterEach(() => {
+  resetInflightTerminalOpens()
+})
 
 function ok<T>(value: T) {
   return Promise.resolve({ result: { ok: true as const, value } })
@@ -104,5 +108,22 @@ describe('terminal-client', () => {
       },
     }
     expect(() => subscribeTerminalOutput(remote, () => {})).not.toThrow()
+  })
+
+  it('coalesces concurrent named opens into one host.terminalOpen', async () => {
+    const opened = {
+      result: { ok: true as const, value: { id: 'pty-1', motd: '', status: { kind: 'running' as const } } },
+    }
+    const gate = Promise.withResolvers<typeof opened>()
+    const host: HostTerminalMethods = {
+      terminalOpen: vi.fn(() => gate.promise),
+    }
+    const first = openTerminal(host, 's1', { name: 'terminal:36' })
+    const second = openTerminal(host, 's1', { name: 'terminal:36' })
+    expect(host.terminalOpen).toHaveBeenCalledOnce()
+    gate.resolve(opened)
+    expect(await first).toMatchObject({ id: 'pty-1' })
+    expect(await second).toMatchObject({ id: 'pty-1' })
+    expect(host.terminalOpen).toHaveBeenCalledOnce()
   })
 })
