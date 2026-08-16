@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReviewDock } from '../src/client/ReviewDock.tsx'
-import { zh } from '../src/client/locales.ts'
+import { zh, type WorkbenchKey } from '../src/client/locales.ts'
 import type { AgentReviewRemote } from '../src/client/review-client.ts'
 import { shellDismissKey } from '../src/client/review-client.ts'
 import {
@@ -73,7 +73,7 @@ describe('ReviewDock', () => {
     render(
       <ReviewDock
         sessionId="s1"
-        t={key => zh[key]}
+        t={(key: WorkbenchKey) => zh[key]}
         review={review}
         openReviewDiff={openReviewDiff}
       />,
@@ -88,7 +88,7 @@ describe('ReviewDock', () => {
     render(
       <ReviewDock
         sessionId="s1"
-        t={key => zh[key]}
+        t={(key: WorkbenchKey) => zh[key]}
         review={review}
         openReviewDiff={vi.fn()}
       />,
@@ -130,7 +130,7 @@ describe('ReviewDock', () => {
     render(
       <ReviewDock
         sessionId="s1"
-        t={key => zh[key]}
+        t={(key: WorkbenchKey) => zh[key]}
         review={review}
         openReviewDiff={vi.fn()}
       />,
@@ -162,7 +162,7 @@ describe('ReviewDock', () => {
     render(
       <ReviewDock
         sessionId="s2"
-        t={key => zh[key]}
+        t={(key: WorkbenchKey) => zh[key]}
         review={review}
         openReviewDiff={vi.fn()}
       />,

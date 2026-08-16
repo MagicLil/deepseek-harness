@@ -7,6 +7,7 @@ import { openTurnFromEvents, pathFromToolArgs } from '../src/paths.ts'
 import { ReviewEngine } from '../src/review.ts'
 import type { ReviewDisk } from '../src/review.ts'
 import { createNodeDisk } from '../src/index.ts'
+import { makeShadowKey, shadowPath } from '../src/store.ts'
 
 describe('path helpers', () => {
   it('reads file_path or path', () => {
@@ -168,6 +169,65 @@ describe('ReviewEngine', () => {
     expect(diff).toMatchObject({ ok: true, before: 'keep-me\n', after: '' })
     expect((await engine.revert('s1', 5, path)).ok).toBe(true)
     expect(await readFile(path, 'utf8')).toBe('keep-me\n')
+  })
+
+  it('observes opaque create/update/delete and skips an already-tracked path', async () => {
+    await setup()
+    const created = join(workspace, 'obs-new.txt')
+    const updated = join(workspace, 'obs-old.txt')
+    const removed = join(workspace, 'obs-del.txt')
+    const tracked = join(workspace, 'obs-tracked.txt')
+    await writeFile(updated, 'after\n', 'utf8')
+    await writeFile(removed, 'should-not-matter\n', 'utf8')
+    await writeFile(tracked, 'v1\n', 'utf8')
+    await writeFile(created, 'fresh\n', 'utf8')
+
+    await engine.observe('s1', 8, created, 'create', null)
+    await engine.observe('s1', 8, updated, 'update', 'before\n')
+    await engine.observe('s1', 8, removed, 'delete', 'keep-me\n')
+    await engine.captureBefore('s1', 8, tracked)
+    await engine.observe('s1', 8, tracked, 'update', 'ignored\n')
+
+    const files = (await engine.get('s1')).turns[0]!.files
+    expect(files.find(file => file.path === created)).toMatchObject({ kind: 'create', status: 'pending' })
+    expect(files.find(file => file.path === updated)).toMatchObject({ kind: 'update', beforeHash: contentHash('before\n') })
+    expect(files.find(file => file.path === removed)).toMatchObject({ kind: 'delete', status: 'pending' })
+    expect(files.find(file => file.path === tracked)?.beforeHash).toBe(contentHash('v1\n'))
+
+    expect((await engine.revert('s1', 8, created)).ok).toBe(true)
+    expect((await engine.revert('s1', 8, updated)).ok).toBe(true)
+    expect(await readFile(updated, 'utf8')).toBe('before\n')
+    await disk.remove(removed)
+    expect((await engine.revert('s1', 8, removed)).ok).toBe(true)
+    expect(await readFile(removed, 'utf8')).toBe('keep-me\n')
+  })
+
+  it('marks observe irreversible when before is missing, oversize, or the shadow cannot be written', async () => {
+    await setup()
+    const missing = join(workspace, 'no-before.txt')
+    const huge = join(workspace, 'huge.txt')
+    const blocked = join(workspace, 'blocked.txt')
+    await writeFile(missing, 'now\n', 'utf8')
+    await writeFile(huge, 'tiny\n', 'utf8')
+    await writeFile(blocked, 'disk\n', 'utf8')
+    engine = new ReviewEngine({ dshHome: home, disk, maxShadowBytes: 4 })
+    await engine.observe('s1', 1, missing, 'update', null)
+    await engine.observe('s1', 1, huge, 'update', '12345')
+    await engine.observe('s1', 1, join(workspace, 'ghost-del.txt'), 'delete', null)
+    await engine.observe('s1', 1, join(workspace, 'ghost-create.txt'), 'create', null)
+    const statuses = (await engine.get('s1')).turns[0]!.files.map(file => file.status)
+    expect(statuses.filter(status => status === 'irreversible').length).toBeGreaterThanOrEqual(3)
+    expect(statuses).toContain('pending')
+
+    const blockedEngine = new ReviewEngine({ dshHome: home, disk })
+    await mkdir(shadowPath('s2', makeShadowKey(1, blocked), home), { recursive: true })
+    await blockedEngine.observe('s2', 1, blocked, 'update', 'before\n')
+    expect((await blockedEngine.get('s2')).turns[0]!.files[0]!.status).toBe('irreversible')
+    await mkdir(shadowPath('s3', makeShadowKey(1, blocked), home), { recursive: true })
+    await blockedEngine.observe('s3', 1, blocked, 'delete', 'before\n')
+    expect((await blockedEngine.get('s3')).turns[0]!.files[0]).toMatchObject({
+      kind: 'delete', status: 'irreversible', afterHash: null,
+    })
   })
 
   it('drops delete capture when settle finds the file still present', async () => {

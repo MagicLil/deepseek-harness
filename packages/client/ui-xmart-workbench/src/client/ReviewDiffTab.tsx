@@ -4,27 +4,38 @@
 import { jsx as _jsx, jsxs as _jsxs } from 'react/jsx-runtime'
 import { useCallback, useEffect, useState } from 'react'
 import { IconCheckOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { unwrapReview } from './review-client.ts'
+import { unwrapReview, type AgentReviewRemote, type ReviewDiff, type ReviewJob } from './review-client.ts'
 import { parseAgentReviewPath } from './agent-review-path.ts'
+import type { WorkbenchKey } from './locales.ts'
+import type { TabBodyProps } from './types.ts'
 import { basename } from './route-file.ts'
 import css from './ReviewDiffTab.module.css'
+
+type Translate = (key: WorkbenchKey) => string
+
+export type ReviewDiffTabProps = TabBodyProps & {
+  t: Translate
+  review: AgentReviewRemote
+  onSettled?: () => void
+}
+
 /**
  * Side-by-side before/after for one pending Agent change.
  * @param props - tab + remotes.
  */
-export function ReviewDiffTab(props) {
+export function ReviewDiffTab(props: ReviewDiffTabProps) {
   const { tab, sessionId, t, review, onSettled } = props
   const encodedPath = typeof tab.path === 'string' ? tab.path : ''
   const seed = parseAgentReviewPath(encodedPath)
-  const [diff, setDiff] = useState()
-  const [error, setError] = useState()
+  const [diff, setDiff] = useState<ReviewDiff | undefined>()
+  const [error, setError] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState()
+  const [message, setMessage] = useState<string | undefined>()
   const reload = useCallback(async () => {
     if (seed === undefined)
       return
     try {
-      const next = await unwrapReview(review.diff({ sessionId, turn: seed.turn, path: seed.path }))
+      const next = await unwrapReview<ReviewDiff>(review.diff({ sessionId, turn: seed.turn, path: seed.path }))
       setDiff(next)
       setError(undefined)
     }
@@ -35,11 +46,11 @@ export function ReviewDiffTab(props) {
   useEffect(() => {
     void reload()
   }, [reload])
-  const apply = async (action) => {
+  const apply = async (action: () => Promise<unknown>) => {
     setBusy(true)
     setMessage(undefined)
     try {
-      const result = await unwrapReview(action())
+      const result = await unwrapReview<ReviewJob>(action())
       if (!result.ok) {
         if (result.error === 'conflict') {
           const ok = window.confirm(t('review.conflictForce'))
@@ -49,7 +60,7 @@ export function ReviewDiffTab(props) {
           }
           if (seed === undefined)
             return
-          const forced = await unwrapReview(review.revert({
+          const forced = await unwrapReview<ReviewJob>(review.revert({
             sessionId, turn: seed.turn, path: seed.path, force: true,
           }))
           if (!forced.ok) {
@@ -92,7 +103,7 @@ export function ReviewDiffTab(props) {
     }))
   }, children: [_jsx(IconCheckOutline16, { size: 14 }), t('review.keep')] })] })] }), message !== undefined && _jsx('div', { className: css.message, children: message }), _jsxs('div', { className: css.panes, children: [_jsxs('div', { className: css.pane, children: [_jsx('div', { className: css.paneHead, children: t('review.before') }), _jsx('pre', { className: `${css.code} ${css.before}`, children: beforeLines.map((line, i) => (_jsxs('div', { className: css.line, children: [_jsx('span', { className: css.gutter, children: i + 1 }), _jsx('span', { className: css.text, children: line })] }, `b${String(i)}`))) })] }), _jsxs('div', { className: css.pane, children: [_jsx('div', { className: css.paneHead, children: t('review.after') }), _jsx('pre', { className: `${css.code} ${css.after}`, children: afterLines.map((line, i) => (_jsxs('div', { className: css.line, children: [_jsx('span', { className: css.gutter, children: i + 1 }), _jsx('span', { className: css.text, children: line })] }, `a${String(i)}`))) })] })] })] }))
 }
-function errorKey(code) {
+function errorKey(code: string | undefined): WorkbenchKey {
   if (code === 'dirty-editor')
     return 'review.dirty'
   if (code === 'conflict')

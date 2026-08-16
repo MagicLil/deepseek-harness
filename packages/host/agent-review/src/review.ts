@@ -13,6 +13,7 @@ import type {
   AgentReviewJobResult,
   ReviewDiffResult,
   ReviewFile,
+  ReviewFileKind,
   ReviewSession,
 } from './types.ts'
 import { DEFAULT_MAX_SHADOW_BYTES } from './types.ts'
@@ -254,6 +255,76 @@ export class ReviewEngine {
   }
 
   /**
+   * Import a mutation discovered after an opaque tool (ACP / subagent) finished.
+   * No-ops when the path is already tracked this turn (write/edit won).
+   * @param sessionId - session id.
+   * @param turn - open turn.
+   * @param path - absolute path.
+   * @param kind - create / update / delete.
+   * @param beforeText - pre-mutation body; null for create, or when unknown.
+   */
+  async observe(
+    sessionId: string,
+    turn: number,
+    path: string,
+    kind: ReviewFileKind,
+    beforeText: string | null,
+  ): Promise<void> {
+    const session = asMutable(await loadIndex(sessionId, this.dshHome))
+    const turnRow = ensureTurn(session, turn)
+    if (turnRow.files.some(file => file.path === path)) return
+    if (kind === 'create') {
+      const after = await this.disk.readText(path)
+      turnRow.files.push({
+        path,
+        kind: 'create',
+        status: 'pending',
+        shadowKey: '',
+        beforeHash: null,
+        afterHash: after === null ? null : contentHash(after),
+      })
+      await saveIndex(session, this.dshHome)
+      return
+    }
+    if (beforeText === null || Buffer.byteLength(beforeText, 'utf8') > this.maxShadowBytes) {
+      turnRow.files.push({
+        path,
+        kind,
+        status: 'irreversible',
+        shadowKey: '',
+        beforeHash: null,
+        afterHash: kind === 'delete' ? null : await afterHashOf(this.disk, path),
+      })
+      await saveIndex(session, this.dshHome)
+      return
+    }
+    const shadowKey = makeShadowKey(turn, path)
+    try {
+      await writeShadow(sessionId, shadowKey, beforeText, this.dshHome)
+    } catch {
+      turnRow.files.push({
+        path,
+        kind,
+        status: 'irreversible',
+        shadowKey: '',
+        beforeHash: null,
+        afterHash: kind === 'delete' ? null : await afterHashOf(this.disk, path),
+      })
+      await saveIndex(session, this.dshHome)
+      return
+    }
+    turnRow.files.push({
+      path,
+      kind,
+      status: 'pending',
+      shadowKey,
+      beforeHash: contentHash(beforeText),
+      afterHash: kind === 'delete' ? null : await afterHashOf(this.disk, path),
+    })
+    await saveIndex(session, this.dshHome)
+  }
+
+  /**
    * After a successful write/edit/delete, refresh afterHash (null when gone).
    * Failed first settles (or failed deletes that left the file) drop the row.
    * @param sessionId - session id.
@@ -452,6 +523,11 @@ export class ReviewEngine {
     // delete: before = shadow, after = current (usually empty when gone)
     return { path, before: shadow, after, ok: true }
   }
+}
+
+async function afterHashOf(disk: ReviewDisk, path: string): Promise<string | null> {
+  const after = await disk.readText(path)
+  return after === null ? null : contentHash(after)
 }
 
 function captureKey(sessionId: string, turn: number, path: string): string {

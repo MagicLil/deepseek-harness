@@ -6,24 +6,41 @@ import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from 'react/jsx-run
 import { useCallback, useEffect, useState } from 'react'
 import { IconCheckOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { isActionable, pickReviewTurn, reviewKindCounts, reviewPendingTotal, showShellOnlyWarn } from './review-counts.ts'
-import { readShellDismissed, roughLineStats, unwrapReview, writeShellDismissed } from './review-client.ts'
+import {
+  readShellDismissed, roughLineStats, unwrapReview, writeShellDismissed,
+  type AgentReviewRemote, type ReviewFileRow, type ReviewJob, type ReviewSessionRow,
+} from './review-client.ts'
+import type { WorkbenchFilesStore } from './files-store.ts'
+import type { WorkbenchKey } from './locales.ts'
 import { basename } from './route-file.ts'
 import css from './ReviewDock.module.css'
+
+type Translate = (key: WorkbenchKey) => string
+type LineChip = { add: number; del: number }
+
+export type ReviewDockProps = {
+  sessionId: string
+  t: Translate
+  review: AgentReviewRemote
+  files?: WorkbenchFilesStore
+  openReviewDiff: (path: string, turn: number) => void
+}
+
 /**
  * Composer-adjacent review dock (Keep All / Undo All / file list).
  * @param props - remotes and session scope.
  */
-export function ReviewDock(props) {
+export function ReviewDock(props: ReviewDockProps) {
   const { sessionId, t, review, files, openReviewDiff } = props
-  const [session, setSession] = useState()
+  const [session, setSession] = useState<ReviewSessionRow | undefined>()
   const [expanded, setExpanded] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState()
-  const [chips, setChips] = useState({})
-  const [shellDismissedTurn, setShellDismissedTurn] = useState()
+  const [message, setMessage] = useState<string | undefined>()
+  const [chips, setChips] = useState<Record<string, LineChip>>({})
+  const [shellDismissedTurn, setShellDismissedTurn] = useState<number | undefined>()
   const reload = useCallback(async () => {
     try {
-      const next = await unwrapReview(review.get({ sessionId }))
+      const next = await unwrapReview<ReviewSessionRow>(review.get({ sessionId }))
       setSession(next)
     }
     catch (caught) {
@@ -52,10 +69,12 @@ export function ReviewDock(props) {
     const paths = pendingFiles.slice(0, 40)
     let cancelled = false
     const load = async () => {
-      const next = {}
+      const next: Record<string, LineChip> = {}
       await Promise.all(paths.map(async (file) => {
         try {
-          const diff = await unwrapReview(review.diff({ sessionId, turn: turnNo, path: file.path }))
+          const diff = await unwrapReview<{ ok: boolean; before: string; after: string }>(
+            review.diff({ sessionId, turn: turnNo, path: file.path }),
+          )
           if (diff.ok)
             next[file.path] = roughLineStats(diff.before, diff.after)
         }
@@ -69,7 +88,7 @@ export function ReviewDock(props) {
     void load()
     return () => { cancelled = true }
   }, [expanded, review, sessionId, turn?.turn, pendingFiles.length])
-  const applyJob = async (result) => {
+  const applyJob = async (result: ReviewJob) => {
     if (!result.ok) {
       setMessage(t(errorKey(result.error)))
     }
@@ -84,10 +103,10 @@ export function ReviewDock(props) {
     else
       await reload()
   }
-  const run = async (action) => {
+  const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
     try {
-      await applyJob(await unwrapReview(action()))
+      await applyJob(await unwrapReview<ReviewJob>(action()))
     }
     catch (caught) {
       setMessage(caught instanceof Error ? caught.message : String(caught))
@@ -96,7 +115,7 @@ export function ReviewDock(props) {
       setBusy(false)
     }
   }
-  const dirty = path => files?.draftOf(path) !== undefined
+  const dirty = (path: string) => files?.draftOf(path) !== undefined
   if (turn === undefined)
     return null
   if (pending <= 0 && !shellOnly)
@@ -120,8 +139,9 @@ export function ReviewDock(props) {
   }, children: t('review.review') })] })), shellOnly && (_jsx('button', { type: 'button', className: css.textBtn, 'data-testid': 'review-shell-dismiss', onClick: () => {
     setShellDismissedTurn(turn.turn)
     writeShellDismissed(sessionId, turn.turn)
-    if (typeof review.dismissShell === 'function')
-      void run(() => review.dismissShell({ sessionId, turn: turn.turn }))
+    const dismiss = review.dismissShell
+    if (dismiss !== undefined)
+      void run(() => dismiss({ sessionId, turn: turn.turn }))
   }, children: t('review.shellDismiss') }))] })] }), turn.shellMaybeMutated && pending > 0 && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), shellOnly && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), message !== undefined && (_jsx('div', { className: css.message, 'data-testid': 'review-message', children: message })), expanded && pendingFiles.length > 0 && (_jsx('ul', { className: css.list, 'data-testid': 'review-dock-list', children: pendingFiles.map(file => (_jsx(DockRow, { file: file, chip: chips[file.path], t: t, busy: busy, onOpen: () => { openReviewDiff(file.path, turn.turn) }, onKeep: () => {
     void run(() => review.accept({ sessionId, turn: turn.turn, path: file.path }))
   }, onUndo: () => {
@@ -132,14 +152,14 @@ export function ReviewDock(props) {
     void (async () => {
       setBusy(true)
       try {
-        let result = await unwrapReview(review.revert({ sessionId, turn: turn.turn, path: file.path }))
+        let result = await unwrapReview<ReviewJob>(review.revert({ sessionId, turn: turn.turn, path: file.path }))
         if (result.error === 'conflict') {
           const ok = window.confirm(t('review.conflictForce'))
           if (!ok) {
             setMessage(t('review.conflict'))
             return
           }
-          result = await unwrapReview(review.revert({
+          result = await unwrapReview<ReviewJob>(review.revert({
             sessionId, turn: turn.turn, path: file.path, force: true,
           }))
         }
@@ -154,18 +174,26 @@ export function ReviewDock(props) {
     })()
   } }, file.path))) }))] }))
 }
-function DockRow(props) {
+function DockRow(props: {
+  file: ReviewFileRow
+  chip: LineChip | undefined
+  t: Translate
+  busy: boolean
+  onOpen: () => void
+  onKeep: () => void
+  onUndo: () => void
+}) {
   const { file, chip, t, busy, onOpen, onKeep, onUndo } = props
   return (_jsxs('li', { className: css.row, 'data-testid': 'review-dock-row', children: [_jsxs('button', { type: 'button', className: css.pathBtn, onClick: onOpen, children: [_jsx('span', { className: css.kind, children: kindMark(file) }), _jsx('span', { className: css.name, children: basename(file.path) }), chip !== undefined && (chip.add > 0 || chip.del > 0) && (_jsxs('span', { className: css.chip, children: [chip.add > 0 && _jsxs('span', { className: css.add, children: ['+', chip.add] }), chip.del > 0 && _jsxs('span', { className: css.del, children: ['\u2212', chip.del] })] }))] }), _jsxs('span', { className: css.rowActions, children: [_jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-undo', title: t('review.undo'), 'aria-label': t('review.undo'), onClick: onUndo, children: _jsx(IconCloseOutline16, { size: 14 }) }), _jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-keep', title: t('review.keep'), 'aria-label': t('review.keep'), onClick: onKeep, children: _jsx(IconCheckOutline16, { size: 14 }) })] })] }))
 }
-function kindMark(file) {
+function kindMark(file: ReviewFileRow): string {
   if (file.kind === 'create')
     return 'A'
   if (file.kind === 'delete')
     return 'D'
   return 'M'
 }
-function errorKey(code) {
+function errorKey(code: string | undefined): WorkbenchKey {
   if (code === 'dirty-editor')
     return 'review.dirty'
   if (code === 'conflict')

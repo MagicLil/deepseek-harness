@@ -109,6 +109,8 @@ export interface Config {
   readonly dshHome?: string
   /** Max UTF-8 bytes to shadow; larger files become irreversible. */
   readonly maxShadowBytes?: number
+  /** Extra tool names captured via git status diff (in addition to cursor_agent / subagent*). */
+  readonly opaqueMutationTools?: readonly string[]
 }
 
 /** Default shadow size cap (2 MiB). */

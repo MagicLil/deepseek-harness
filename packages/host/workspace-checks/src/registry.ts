@@ -128,7 +128,7 @@ export class CheckRunRegistry {
       stdoutNext: stdoutRead?.nextOffset ?? stdoutFrom,
       stderrNext: stderrRead?.nextOffset ?? stderrFrom,
       lossy: (stdoutRead?.lossy === true) || (stderrRead?.lossy === true),
-      label: run.label,
+      ...(run.label === undefined ? {} : { label: run.label }),
     }
   }
 

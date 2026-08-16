@@ -6,6 +6,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-tools'
+import { collectOpaqueSnap, readHeadText } from './opaque-git.ts'
+import type { OpaqueSnap } from './opaque-git.ts'
+import { isOpaqueMutationTool } from './opaque-tools.ts'
+import { planOpaqueMutations } from './opaque-scan.ts'
 import { openTurnFromEvents, pathFromToolArgs } from './paths.ts'
 import { ReviewEngine } from './review.ts'
 import type { ReviewDisk } from './review.ts'
@@ -79,14 +83,22 @@ export class AgentReviewGateway extends TypertRemoteService {
    * Shadow engine. Public so Cordis Proxies forward it; not a @Remote method.
    */
   readonly review: ReviewEngine
+  private readonly disk: ReviewDisk
+  private readonly maxShadowBytes: number
+  private readonly extraOpaque: readonly string[]
+  /** Before-snapshots for in-flight opaque tools, keyed by session|turn|call. */
+  private readonly opaqueSnaps = new Map<string, OpaqueSnap>()
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'agentReview')
     this.dshHome = config.dshHome
+    this.disk = createNodeDisk()
+    this.maxShadowBytes = config.maxShadowBytes ?? DEFAULT_MAX_SHADOW_BYTES
+    this.extraOpaque = config.opaqueMutationTools ?? []
     this.review = new ReviewEngine({
       ...(config.dshHome !== undefined ? { dshHome: config.dshHome } : {}),
-      maxShadowBytes: config.maxShadowBytes ?? DEFAULT_MAX_SHADOW_BYTES,
-      disk: createNodeDisk(),
+      maxShadowBytes: this.maxShadowBytes,
+      disk: this.disk,
     })
     ctx.effect(() => ctx.on('tools/pre-execute', async (exec: ToolExecution, next: () => Promise<PreToolDecision>) => {
       await this.onPreExecute(exec)
@@ -175,6 +187,10 @@ export class AgentReviewGateway extends TypertRemoteService {
     const turn = openTurnFromEvents(session.events)
     if (turn === null) return
     const sessionId = String(session.header.id)
+    if (isOpaqueMutationTool(exec.name, this.extraOpaque)) {
+      await this.snapshotOpaque(exec, sessionId, turn, session.header.cwd)
+      return
+    }
     if (SHELL_MAYBE_TOOLS.has(exec.name)) {
       await this.review.markShell(sessionId, turn)
       const command = commandFromToolArgs(exec.arguments)
@@ -201,6 +217,11 @@ export class AgentReviewGateway extends TypertRemoteService {
     const sessionId = String(session.header.id)
     const ok = !result.isError
 
+    if (isOpaqueMutationTool(exec.name, this.extraOpaque)) {
+      await this.settleOpaque(exec, sessionId, turn, session.header.cwd)
+      return
+    }
+
     if (SHELL_MAYBE_TOOLS.has(exec.name)) {
       const command = commandFromToolArgs(exec.arguments)
       if (command === undefined) return
@@ -217,6 +238,55 @@ export class AgentReviewGateway extends TypertRemoteService {
     const path = resolveToolPath(requested, session.header.cwd)
     await this.review.settle(sessionId, turn, path, ok)
   }
+
+  private async snapshotOpaque(
+    exec: ToolExecution,
+    sessionId: string,
+    turn: number,
+    cwd: string | undefined,
+  ): Promise<void> {
+    if (cwd === undefined || cwd.length === 0) {
+      await this.review.markShell(sessionId, turn)
+      return
+    }
+    const snap = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
+    if (snap === null) {
+      await this.review.markShell(sessionId, turn)
+      return
+    }
+    this.opaqueSnaps.set(opaqueKey(sessionId, turn, exec), snap)
+  }
+
+  private async settleOpaque(
+    exec: ToolExecution,
+    sessionId: string,
+    turn: number,
+    cwd: string | undefined,
+  ): Promise<void> {
+    const key = opaqueKey(sessionId, turn, exec)
+    const before = this.opaqueSnaps.get(key)
+    this.opaqueSnaps.delete(key)
+    if (before === undefined || cwd === undefined || cwd.length === 0) {
+      await this.review.markShell(sessionId, turn)
+      return
+    }
+    const after = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
+    if (after === null) {
+      await this.review.markShell(sessionId, turn)
+      return
+    }
+    for (const plan of planOpaqueMutations(before.files, after.files)) {
+      let beforeText = plan.beforeText
+      if (beforeText === null && plan.kind !== 'create') {
+        beforeText = await readHeadText(before.root, plan.relPath)
+      }
+      await this.review.observe(sessionId, turn, plan.absPath, plan.kind, beforeText)
+    }
+  }
+}
+
+function opaqueKey(sessionId: string, turn: number, exec: ToolExecution): string {
+  return `${sessionId}\0${turn}\0${String(exec.callId)}`
 }
 
 /**

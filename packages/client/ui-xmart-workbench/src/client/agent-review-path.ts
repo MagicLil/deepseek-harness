@@ -6,14 +6,14 @@
  * @param turn - turn number.
  * @param path - absolute workspace path.
  */
-export function encodeAgentReviewPath(turn, path) {
+export function encodeAgentReviewPath(turn: number, path: string): string {
   return `${String(turn)}|${path}`
 }
 /**
  * Parse a review-diff tab.path.
  * @param encoded - value from {@link encodeAgentReviewPath}.
  */
-export function parseAgentReviewPath(encoded) {
+export function parseAgentReviewPath(encoded: string): { turn: number; path: string } | undefined {
   const bar = encoded.indexOf('|')
   if (bar <= 0)
     return undefined
