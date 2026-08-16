@@ -1,7 +1,8 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  DirectoryListing, FileListing, FileSearchOptions, FileSearchResult, GitBranch, GitCommitResult,
+  GitDiff, GitDiffSide, GitLogEntry,
   GitStatus, GitSyncMode,
   IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
@@ -192,6 +193,27 @@ export class TestWorkspaces implements IWorkspaces {
   async writeFile(path: string, content: string): Promise<void> {
     this.calls.push({ method: 'writeFile', args: [path, content] })
     await (this.stubs.get('writeFile')?.(path, content) as Promise<void> | undefined)
+  }
+
+  /**
+   * Workspace text search (recorded). The default serves an empty result;
+   * stub to shape hits or failures.
+   * @param path - absolute directory to search.
+   * @param query - pattern text.
+   * @param options - match flags, glob filters, and the match cap.
+   * @param signal - forwarded like the production face passes it to the wire.
+   * @returns the stub search result.
+   */
+  async search(
+    path: string,
+    query: string,
+    options?: FileSearchOptions,
+    signal?: AbortSignal,
+  ): Promise<FileSearchResult> {
+    this.calls.push({ method: 'search', args: [path, query, options, signal] })
+    const stub = this.stubs.get('search')
+    if (stub !== undefined) return await (stub(path, query, options, signal) as Promise<FileSearchResult>)
+    return { root: path, hits: [], fileCount: 0, truncated: false }
   }
 
   /**

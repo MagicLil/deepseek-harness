@@ -99,6 +99,7 @@ import {
   collectGitBranches, collectGitCheckout, collectGitCommit, collectGitDiff,
   collectGitDiscard, collectGitLog, collectGitStage, collectGitSync, collectGitUnstage,
 } from './git-ops.ts'
+import { collectFileSearch } from './search-ops.ts'
 import { generateGitCommitMessage } from './git-commit-llm.ts'
 import { bindTerminalHost } from './terminal-bridge.ts'
 import { RpcId } from './api/rpc.ts'
@@ -3121,6 +3122,21 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return err(request, fileError('file-write-failed', path, error))
         }
         return ok(request, { path })
+      },
+
+      async search(request, signal) {
+        const { path, query, regex, caseSensitive, wholeWord, include, exclude, limit } = request.payload
+        const result = await collectFileSearch(
+          { path, query, regex, caseSensitive, wholeWord, include, exclude, limit },
+          signal,
+        )
+        if (!result.ok) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'search was aborted', details: {} })
+          }
+          return err(request, { code: result.code, message: result.message, details: { path } })
+        }
+        return ok(request, result.value)
       },
 
       async gitStatus(request, signal) {

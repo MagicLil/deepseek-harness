@@ -17,6 +17,7 @@ export interface DesktopAppMenuLabels {
   fileSave: string
   fileFind: string
   fileReplace: string
+  fileSearch: string
   fileCloseEditor: string
   fileSettings: string
   edit: string
@@ -29,6 +30,7 @@ export interface DesktopAppMenuLabels {
   goHover: string
   view: string
   viewExplorer: string
+  viewSearch: string
   viewGit: string
   viewPrimary: string
   viewSessions: string
@@ -75,6 +77,7 @@ export function desktopAppMenuLabels(locale: string): DesktopAppMenuLabels {
     fileSave: zh ? '保存' : 'Save',
     fileFind: zh ? '查找' : 'Find',
     fileReplace: zh ? '替换' : 'Replace',
+    fileSearch: zh ? '在文件中查找' : 'Find in Files',
     fileCloseEditor: zh ? '关闭编辑器' : 'Close Editor',
     fileSettings: zh ? '设置' : 'Settings',
     edit: zh ? '编辑' : 'Edit',
@@ -87,6 +90,7 @@ export function desktopAppMenuLabels(locale: string): DesktopAppMenuLabels {
     goHover: zh ? '显示悬停提示' : 'Show Hover',
     view: zh ? '视图' : 'View',
     viewExplorer: zh ? '资源管理器' : 'Explorer',
+    viewSearch: zh ? '搜索' : 'Search',
     viewGit: zh ? '源代码管理' : 'Source Control',
     viewPrimary: zh ? '切换左侧边栏' : 'Toggle Primary Sidebar',
     viewSessions: zh ? '切换会话列表' : 'Toggle Session List',
@@ -136,6 +140,7 @@ export function desktopAppMenuSpec(labels: DesktopAppMenuLabels): DesktopAppMenu
         { type: 'separator' },
         { type: 'command', id: 'file-find', label: labels.fileFind, accelerator: 'CommandOrControl+F' },
         { type: 'command', id: 'file-replace', label: labels.fileReplace, accelerator: 'CommandOrControl+H' },
+        { type: 'command', id: 'file-search', label: labels.fileSearch, accelerator: 'CommandOrControl+Shift+F' },
       ],
     },
     {
@@ -156,6 +161,7 @@ export function desktopAppMenuSpec(labels: DesktopAppMenuLabels): DesktopAppMenu
       label: labels.view,
       submenu: [
         { type: 'command', id: 'activity-explorer', label: labels.viewExplorer },
+        { type: 'command', id: 'activity-search', label: labels.viewSearch },
         { type: 'command', id: 'activity-git', label: labels.viewGit },
         { type: 'separator' },
         { type: 'command', id: 'sidebar-primary', label: labels.viewPrimary, accelerator: 'CommandOrControl+B' },

@@ -73,6 +73,9 @@ describe('rpcErrorSchema', () => {
     expect(rpcErrorSchema.parse({ code: 'workspace-invalid-path', message: 'm', details: { path: '/x' } }).code).toBe('workspace-invalid-path')
     expect(rpcErrorSchema.parse({ code: 'workspace-name-conflict', message: 'm', details: { name: 'x' } }).code).toBe('workspace-name-conflict')
     expect(rpcErrorSchema.parse({ code: 'workspace-move-invalid', message: 'm', details: { workspaceId: 'w', sessionId: 's' } }).code).toBe('workspace-move-invalid')
+    expect(rpcErrorSchema.parse({ code: 'search-unavailable', message: 'm', details: { path: '/w' } }).code).toBe('search-unavailable')
+    expect(rpcErrorSchema.parse({ code: 'search-invalid', message: 'm', details: { path: '/w' } }).code).toBe('search-invalid')
+    expect(rpcErrorSchema.parse({ code: 'search-failed', message: 'm', details: { path: '/w' } }).code).toBe('search-failed')
     expect(rpcErrorSchema.parse({
       code: 'model-unavailable',
       message: 'm',

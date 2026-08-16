@@ -42,7 +42,7 @@ import {
   hostTerminalSignalRequestSchema, hostTerminalWriteRequestSchema,
   hostListDirectoryRequestSchema, hostListEntriesRequestSchema,
   hostOpenPathRequestSchema, hostPickDirectoryRequestSchema,
-  hostReadFileRequestSchema, hostWriteFileRequestSchema,
+  hostReadFileRequestSchema, hostSearchRequestSchema, hostWriteFileRequestSchema,
 } from '../api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema,
@@ -122,6 +122,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'host.listEntries': { schema: hostListEntriesRequestSchema, invoke: (api, r, signal) => api.host.listEntries(r, signal) },
   'host.readFile': { schema: hostReadFileRequestSchema, invoke: (api, r, signal) => api.host.readFile(r, signal) },
   'host.writeFile': { schema: hostWriteFileRequestSchema, invoke: (api, r) => api.host.writeFile(r) },
+  'host.search': { schema: hostSearchRequestSchema, invoke: (api, r, signal) => api.host.search(r, signal) },
   'host.gitStatus': { schema: hostGitStatusRequestSchema, invoke: (api, r, signal) => api.host.gitStatus(r, signal) },
   'host.gitDiff': { schema: hostGitDiffRequestSchema, invoke: (api, r, signal) => api.host.gitDiff(r, signal) },
   'host.gitStage': { schema: hostGitStageRequestSchema, invoke: (api, r, signal) => api.host.gitStage(r, signal) },

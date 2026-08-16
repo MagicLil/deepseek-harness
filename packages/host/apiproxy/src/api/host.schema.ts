@@ -115,6 +115,39 @@ export const hostWriteFileValueSchema = z.object({
   path: z.string(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.writeFile'>>>
 
+const positiveGlob = z.string().min(1).max(500).refine(
+  value => !value.startsWith('!'),
+  { message: 'search glob filters must be positive patterns' },
+)
+
+/** host.search request payload. */
+export const hostSearchRequestSchema = z.object({
+  path: z.string().min(1),
+  query: z.string().min(1).max(2000),
+  regex: z.boolean().optional(),
+  caseSensitive: z.boolean().optional(),
+  wholeWord: z.boolean().optional(),
+  include: positiveGlob.optional(),
+  exclude: positiveGlob.optional(),
+  limit: z.number().int().positive().max(2000).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.search'>>>
+
+/** host.search response value. */
+export const hostSearchValueSchema = z.object({
+  root: z.string(),
+  hits: z.array(z.object({
+    path: z.string(),
+    line: z.number().int().positive(),
+    text: z.string(),
+    spans: z.array(z.object({
+      start: z.number().int().nonnegative(),
+      end: z.number().int().nonnegative(),
+    })),
+  })),
+  fileCount: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.search'>>>
+
 /** One SCM row served by host.gitStatus. */
 export const gitChangeSchema = z.object({
   path: z.string(),

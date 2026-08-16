@@ -2,14 +2,14 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  DirectoryListing, FileListing, FileSearchResult, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
   GitStatus, GitSyncMode,
   IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
 import type { SessionsPort, SessionsPortList } from '../contract/sessions-port.ts'
-import type { IWorkspaces } from '../contract/workspaces.ts'
+import type { FileSearchOptions, IWorkspaces } from '../contract/workspaces.ts'
 import { WorkspaceManager, type WorkspaceListPhase } from './manager.ts'
 
 /** Workspace list plus the two-baseline readiness and default-target projection. */
@@ -61,6 +61,14 @@ export class GitAccessError extends Error {
   constructor(readonly rpcError: RpcError) {
     super(`git access failed: ${rpcError.code}: ${rpcError.message}`)
     this.name = 'GitAccessError'
+  }
+}
+
+/** Structured search failure so the search panel can branch on Host business codes. */
+export class SearchAccessError extends Error {
+  constructor(readonly rpcError: RpcError) {
+    super(`search failed: ${rpcError.code}: ${rpcError.message}`)
+    this.name = 'SearchAccessError'
   }
 }
 
@@ -325,6 +333,34 @@ export class WorkspaceRuntime implements IWorkspaces {
   async writeFile(path: string, content: string): Promise<void> {
     const response = await this.api.host.writeFile({ path, content })
     if (!response.result.ok) throw new FileAccessError(response.result.error)
+  }
+
+  /**
+   * Workspace-wide text search (the workbench search panel).
+   * @param path - absolute directory to search.
+   * @param query - pattern text.
+   * @param options - match flags, glob filters, and the match cap.
+   * @param signal - aborts the wire request (and the host's ripgrep child).
+   * @returns the bounded search result.
+   */
+  async search(
+    path: string,
+    query: string,
+    options?: FileSearchOptions,
+    signal?: AbortSignal,
+  ): Promise<FileSearchResult> {
+    const response = await this.api.host.search({
+      path,
+      query,
+      ...options?.regex === undefined ? {} : { regex: options.regex },
+      ...options?.caseSensitive === undefined ? {} : { caseSensitive: options.caseSensitive },
+      ...options?.wholeWord === undefined ? {} : { wholeWord: options.wholeWord },
+      ...options?.include === undefined ? {} : { include: options.include },
+      ...options?.exclude === undefined ? {} : { exclude: options.exclude },
+      ...options?.limit === undefined ? {} : { limit: options.limit },
+    }, signal)
+    if (!response.result.ok) throw new SearchAccessError(response.result.error)
+    return response.result.value
   }
 
   /**

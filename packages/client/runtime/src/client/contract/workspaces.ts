@@ -7,12 +7,28 @@
  * widening what features may do to the workspaces domain.
  */
 import type {
-  DirectoryListing, FileListing, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
+  DirectoryListing, FileListing, FileSearchResult, GitBranch, GitCommitResult, GitDiff, GitDiffSide, GitLogEntry,
   GitStatus, GitSyncMode,
   SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
+
+/** Match flags and filters for {@link IWorkspaces.search} (host.search minus path/query). */
+export interface FileSearchOptions {
+  /** When true, `query` is ripgrep regex syntax. */
+  regex?: boolean
+  /** When true, match case exactly (default is case-insensitive). */
+  caseSensitive?: boolean
+  /** When true, match whole words. */
+  wholeWord?: boolean
+  /** Positive glob of files to search. */
+  include?: string
+  /** Positive glob of files to skip. */
+  exclude?: string
+  /** Match cap; the host clamps into `[1, 2000]`. */
+  limit?: number
+}
 
 /** The workspaces-service face injected as `ctx.workspaces`. */
 export interface IWorkspaces {
@@ -89,6 +105,15 @@ export interface IWorkspaces {
    * @param content - the full replacement text.
    */
   writeFile(path: string, content: string): Promise<void>
+  /**
+   * Workspace-wide text search for the workbench search panel.
+   * @param path - absolute directory to search.
+   * @param query - pattern text.
+   * @param options - match flags, glob filters, and the match cap.
+   * @param signal - aborts the wire request (and the host's ripgrep child).
+   * @returns the bounded search result.
+   */
+  search(path: string, query: string, options?: FileSearchOptions, signal?: AbortSignal): Promise<FileSearchResult>
   /**
    * Read git status for the repository containing `path` (editor SCM panel).
    * @param path - absolute workspace path or any file inside it.

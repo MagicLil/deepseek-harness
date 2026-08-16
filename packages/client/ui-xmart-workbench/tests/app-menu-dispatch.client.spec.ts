@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   activeFileTab, dispatchAppMenu, OPEN_SETTINGS_EVENT, WORKBENCH_EDITOR_ACTION_EVENT,
   WORKBENCH_FIND_EVENT, WORKBENCH_QUICK_OPEN_EVENT, WORKBENCH_REPLACE_EVENT, WORKBENCH_SAVE_EVENT,
+  WORKBENCH_SEARCH_EVENT,
   type AppMenuCommand, type AppMenuDispatchDeps,
 } from '../src/client/app-menu-dispatch.ts'
 import { EMPTY_WORKBENCH_VIEW } from '../src/client/service.ts'
@@ -66,12 +67,17 @@ describe('dispatchAppMenu', () => {
     const d = deps()
     dispatchAppMenu('file-close', d)
     dispatchAppMenu('activity-explorer', d)
+    dispatchAppMenu('activity-search', d)
+    dispatchAppMenu('file-search', d)
     dispatchAppMenu('activity-git', d)
     dispatchAppMenu('terminal-new', d)
     dispatchAppMenu('terminal-toggle', d)
     expect(d.calls.closeActiveEditor).toEqual([['s1']])
     expect(d.calls.showActivity).toEqual([
-      ['s1', 'explorer'], ['s1', 'git'],
+      ['s1', 'explorer'], ['s1', 'search'], ['s1', 'search'], ['s1', 'git'],
+    ])
+    expect(d.calls.dispatch).toEqual([
+      [WORKBENCH_SEARCH_EVENT], [WORKBENCH_SEARCH_EVENT],
     ])
     expect(d.calls.newTerminal).toEqual([['s1']])
     expect(d.calls.toggleTerminal).toEqual([['s1']])

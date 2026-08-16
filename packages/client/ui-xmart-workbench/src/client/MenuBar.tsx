@@ -51,6 +51,11 @@ export function MenuBar({
         run('file-save')
         return
       }
+      if (event.code === 'KeyF' && event.shiftKey) {
+        event.preventDefault()
+        run('file-search')
+        return
+      }
       if (event.code === 'KeyF' && !event.shiftKey) {
         event.preventDefault()
         run('file-find')
@@ -138,10 +143,11 @@ export function MenuBar({
           { type: 'separator', id: 'edit-find-sep' },
           { id: 'file-find', label: t('menu.edit.find') },
           { id: 'file-replace', label: t('menu.edit.replace') },
+          { id: 'file-search', label: t('menu.edit.searchFiles') },
         ]}
         onSelect={(id) => {
           close()
-          if (id === 'file-find' || id === 'file-replace') {
+          if (id === 'file-find' || id === 'file-replace' || id === 'file-search') {
             run(id)
             return
           }
@@ -175,6 +181,7 @@ export function MenuBar({
         testId="xmart-menu-view"
         items={[
           { id: 'activity-explorer', label: t('activity.explorer') },
+          { id: 'activity-search', label: t('activity.search') },
           { id: 'activity-git', label: t('activity.git') },
           { type: 'separator', id: 'view-sep' },
           { id: 'sidebar-primary', label: t('menu.view.primary') },

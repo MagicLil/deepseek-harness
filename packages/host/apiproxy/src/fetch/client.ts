@@ -25,7 +25,7 @@ import {
   hostTerminalSignalValueSchema, hostTerminalWriteValueSchema,
   hostListDirectoryValueSchema, hostListEntriesValueSchema,
   hostOpenPathValueSchema, hostPickDirectoryValueSchema,
-  hostReadFileValueSchema, hostWriteFileValueSchema,
+  hostReadFileValueSchema, hostSearchValueSchema, hostWriteFileValueSchema,
 } from '../api/host.schema.ts'
 import {
   sessionCancelValueSchema,
@@ -124,6 +124,7 @@ export interface IApiClient {
     listEntries(payload: RequestPayload<'host.listEntries'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.listEntries'>>>
     readFile(payload: RequestPayload<'host.readFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.readFile'>>>
     writeFile(payload: RequestPayload<'host.writeFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.writeFile'>>>
+    search(payload: RequestPayload<'host.search'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.search'>>>
     gitStatus(payload: RequestPayload<'host.gitStatus'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitStatus'>>>
     gitDiff(payload: RequestPayload<'host.gitDiff'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitDiff'>>>
     gitStage(payload: RequestPayload<'host.gitStage'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitStage'>>>
@@ -226,6 +227,7 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'host.listEntries': hostListEntriesValueSchema,
   'host.readFile': hostReadFileValueSchema,
   'host.writeFile': hostWriteFileValueSchema,
+  'host.search': hostSearchValueSchema,
   'host.gitStatus': hostGitStatusValueSchema,
   'host.gitDiff': hostGitDiffValueSchema,
   'host.gitStage': hostGitRootValueSchema,
@@ -498,6 +500,7 @@ export abstract class AbstractApiClient implements IApiClient {
     listEntries: (payload, signal) => this.callUnary('host.listEntries', payload, signal),
     readFile: (payload, signal) => this.callUnary('host.readFile', payload, signal),
     writeFile: (payload, signal) => this.callUnary('host.writeFile', payload, signal),
+    search: (payload, signal) => this.callUnary('host.search', payload, signal),
     gitStatus: (payload, signal) => this.callUnary('host.gitStatus', payload, signal),
     gitDiff: (payload, signal) => this.callUnary('host.gitDiff', payload, signal),
     gitStage: (payload, signal) => this.callUnary('host.gitStage', payload, signal),

@@ -81,6 +81,7 @@ function scriptedApi(overrides: {
       listEntries: r => ok(r, { path: '/t', entries: [], truncated: false }),
       readFile: r => ok(r, { path: '/t/a.txt', content: '' }),
       writeFile: r => ok(r, { path: '/t/a.txt' }),
+      search: r => ok(r, { root: '/t', hits: [], fileCount: 0, truncated: false }),
       gitStatus: r => ok(r, {
         root: '/t', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
       }),

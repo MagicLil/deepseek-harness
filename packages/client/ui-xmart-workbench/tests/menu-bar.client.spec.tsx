@@ -57,6 +57,8 @@ describe('MenuBar', () => {
     act(() => { screen.getByTestId('xmart-menu-file').click() })
     act(() => { screen.getByRole('menuitem', { name: '设置' }).click() })
     act(() => { screen.getByTestId('xmart-menu-view').click() })
+    act(() => { screen.getByRole('menuitem', { name: '搜索' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-view').click() })
     act(() => { screen.getByRole('menuitem', { name: '源代码管理' }).click() })
     act(() => { screen.getByTestId('xmart-menu-view').click() })
     act(() => { screen.getByRole('menuitem', { name: '切换左侧边栏' }).click() })
@@ -70,7 +72,7 @@ describe('MenuBar', () => {
     act(() => { screen.getByRole('menuitem', { name: '切换终端' }).click() })
     expect(run.mock.calls.map(row => row[0])).toEqual([
       'session-new', 'workspace-open', 'file-save', 'file-close', 'settings-open',
-      'activity-git', 'sidebar-primary', 'sidebar-sessions', 'sidebar-conversation',
+      'activity-search', 'activity-git', 'sidebar-primary', 'sidebar-sessions', 'sidebar-conversation',
       'terminal-new', 'terminal-toggle',
     ])
   })
@@ -97,6 +99,7 @@ describe('MenuBar', () => {
     act(() => { fireEvent.keyDown(window, { key: 'o', metaKey: true, code: 'KeyO' }) })
     act(() => { fireEvent.keyDown(window, { key: 's', ctrlKey: true, code: 'KeyS' }) })
     act(() => { fireEvent.keyDown(window, { key: 'f', ctrlKey: true, code: 'KeyF' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'F', ctrlKey: true, shiftKey: true, code: 'KeyF' }) })
     act(() => { fireEvent.keyDown(window, { key: 'h', ctrlKey: true, code: 'KeyH' }) })
     act(() => { fireEvent.keyDown(window, { key: 'p', ctrlKey: true, code: 'KeyP' }) })
     act(() => { fireEvent.keyDown(window, { key: 'g', ctrlKey: true, code: 'KeyG' }) })
@@ -112,7 +115,7 @@ describe('MenuBar', () => {
     act(() => { fireEvent.keyDown(window, { key: 'l', ctrlKey: true, code: 'KeyL' }) })
     expect(run.mock.calls.map(row => row[0])).toEqual([
       'terminal-toggle', 'session-new', 'workspace-open', 'file-save',
-      'file-find', 'file-replace', 'file-quick-open', 'file-goto-line',
+      'file-find', 'file-search', 'file-replace', 'file-quick-open', 'file-goto-line',
       'settings-open', 'sidebar-primary', 'sidebar-conversation', 'sidebar-sessions',
     ])
   })
@@ -138,6 +141,8 @@ describe('MenuBar', () => {
     act(() => { screen.getByRole('menuitem', { name: '查找' }).click() })
     act(() => { screen.getByTestId('xmart-menu-edit').click() })
     act(() => { screen.getByRole('menuitem', { name: '替换' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-edit').click() })
+    act(() => { screen.getByRole('menuitem', { name: '在文件中查找' }).click() })
     act(() => { screen.getByTestId('xmart-menu-go').click() })
     act(() => { screen.getByRole('menuitem', { name: '转到文件' }).click() })
     act(() => { screen.getByTestId('xmart-menu-go').click() })
@@ -148,7 +153,7 @@ describe('MenuBar', () => {
       'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll',
     ])
     expect(run.mock.calls.map(row => row[0])).toEqual([
-      'file-find', 'file-replace', 'file-quick-open', 'file-goto-definition',
+      'file-find', 'file-replace', 'file-search', 'file-quick-open', 'file-goto-definition',
     ])
     expect(alert).toHaveBeenCalledWith('万物智汇\n桌面 / Web AI Agent 工作台。')
     alert.mockRestore()

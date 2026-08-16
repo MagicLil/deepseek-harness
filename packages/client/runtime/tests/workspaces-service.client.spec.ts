@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SessionRuntime } from '../src/client/sessions/service.ts'
 import { WorkspaceManager } from '../src/client/workspaces/manager.ts'
-import { DirectoryBrowseError, GitAccessError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
+import { DirectoryBrowseError, GitAccessError, SearchAccessError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 
 const sid = (id: string): SessionId => id as SessionId
@@ -715,6 +715,36 @@ describe('WorkspaceRuntime', () => {
     api.onWorkspaceList = () => Promise.resolve(ok({ items: [], archivedSessionIds: [] }) as never)
     await workspaces.refresh()
     expect(workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
+  })
+})
+
+describe('WorkspaceRuntime.search', () => {
+  it('forwards flags to host.search and unwraps a hit page', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    api.onHostSearch = payload => Promise.resolve(ok({
+      root: '/w',
+      hits: [{ path: '/w/a.ts', line: 3, text: 'const js = 1', spans: [{ start: 6, end: 8 }] }],
+      fileCount: 1,
+      truncated: false,
+      payload,
+    } as never))
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    await expect(workspaces.search('/w', 'js', { caseSensitive: true, include: '*.ts' }))
+      .resolves.toMatchObject({ fileCount: 1, hits: [{ line: 3 }] })
+    expect(api.callsOf('host.search')).toEqual([{
+      path: '/w', query: 'js', caseSensitive: true, include: '*.ts',
+    }])
+  })
+
+  it('wraps a host business error as SearchAccessError', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    api.onHostSearch = () => Promise.resolve(err({
+      code: 'search-unavailable', message: 'missing rg', details: { path: '/w' },
+    }))
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    await expect(workspaces.search('/w', 'js')).rejects.toBeInstanceOf(SearchAccessError)
   })
 })
 

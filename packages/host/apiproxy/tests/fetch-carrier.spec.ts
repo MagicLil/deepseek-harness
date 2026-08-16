@@ -168,6 +168,15 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async writeFile(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/a.txt' } } }
       },
+      async search(request) {
+        return {
+          rpcId: request.rpcId,
+          result: {
+            ok: true,
+            value: { root: request.payload.path, hits: [], fileCount: 0, truncated: false },
+          },
+        }
+      },
       async gitStatus(request) {
         return {
           rpcId: request.rpcId,
@@ -505,6 +514,45 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     const response = await client(api).host.openPath({ path: '/tmp/a.txt' })
     expect(opened).toBe('/tmp/a.txt')
     expect(response.result).toEqual({ ok: true, value: { opened: true } })
+  })
+
+  it('round-trips every host.search business error through serverResponseSchema', async () => {
+    const api = fakeApi()
+    api.host.search = request => Promise.resolve({
+      rpcId: request.rpcId,
+      result: {
+        ok: false,
+        error: { code: 'search-unavailable', message: 'missing rg', details: { path: request.payload.path } },
+      },
+    })
+    expect((await client(api).host.search({ path: '/w', query: 'x' })).result).toEqual({
+      ok: false,
+      error: { code: 'search-unavailable', message: 'missing rg', details: { path: '/w' } },
+    })
+
+    api.host.search = request => Promise.resolve({
+      rpcId: request.rpcId,
+      result: {
+        ok: false,
+        error: { code: 'search-invalid', message: 'bad regex', details: { path: request.payload.path } },
+      },
+    })
+    expect((await client(api).host.search({ path: '/w', query: '[' })).result).toEqual({
+      ok: false,
+      error: { code: 'search-invalid', message: 'bad regex', details: { path: '/w' } },
+    })
+
+    api.host.search = request => Promise.resolve({
+      rpcId: request.rpcId,
+      result: {
+        ok: false,
+        error: { code: 'search-failed', message: 'rg failed', details: { path: request.payload.path } },
+      },
+    })
+    expect((await client(api).host.search({ path: '/w', query: 'x' })).result).toEqual({
+      ok: false,
+      error: { code: 'search-failed', message: 'rg failed', details: { path: '/w' } },
+    })
   })
 
   it('round-trips host.git* verbs through the wire form', async () => {

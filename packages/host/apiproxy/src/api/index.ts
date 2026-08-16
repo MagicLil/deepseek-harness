@@ -48,7 +48,8 @@ export type {
   SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionsApi, SessionSummary,
 } from './sessions.ts'
 export type {
-  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, FileSearchHit, FileSearchResult, FileSearchSpan,
+  GitBranch, GitChange, GitCommitResult,
   GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, HostApi,
   TerminalList, TerminalListRow, TerminalOpenResult, TerminalReadResult, TerminalSendResult,
   TerminalSessionStatusWire, TerminalWaitReason, TerminalWireSignal,

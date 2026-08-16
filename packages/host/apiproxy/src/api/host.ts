@@ -54,6 +54,38 @@ export interface FileListing {
   truncated: boolean
 }
 
+/** One highlight range inside a matched line (UTF-16 code units, `[start, end)`). */
+export interface FileSearchSpan {
+  /** Range start (inclusive). */
+  start: number
+  /** Range end (exclusive). */
+  end: number
+}
+
+/** One matched line served by host.search. */
+export interface FileSearchHit {
+  /** Absolute file path — the client relativizes for display. */
+  path: string
+  /** 1-based line number. */
+  line: number
+  /** Matched line text (trailing newline stripped, bounded per line). */
+  text: string
+  /** Match ranges inside `text`; empty when the line is not valid UTF-8. */
+  spans: FileSearchSpan[]
+}
+
+/** host.search response: one bounded workspace-wide text search. */
+export interface FileSearchResult {
+  /** Searched directory (echo of the request path). */
+  root: string
+  /** Matched lines in ripgrep output order (one file's hits stay contiguous). */
+  hits: FileSearchHit[]
+  /** Distinct files across `hits`. */
+  fileCount: number
+  /** True when the match cap or the search time budget cut the result. */
+  truncated: boolean
+}
+
 /** One working-tree change reported by host.gitStatus (Cursor/VS Code SCM row). */
 export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict'
 
@@ -316,6 +348,31 @@ export interface HostApi {
   writeFile(
     request: RpcRequest<{ path: string; content: string }>,
   ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Workspace-wide text search for the workbench search panel, backed by
+   * the packaged ripgrep binary (`@vscode/ripgrep` — the same binary the
+   * agent's grep tool spawns). Plain-text match by default; `regex` opts
+   * into ripgrep regex syntax. Ignore files (.gitignore) are honored.
+   * Matches are capped by `limit` (host bound 2000) and a fixed time
+   * budget; a cut result reports `truncated` instead of failing. A pattern
+   * or glob ripgrep rejects fails with `search-invalid`; a missing binary
+   * with `search-unavailable`; other failures with `search-failed`.
+   * UI-only — never an agent tool.
+   */
+  search(
+    request: RpcRequest<{
+      path: string
+      query: string
+      regex?: boolean
+      caseSensitive?: boolean
+      wholeWord?: boolean
+      include?: string
+      exclude?: string
+      limit?: number
+    }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<FileSearchResult>>
 
   /**
    * Read `git status` for the repository containing `path` (the in-app

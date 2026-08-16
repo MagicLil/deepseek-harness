@@ -12,6 +12,7 @@ export type AppMenuCommand =
   | 'file-save'
   | 'file-find'
   | 'file-replace'
+  | 'file-search'
   | 'file-close'
   | 'file-quick-open'
   | 'file-goto-line'
@@ -21,6 +22,7 @@ export type AppMenuCommand =
   | 'file-show-hover'
   | 'settings-open'
   | 'activity-explorer'
+  | 'activity-search'
   | 'activity-git'
   | 'sidebar-primary'
   | 'sidebar-sessions'
@@ -66,7 +68,7 @@ export type AppMenuDispatchDeps = {
   newSession: () => void
   openWorkspace: () => void
   closeActiveEditor: (sessionId: string) => void
-  showActivity: (sessionId: string, id: 'explorer' | 'git') => void
+  showActivity: (sessionId: string, id: 'explorer' | 'search' | 'git') => void
   togglePrimary: () => void
   toggleSessions: () => void
   toggleConversation: () => void
@@ -144,6 +146,11 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
   }
   if (command === 'activity-explorer') {
     deps.showActivity(sessionId, 'explorer')
+    return
+  }
+  if (command === 'file-search' || command === 'activity-search') {
+    deps.showActivity(sessionId, 'search')
+    deps.dispatch(WORKBENCH_SEARCH_EVENT)
     return
   }
   if (command === 'activity-git') {

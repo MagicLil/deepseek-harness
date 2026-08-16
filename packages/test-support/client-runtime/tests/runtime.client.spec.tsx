@@ -404,6 +404,29 @@ describe('workspaces', () => {
     await expect(runtime.workspaces.createDirectory('/x', 'made')).resolves.toBe('/x/made')
     await runtime.dispose()
   })
+
+  it('answers search with an empty page until a scenario declares hits, recording every call', async () => {
+    const runtime = await runtimeWithFrame()
+    const signal = new AbortController().signal
+    await expect(runtime.workspaces.search('/ws', 'js')).resolves.toEqual({
+      root: '/ws', hits: [], fileCount: 0, truncated: false,
+    })
+    const page = {
+      root: '/ws',
+      hits: [{ path: '/ws/a.ts', line: 1, text: 'const js = 1', spans: [{ start: 6, end: 8 }] }],
+      fileCount: 1,
+      truncated: false,
+    }
+    const stub = vi.fn(() => Promise.resolve(page))
+    runtime.workspaces.stub('search', stub)
+    await expect(runtime.workspaces.search('/ws', 'js', { caseSensitive: true }, signal)).resolves.toBe(page)
+    expect(stub).toHaveBeenCalledWith('/ws', 'js', { caseSensitive: true }, signal)
+    expect(runtime.workspaces.calls).toEqual([
+      { method: 'search', args: ['/ws', 'js', undefined, undefined] },
+      { method: 'search', args: ['/ws', 'js', { caseSensitive: true }, signal] },
+    ])
+    await runtime.dispose()
+  })
 })
 
 describe('feature mount and disposal', () => {

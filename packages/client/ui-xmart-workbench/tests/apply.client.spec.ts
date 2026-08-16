@@ -100,6 +100,7 @@ async function bench() {
     gitCommitDiff: vi.fn(async () => ({ root: '/ws', side: 'worktree' as const, text: '' })),
     readFile: vi.fn(async () => 'hi'),
     writeFile: vi.fn(async () => {}),
+    search: vi.fn(async () => ({ root: '/ws', hits: [], fileCount: 0, truncated: false })),
     createDirectory: vi.fn(async () => '/ws/n'),
     openPath: vi.fn(async () => {}),
     startSession: vi.fn(),
@@ -344,9 +345,9 @@ describe('ui-xmart-workbench apply', () => {
     expect(activity.resolveIcon('explorer')).toBeTypeOf('function')
     expect(activity.resolveIcon('missing')).toBeUndefined()
     expect(activity.hooks.workbenchRegistry.getSnapshot().activities.map(row => row.id))
-      .toEqual(['explorer', 'git'])
+      .toEqual(['explorer', 'search', 'git'])
     expect(column.hooks.workbenchRegistry.getSnapshot().tabs.some(row => row.id === 'explorer')).toBe(true)
-    expect(primary.hooks.workbenchRegistry.getSnapshot().activities).toHaveLength(2)
+    expect(primary.hooks.workbenchRegistry.getSnapshot().activities).toHaveLength(3)
     expect(primary.resolveBody('missing')).toBeUndefined()
     primary.refreshExplorer()
     expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
@@ -356,7 +357,25 @@ describe('ui-xmart-workbench apply', () => {
     expect(activity.resolveIcon('git')).toBeTypeOf('function')
     expect(activity.resolveIcon('missing')).toBeUndefined()
     expect(primary.resolveBody('explorer')).toBeTypeOf('function')
+    expect(primary.resolveBody('search')).toBeTypeOf('function')
     expect(primary.resolveBody('demo')).toBeTypeOf('function')
+    const Search = primary.resolveBody('search')
+    if (typeof Search === 'function') {
+      const searchEl = (Search as (props: {
+        tab: { id: string; type: string; title: string }
+        visible: boolean
+        sessionId: string
+      }) => { props: {
+        search: (path: string, query: string, options: object, signal?: AbortSignal) => Promise<unknown>
+        openHit: (sessionId: string, path: string, reveal: { line: number; character: number }) => void
+      } })({
+        tab: { id: 'se', type: 'search', title: '搜索' }, visible: true, sessionId: 's1',
+      })
+      await searchEl.props.search('/ws', 'js', { regex: false })
+      expect(b.workspaces.search).toHaveBeenCalledWith('/ws', 'js', { regex: false }, undefined)
+      searchEl.props.openHit('s1', '/ws/found.ts', { line: 2, character: 0 })
+      expect(workbench(b.ctx).getSnapshot('s1').tabs.some(row => row.path === '/ws/found.ts')).toBe(true)
+    }
     expect(bottom.resolveBody('terminal')).toBeTypeOf('function')
     column.openTab('demo')
     const service = workbench(b.ctx)

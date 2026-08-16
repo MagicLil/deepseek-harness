@@ -2605,6 +2605,45 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         fileTree.set(request.payload.path, request.payload.content)
         return ok(request, { path: request.payload.path })
       },
+      search: (request) => {
+        const { path, query, regex, caseSensitive, wholeWord, limit } = request.payload
+        const flags = caseSensitive === true ? 'g' : 'gi'
+        const source = regex === true ? query : query.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
+        let matcher: RegExp
+        try {
+          matcher = new RegExp(wholeWord === true ? String.raw`\b(?:${source})\b` : source, flags)
+        } catch (error) {
+          return err(request, {
+            code: 'search-invalid',
+            message: `fixture rejected the pattern: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path },
+          })
+        }
+        const cap = Math.max(1, Math.min(limit ?? 500, 2000))
+        const hits: { path: string; line: number; text: string; spans: { start: number; end: number }[] }[] = []
+        const prefix = path.endsWith('/') ? path : `${path}/`
+        for (const [filePath, content] of fileTree) {
+          if (filePath !== path && !filePath.startsWith(prefix)) continue
+          const lines = content.split('\n')
+          for (let index = 0; index < lines.length && hits.length < cap; index += 1) {
+            const text = lines[index] ?? ''
+            matcher.lastIndex = 0
+            const spans: { start: number; end: number }[] = []
+            for (let found = matcher.exec(text); found !== null; found = matcher.exec(text)) {
+              spans.push({ start: found.index, end: found.index + found[0].length })
+              if (found[0].length === 0) matcher.lastIndex += 1
+            }
+            if (spans.length > 0) hits.push({ path: filePath, line: index + 1, text, spans })
+          }
+          if (hits.length >= cap) break
+        }
+        return ok(request, {
+          root: path,
+          hits,
+          fileCount: new Set(hits.map(hit => hit.path)).size,
+          truncated: hits.length >= cap,
+        })
+      },
       gitStatus: request => ok(request, {
         root: request.payload.path,
         branch: 'main',
@@ -3183,6 +3222,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.listEntries': return this.api.host.listEntries(request, new AbortController().signal)
       case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
       case 'host.writeFile': return this.api.host.writeFile(request)
+      case 'host.search': return this.api.host.search(request, new AbortController().signal)
       case 'host.gitStatus': return this.api.host.gitStatus(request, new AbortController().signal)
       case 'host.gitDiff': return this.api.host.gitDiff(request, new AbortController().signal)
       case 'host.gitStage': return this.api.host.gitStage(request, new AbortController().signal)

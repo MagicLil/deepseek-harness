@@ -174,6 +174,9 @@ export class FakeApiClient implements IApiClient {
     listEntries: payload => this.record('host.listEntries', payload, this.onListEntries(payload)),
     readFile: payload => this.record('host.readFile', payload, this.onReadFile(payload)),
     writeFile: payload => this.record('host.writeFile', payload, this.onWriteFile(payload)),
+    search: payload => this.record('host.search', payload, Promise.resolve(ok({
+      root: '/w', hits: [], fileCount: 0, truncated: false,
+    }))),
     gitStatus: payload => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
     gitDiff: payload => this.record('host.gitDiff', payload, Promise.resolve(ok({
       root: '/home/fake', side: 'worktree' as const, text: '',

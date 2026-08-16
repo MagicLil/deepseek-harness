@@ -24,6 +24,7 @@ describe('desktopAppMenuSpec', () => {
     const view = desktopAppMenuSpec(labels)[3]
     expect(view?.submenu).toEqual(expect.arrayContaining([
       { type: 'command', id: 'activity-explorer', label: '资源管理器' },
+      { type: 'command', id: 'activity-search', label: '搜索' },
       { type: 'command', id: 'activity-git', label: '源代码管理' },
       { type: 'command', id: 'sidebar-conversation', label: '切换对话', accelerator: 'CommandOrControl+Alt+B' },
       { type: 'command', id: 'view-problems', label: '问题' },
@@ -48,6 +49,7 @@ describe('desktopAppMenuSpec', () => {
     expect(edit?.submenu).toEqual(expect.arrayContaining([
       { type: 'command', id: 'file-find', label: '查找', accelerator: 'CommandOrControl+F' },
       { type: 'command', id: 'file-replace', label: '替换', accelerator: 'CommandOrControl+H' },
+      { type: 'command', id: 'file-search', label: '在文件中查找', accelerator: 'CommandOrControl+Shift+F' },
     ]))
     expect(desktopAppMenuSpec(labels)[5]?.submenu).toEqual([
       { type: 'about', label: '关于万物智汇' },
@@ -59,6 +61,8 @@ describe('desktopAppMenuSpec', () => {
   it('uses English copy when the OS locale is not Chinese', () => {
     expect(desktopAppMenuLabels('en-US').fileFind).toBe('Find')
     expect(desktopAppMenuLabels('en-US').fileReplace).toBe('Replace')
+    expect(desktopAppMenuLabels('en-US').fileSearch).toBe('Find in Files')
+    expect(desktopAppMenuLabels('en-US').viewSearch).toBe('Search')
     expect(desktopAppMenuLabels('en-US').goFile).toBe('Go to File')
     expect(desktopAppMenuLabels('en-US').viewConversation).toBe('Toggle Chat')
     expect(desktopAppMenuLabels('en-US').terminal).toBe('Terminal')

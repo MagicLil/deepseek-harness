@@ -143,6 +143,14 @@ export class FakeApiClient implements IApiClient {
   onWriteFile: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
     () => Promise.resolve(ok({ path: '/home/fake/file.txt' }))
 
+  onHostSearch: (payload: unknown) => Promise<RpcResponse<{
+    root: string
+    hits: never[]
+    fileCount: number
+    truncated: boolean
+  }>> =
+    () => Promise.resolve(ok({ root: '/w', hits: [], fileCount: 0, truncated: false }))
+
   onGitStatus: (payload: unknown) => Promise<RpcResponse<{
     root: string
     branch: string
@@ -208,6 +216,7 @@ export class FakeApiClient implements IApiClient {
     listEntries: (payload: unknown) => this.record('host.listEntries', payload, this.onListEntries(payload)),
     readFile: (payload: unknown) => this.record('host.readFile', payload, this.onReadFile(payload)),
     writeFile: (payload: unknown) => this.record('host.writeFile', payload, this.onWriteFile(payload)),
+    search: (payload: unknown) => this.record('host.search', payload, this.onHostSearch(payload)),
     gitStatus: (payload: unknown) => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
     gitDiff: (payload: unknown) => this.record('host.gitDiff', payload, Promise.resolve(ok({
       root: '/home/fake', side: 'worktree' as const, text: '',

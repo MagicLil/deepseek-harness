@@ -51,6 +51,9 @@ export interface RpcErrorDetailsMap {
   'file-write-failed': { path: string }
   'git-unavailable': { path: string }
   'git-failed': { path: string }
+  'search-unavailable': { path: string }
+  'search-invalid': { path: string }
+  'search-failed': { path: string }
   'agent-preset-read-only': { agentPreset: string; reason: string }
   'agent-preset-locked': { sessionId: SessionId; agentPreset: string }
   'agent-preset-conflict': { sessionId: SessionId; requestedPreset: string; existingPreset?: string }

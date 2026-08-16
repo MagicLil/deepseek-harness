@@ -45,7 +45,7 @@ export { SessionProvideChannel } from './sessions/provide.ts'
 export type { SessionProvideChannelHost } from './sessions/provide.ts'
 export { createScope } from './agents/scope.ts'
 export type { AgentScopeHandle } from './agents/scope.ts'
-export { DirectoryBrowseError, FileAccessError, GitAccessError, WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts'
+export { DirectoryBrowseError, FileAccessError, GitAccessError, SearchAccessError, WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts'
 export { resolveWorkspacePath } from './workspaces/path.ts'
 // Contract only: the scope implementation and its Host transport belong to
 // dsh-client-ui-settings (see that package's settings-scope.ts).
@@ -55,7 +55,7 @@ export type {
 export type { Session } from './sessions/session.ts'
 export type { ISession, ProjectionsFace, SessionFace } from './contract/session.ts'
 export type { AgentContext, ISessions } from './contract/sessions.ts'
-export type { IWorkspaces } from './contract/workspaces.ts'
+export type { FileSearchOptions, IWorkspaces } from './contract/workspaces.ts'
 export type {
   SessionBinding, SessionListState, SessionProvideContribution, SessionProvideDescriptor, SessionSummary,
 } from './sessions/service.ts'
@@ -64,7 +64,8 @@ export type { SubagentAddress, JobView } from '@deepseek-ai/dsh-client-connectio
 export type { WorkspaceListPhase } from './workspaces/manager.ts'
 export type { WorkspaceListState } from './workspaces/service.ts'
 export type {
-  DirectoryEntry, DirectoryListing, FileEntry, FileListing, GitBranch, GitChange, GitCommitResult,
+  DirectoryEntry, DirectoryListing, FileEntry, FileListing, FileSearchHit, FileSearchResult, FileSearchSpan,
+  GitBranch, GitChange, GitCommitResult,
   GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-connection/client'
 // Runtime owns the snapshot store; web-react only binds it to React.

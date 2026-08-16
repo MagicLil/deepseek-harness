@@ -46,6 +46,7 @@ export interface RpcMethodMap {
   'host.listEntries': HostApi['listEntries']
   'host.readFile': HostApi['readFile']
   'host.writeFile': HostApi['writeFile']
+  'host.search': HostApi['search']
   'host.gitStatus': HostApi['gitStatus']
   'host.gitDiff': HostApi['gitDiff']
   'host.gitStage': HostApi['gitStage']
