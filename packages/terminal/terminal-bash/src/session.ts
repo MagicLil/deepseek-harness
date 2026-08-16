@@ -207,6 +207,53 @@ export class LocalPtySession implements TerminalBackendSession {
    * @param signal - optional cancellation while the shell reaches its first prompt.
    * @returns Resolves after startup readiness; rejects on exit or readiness timeout.
    */
+  /**
+   * UI path: wait briefly for the first sanitized printable text so motd
+   * is not empty when `waitReady: false` skips prompt initialization.
+   * Raw CSI-only ConPTY startup chunks do not count.
+   * @param ms - maximum wait.
+   * @param signal - optional cancellation.
+   */
+  async awaitFirstOutput(ms: number, signal?: AbortSignal): Promise<void> {
+    if (this.scrollback.snapshot().text.length > 0) {
+      this.motd = this.read({}).text
+      return
+    }
+    await new Promise<void>((resolve, reject) => {
+      let settled = false
+      const finish = (): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        off()
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }
+      const onAbort = (): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        off()
+        reject(signal?.reason)
+      }
+      const timer = setTimeout(finish, ms)
+      // PowerShell's first ConPTY chunk is CSI-only (`?9001h` / `?1004h`).
+      // Resolving on that raw byte leaves motd empty; wait for sanitized text.
+      const off = this.subscribeOutput(() => {
+        queueMicrotask(() => {
+          if (this.scrollback.snapshot().text.length > 0) finish()
+        })
+      })
+      if (signal === undefined) return
+      if (signal.aborted) {
+        onAbort()
+        return
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+    this.motd = this.read({}).text
+  }
+
   async initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
     try {
@@ -286,6 +333,8 @@ export class LocalPtySession implements TerminalBackendSession {
    */
   subscribeOutput(listener: (delta: string) => void): () => void {
     this.outputListeners.add(listener)
+    const existing = this.scrollback.snapshot().text
+    if (existing.length > 0) listener(existing)
     return () => { this.outputListeners.delete(listener) }
   }
 

@@ -236,10 +236,13 @@ export function bindTerminalHost(ctx: Context, agentFor: TerminalAgentFor): Pick
           waitReady: false,
         }, signal)
         ensureWatch(terminals, found.agent, request.payload.sessionId, spawned.sessionId)
+        const motd = spawned.motd !== ''
+          ? spawned.motd
+          : terminals.read(found.agent, spawned.sessionId).text
         return ok(request, {
           id: spawned.sessionId,
           ...spawned.name === undefined ? {} : { name: spawned.name },
-          motd: spawned.motd,
+          motd,
           status: wireStatus(spawned.status),
         })
       } catch (error: unknown) {

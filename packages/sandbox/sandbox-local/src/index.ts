@@ -558,9 +558,10 @@ export class LocalSandboxProvider extends SandboxProvider {
     const override = this.internals.windowsAclRunnerArgs
     if (override !== undefined) return override
     const builtEntry = this.internals.windowsAclRunnerEntry ?? fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/runner'))
-    if (existsSync(builtEntry)) return [process.execPath, builtEntry]
+    const node = process.env.DSH_NODE_EXEC_PATH || process.execPath
+    if (existsSync(builtEntry)) return [node, builtEntry]
     const sourceEntry = fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/src/runner.ts'))
-    return [process.execPath, '--import', 'tsx/esm', sourceEntry]
+    return [node, '--import', 'tsx/esm', sourceEntry]
   }
 }
 

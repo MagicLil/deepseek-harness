@@ -166,8 +166,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     spec.signal?.throwIfAborted()
     const options: IPtyForkOptions = {
       name: 'xterm-256color',
-      rows: spec.rows,
-      cols: spec.cols,
+      rows: Math.max(spec.rows, 24),
+      cols: Math.max(spec.cols, 80),
       cwd: spec.cwd,
       env: childEnv(spec.env),
     }

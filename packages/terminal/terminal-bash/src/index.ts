@@ -120,7 +120,13 @@ export class BashTerminalBackend implements TerminalBackend {
     spec.signal?.throwIfAborted()
     ensureSandboxModeFence(this.ctx, spec.owner)
     const policy = this.ctx.sandboxPolicy.resolve({ session: spec.owner.session })
-    const argv = spawnArgv(this.ctx, this.config, policy)
+    // Interactive UI tabs (waitReady: false) are the user's own shell. On
+    // desktop, confine() prefixes `process.execPath` (electron.exe) + the
+    // windows-acl runner; that child is a second Electron, ConPTY stays
+    // silent, and the prompt leaks to the launching console.
+    const argv = spec.waitReady === false
+      ? [this.config.shellPath, ...this.config.shellArgs]
+      : spawnArgv(this.ctx, this.config, policy)
     if (argv[0] === undefined) throw new Error('terminal-bash: sandbox returned empty argv')
     const terminal = await this.spawnTerminal({
       argv,
@@ -134,6 +140,13 @@ export class BashTerminalBackend implements TerminalBackend {
     const session = this.createSession(terminal, this.config)
     try {
       if (spec.waitReady !== false) await initializeSession(session, spec.signal)
+      else {
+        await session.awaitFirstOutput(2_500, spec.signal)
+        if (session.motd === '') {
+          await session.write('\r')
+          await session.awaitFirstOutput(1_500, spec.signal)
+        }
+      }
       return session
     } catch (error) {
       try {

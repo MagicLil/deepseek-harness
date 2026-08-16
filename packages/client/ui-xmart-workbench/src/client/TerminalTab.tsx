@@ -141,8 +141,8 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
           const opened = await openTerminal(host, sessionId, {
             name: tab.id,
             ...cwd === undefined || cwd === '' ? {} : { cwd },
-            cols: term.cols,
-            rows: term.rows,
+            cols: Math.max(term.cols, 80),
+            rows: Math.max(term.rows, 24),
           })
           if (cancelled) {
             setTerminalSeat(sessionId, tab.id, opened.id)
@@ -152,7 +152,43 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
           hostRef.current = id
           setPtyId(id)
           setTerminalSeat(sessionId, tab.id, id)
-          if (opened.motd !== '') term.write(opened.motd)
+          // waitReady:false leaves motd empty; the prompt often lands in
+          // scrollback before hostRef can accept live terminals/output.
+          let text = opened.motd
+          try {
+            const replay = await readTerminal(host, sessionId, id)
+            if (replay !== '') text = replay
+          } catch {
+            // Keep motd when the optional read fails.
+          }
+          if (cancelled) return
+          if (text !== '') {
+            term.write(text)
+          } else {
+            let painted = false
+            if (host.terminalRead !== undefined) {
+              const deadline = Date.now() + 1_500
+              while (!cancelled && Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 200))
+                if (cancelled) return
+                try {
+                  const replay = await readTerminal(host, sessionId, id)
+                  if (replay !== '') {
+                    term.write(replay)
+                    painted = true
+                    break
+                  }
+                } catch {
+                  break
+                }
+              }
+            }
+            // PowerShell often sits until it sees a key. A lone CR is enough
+            // to reprint the prompt; live terminals/output then paints it.
+            if (!cancelled && !painted) {
+              void writeTerminal(host, sessionId, id, '\r').catch(() => {})
+            }
+          }
         } else {
           const text = await readTerminal(host, sessionId, id)
           if (cancelled) return
@@ -163,7 +199,9 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
           const live = hostRef.current
           if (live === undefined) return
           fit.fit()
-          void resizeTerminal(host, sessionId, live, term.cols, term.rows).catch(() => {})
+          const cols = Math.max(term.cols, 2)
+          const rows = Math.max(term.rows, 2)
+          void resizeTerminal(host, sessionId, live, cols, rows).catch(() => {})
         }
         pushSize()
         resizeObserver = new ResizeObserver(() => { pushSize() })
@@ -171,7 +209,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
         openDisposable = term.onResize(({ cols, rows }) => {
           const live = hostRef.current
           if (live === undefined) return
-          void resizeTerminal(host, sessionId, live, cols, rows).catch(() => {})
+          void resizeTerminal(host, sessionId, live, Math.max(cols, 2), Math.max(rows, 2)).catch(() => {})
         })
 
         setAvailable(true)
@@ -210,9 +248,6 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
 
   return (
     <div className={css.root} data-testid="xmart-workbench-terminal">
-      {cwd !== undefined && cwd !== ''
-        ? <div className={css.cwd} data-testid="xmart-terminal-cwd">{cwd}</div>
-        : null}
       {available === null
         ? <div className={css.note}>{t('terminal.starting')}</div>
         : null}

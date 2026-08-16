@@ -91,6 +91,8 @@ function stubLocalSession(initialize: () => Promise<void> = () => Promise.resolv
   return {
     motd: '',
     initialize,
+    awaitFirstOutput: async () => {},
+    write: async () => {},
     startSend: () => { throw new Error('unused') },
     read: () => { throw new Error('unused') },
     signal: () => Promise.resolve({ delivered: true, targetPgid: 1 }),
@@ -252,12 +254,38 @@ describe('BashTerminalBackend startup rollback', () => {
     }])
   })
 
+  it('does not confine an interactive UI spawn', async () => {
+    const ctx = new Context()
+    await ctx.plugin(RecordingSandbox)
+    await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: '/workspace' })
+    let spawned: SubprocessTerminalSpawnSpec | undefined
+    const backend = new BashTerminalBackend(
+      ctx,
+      { ...config(), shellPath: '/bin/bash', shellArgs: ['-i'] },
+      async (spec) => {
+        spawned = spec
+        return terminalHandle()
+      },
+      () => stubLocalSession(),
+    )
+    await backend.spawn({ ...spec(agent(ctx)), waitReady: false })
+    expect(spawned?.argv).toEqual(['/bin/bash', '-i'])
+    expect((ctx.sandbox as RecordingSandbox).calls).toEqual([])
+  })
+
   it('skips prompt initialization when waitReady is false', async () => {
     const ctx = new Context()
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
     const initialized = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    const session = { initialize: initialized } as unknown as LocalPtySession
+    const firstOutput = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>().mockResolvedValue(undefined)
+    const write = vi.fn<(data: string) => Promise<void>>().mockResolvedValue(undefined)
+    const session = {
+      motd: '',
+      initialize: initialized,
+      awaitFirstOutput: firstOutput,
+      write,
+    } as unknown as LocalPtySession
     const backend = new BashTerminalBackend(
       ctx,
       config(),
@@ -266,6 +294,9 @@ describe('BashTerminalBackend startup rollback', () => {
     )
     expect(await backend.spawn({ ...spec(agent(ctx)), waitReady: false })).toBe(session)
     expect(initialized).not.toHaveBeenCalled()
+    expect(firstOutput).toHaveBeenNthCalledWith(1, 2_500, undefined)
+    expect(write).toHaveBeenCalledWith('\r')
+    expect(firstOutput).toHaveBeenNthCalledWith(2, 1_500, undefined)
   })
 
   it('rejects a confined spawn without a sandbox provider', async () => {

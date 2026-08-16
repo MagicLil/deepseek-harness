@@ -205,6 +205,12 @@ describe('LocalPtySession readiness and output', () => {
     const session = makeSession(terminal, inspector, config())
     await initialize(session, terminal)
     expect(session.motd).toBe('dsh> ')
+    await session.awaitFirstOutput(20)
+    expect(session.motd).toContain('dsh> ')
+    const replayed: string[] = []
+    const stop = session.subscribeOutput((chunk) => { replayed.push(chunk) })
+    expect(replayed.join('')).toContain('dsh> ')
+    stop()
 
     inspector.waiting = true
     const operation = session.startSend({ text: 'python3', submit: true })
@@ -761,6 +767,59 @@ describe('LocalPtySession readiness and output', () => {
     const unresolved = missingGroup.startSend({ text: '', submit: false })
     expect(unresolved.cancel()).toBe(true)
     await expect(unresolved.done).rejects.toThrow('cannot resolve foreground process group')
+  })
+
+  it('awaitFirstOutput returns existing text, waits for the first byte, times out, and preserves abort', async () => {
+    vi.useFakeTimers()
+    const ready = new FakeTerminal()
+    const readySession = new LocalPtySession(ready, config())
+    await initialize(readySession, ready)
+    await readySession.awaitFirstOutput(20)
+    expect(readySession.motd).toContain('dsh> ')
+
+    const live = new FakeTerminal()
+    const liveSession = new LocalPtySession(live, config())
+    const pending = liveSession.awaitFirstOutput(50)
+    await Promise.resolve()
+    live.emitData('PS> ')
+    await pending
+    expect(liveSession.motd).toContain('PS>')
+
+    const silent = new FakeTerminal()
+    const silentSession = new LocalPtySession(silent, config())
+    const timed = silentSession.awaitFirstOutput(40)
+    await vi.advanceTimersByTimeAsync(40)
+    await timed
+    expect(silentSession.motd).toBe('')
+
+    const aborting = new FakeTerminal()
+    const abortSession = new LocalPtySession(aborting, config())
+    const controller = new AbortController()
+    const reason = new Error('stop-first-output')
+    const aborted = expect(abortSession.awaitFirstOutput(100, controller.signal)).rejects.toBe(reason)
+    controller.abort(reason)
+    await aborted
+
+    const pre = new AbortController()
+    pre.abort(reason)
+    const preSession = new LocalPtySession(new FakeTerminal(), config())
+    await expect(preSession.awaitFirstOutput(100, pre.signal)).rejects.toBe(reason)
+  })
+
+  it('awaitFirstOutput ignores CSI-only startup and waits for printable text', async () => {
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config())
+    const pending = session.awaitFirstOutput(200)
+    await Promise.resolve()
+    terminal.emitData('\x1b[?9001h\x1b[?1004h')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(session.motd).toBe('')
+    expect(session.read({}).text).toBe('')
+    terminal.emitData('\x1b[?25l\x1b[2J\x1b[m\x1b[HPS D:\\work>\x1b[1C')
+    await pending
+    expect(session.read({}).text).toContain('PS D:\\work>')
+    expect(session.motd).toContain('PS D:\\work>')
   })
 
   it('settles startup as inferred idle when the host has no foreground group', async () => {

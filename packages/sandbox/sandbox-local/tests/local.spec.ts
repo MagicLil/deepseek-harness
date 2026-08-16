@@ -426,7 +426,11 @@ describe('the windows-acl probe (runner invocation contract)', () => {
       windowsAclRunnerEntry: absentRunnerEntry(),
     })
     const confined = sandbox.confine(['true'], RO)
-    expect(confined.argv.slice(0, 3)).toEqual([process.execPath, '--import', 'tsx/esm'])
+    expect(confined.argv.slice(0, 3)).toEqual([
+      process.env.DSH_NODE_EXEC_PATH || process.execPath,
+      '--import',
+      'tsx/esm',
+    ])
     expect(confined.argv[3]).toMatch(/runner\.ts$/)
   })
 
@@ -448,6 +452,29 @@ describe('the windows-acl probe (runner invocation contract)', () => {
       windowsAclRunnerEntry: builtEntry,
     })
     const confined = sandbox.confine(['true'], RO)
-    expect(confined.argv.slice(0, 2)).toEqual([process.execPath, builtEntry])
+    expect(confined.argv.slice(0, 2)).toEqual([
+      process.env.DSH_NODE_EXEC_PATH || process.execPath,
+      builtEntry,
+    ])
+  })
+
+  it('uses DSH_NODE_EXEC_PATH for the windows-acl runner when desktop recorded Node', async () => {
+    const previous = process.env.DSH_NODE_EXEC_PATH
+    process.env.DSH_NODE_EXEC_PATH = '/recorded/node'
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'dsh-fake-acl-node-'))
+      const builtEntry = join(dir, 'runner.js')
+      writeFileSync(builtEntry, '')
+      const { sandbox } = await setup({}, {
+        chain: ['windows-acl', 'bwrap'],
+        probeWindowsAcl: () => true,
+        windowsAclRunnerEntry: builtEntry,
+      })
+      const confined = sandbox.confine(['true'], RO)
+      expect(confined.argv.slice(0, 2)).toEqual(['/recorded/node', builtEntry])
+    } finally {
+      if (previous === undefined) delete process.env.DSH_NODE_EXEC_PATH
+      else process.env.DSH_NODE_EXEC_PATH = previous
+    }
   })
 })

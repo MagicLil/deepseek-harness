@@ -141,7 +141,7 @@ describe('TerminalTab', () => {
       },
     }, 'D:\\work\\hmdp')
     await waitFor(() => {
-      expect(screen.getByTestId('xmart-terminal-cwd').textContent).toBe('D:\\work\\hmdp')
+      expect(screen.queryByTestId('xmart-terminal-cwd')).toBeNull()
       expect(screen.getByTestId('xmart-terminal-xterm')).toBeTruthy()
       expect(termState.writes).toContain('ready\n')
     })
@@ -161,6 +161,60 @@ describe('TerminalTab', () => {
         { sessionId: 's1', id: 'pty-1', data: 'ls\r' },
         undefined,
       )
+    })
+  })
+
+  it('kicks the shell with CR when open and read stay empty', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({
+        id: 'pty-kick', motd: '', status: { kind: 'running' as const },
+      }),
+      terminalWrite: vi.fn(() => ok({ written: true as const })),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(host.terminalWrite).toHaveBeenCalledWith(
+        { sessionId: 's1', id: 'pty-kick', data: '\r' },
+        undefined,
+      )
+    })
+  })
+
+  it('paints a late scrollback read after an empty motd', async () => {
+    let reads = 0
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({
+        id: 'pty-late', motd: '', status: { kind: 'running' as const },
+      }),
+      terminalRead: () => {
+        reads += 1
+        return ok({ text: reads < 3 ? '' : 'PS> ' })
+      },
+      terminalWrite: vi.fn(() => ok({ written: true as const })),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.writes).toEqual(['PS> '])
+    })
+    expect(host.terminalWrite).not.toHaveBeenCalled()
+  })
+
+  it('replays scrollback when open returns an empty motd', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({
+        id: 'pty-40', motd: '', status: { kind: 'running' as const },
+      }),
+      terminalRead: () => ok({ text: 'PS D:\\mycode\\deepseek> ' }),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.writes).toEqual(['PS D:\\mycode\\deepseek> '])
     })
   })
 

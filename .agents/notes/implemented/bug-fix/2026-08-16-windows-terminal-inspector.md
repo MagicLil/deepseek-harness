@@ -24,7 +24,7 @@ Opening a workbench terminal on Windows failed before ConPTY allocated. `spawnTe
 
 After the inspector unblocked ConPTY, the UI still waited on bash MOTD. `host.terminalOpen` awaited `session.initialize()`, which looks for the OSC prompt `dsh> `, then 3s silence, then a 30s timeout. PowerShell never emits that marker, and `inspectForeground` is undefined on Windows, so the tab stayed on "Starting terminal..." even though the PTY was already up. Live xterm watch only attaches after spawn returns.
 
-UI spawn now passes `waitReady: false` so the backend returns as soon as the PTY exists. Agent-tool spawn still waits for readiness; when the provider cannot report a foreground group, observed output plus a short idle settles `inferred_idle` instead of sitting on the 3s/30s bounds.
+UI spawn now passes `waitReady: false` so the backend returns as soon as the PTY exists. Agent-tool spawn still waits for readiness; when the provider cannot report a foreground group, observed output plus a short idle settles `inferred_idle` instead of sitting on the 3s/30s bounds. A Node-side ConPTY smoke (`windows-pty-output.spec.ts`) emits `PS ` within 2s, so the substrate is not silent. The first prompt still races the client: `waitReady: false` now waits up to 2.5s for the first **sanitized printable** text. Against the live desktop the black xterm was not that race: `workspace-write` `confine()` spawned `electron.exe …/runner.js -- powershell.exe` because `process.execPath` is Electron. That second Electron does not keep the ConPTY, so the prompt leaked into the `pnpm dsh desktop` console. Interactive tabs no longer confine. The windows-acl runner prefix uses `DSH_NODE_EXEC_PATH` (same record as the folder-picker worker).
 
 ## Consequences
 
