@@ -10,7 +10,7 @@ Workbench tabs, explorer expansion, and primary width persist per `sessionId`. C
 
 ## Decision
 
-`apply` watches `ctx.sessions.list`. When `current` moves between two sessions that share a project key (workspace folder path, else cwd), `inheritSession` overwrites the target's editor tabs and activity, `cloneExpanded` overwrites its explorer expansion, and `inheritWorkbenchPersist` copies open/width then writes that width into `ctx.layout`. Terminal tabs stay on the source session because their PTY is session-bound. `primarySidebar` is session-scoped and remounts; `keepLiveWidth` tells the new mount to skip persist restore so the live explorer size does not snap to the destination default. A different folder still loads that session's own persist.
+`apply` watches `ctx.sessions.list`. When `current` moves between two sessions that share a project key (workspace folder path, else cwd), `inheritSession` overwrites the target's editor tabs and activity, `cloneExpanded` overwrites its explorer expansion, and `inheritWorkbenchPersist` copies open/width then writes that width into `ctx.layout`. Terminal tabs stay on the source session because their PTY is session-bound. Workbench chrome is `session-maybe` and no longer remounts on a switch ([flash fix](../bug-fix/2026-08-17-same-project-session-switch-flash.md)); `keepLiveWidth` still skips persist restore so width does not snap to the destination default. A different folder still loads that session's own persist.
 
 Per-session keys (`dsh.xmart.workbench.tabs.<sessionId>`, `dsh.xmart.workbench.files`, `dsh.xmart.workbench`) stay as the [tab registry](2026-08-15-xmart-workbench-tabs.md) already persists them; same-folder navigation copies into those keys instead of promoting the store to workspace scope.
 
@@ -22,7 +22,7 @@ Per-session keys (`dsh.xmart.workbench.tabs.<sessionId>`, `dsh.xmart.workbench.f
 
 **Leave the target's existing tabs when it already has some.** Rejected: that is the jump the user sees. Same-folder navigation must show the live editor, not the destination chat's last persist.
 
-**Change `primarySidebar` to `session-maybe` so it does not remount.** Rejected: the live width still has to land in the destination persist keys; copying persist plus `keepLiveWidth` keeps the session-scoped slot and stops the remount from snapping to 260.
+**Change `primarySidebar` to `session-maybe` so it does not remount.** Rejected at the time for width snap only. The later [flash fix](../bug-fix/2026-08-17-same-project-session-switch-flash.md) does this after `session-maybe` stopped remounting on switch; persist copy and `keepLiveWidth` remain.
 
 ## Consequences
 

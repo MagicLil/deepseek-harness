@@ -414,9 +414,7 @@ function standardKit(
     }
     kit['t'] = localeSeat(face, entry.locale)
   }
-  const store = scope === 'session-maybe' && info?.sessionId === undefined
-    ? undefined
-    : host.storeOf(entry, info?.sessionId)
+  const store = host.storeOf(entry, info?.sessionId)
   if (store !== undefined) {
     // The instance IS an observable snapshot source (contract getSnapshot/
     // subscribe); the useStore hook binds here, cached per instance.
@@ -532,17 +530,15 @@ function SessionMaybeEntryBody({ entry, ownerProps, info, slotKey, slotInjected,
 }
 
 /**
- * Session-maybe identity: adoption — the ONLY behavior (there is no
- * hold-identity-forever mode). An incarnation born session-less ADOPTS the
- * first session that arrives: identity holds across that one transition
- * (undefined → first id), so a blank shell's DOM survives the moment a
- * session appears. From then on the entry behaves exactly like a strict
- * session entry: switching to a DIFFERENT session remounts (component-local
- * state must not leak between sessions), and dropping back to no-session
- * remounts into a fresh blank incarnation, which will adopt again.
- * Component-local per-session state therefore clears by construction; state
- * that must SURVIVE a switch belongs in session-bound sources (machine,
- * store, hooks) — the existing layering rule, now load-bearing.
+ * Session-maybe identity: keep the occupant mounted while a current
+ * session exists. An incarnation born session-less ADOPTS the first id
+ * (undefined → first session) without remounting, and a later switch to
+ * another session also keeps that incarnation — session facts arrive
+ * through hooks/props (see SessionMaybeStandardProps). Dropping back to
+ * no-session remounts into a fresh blank incarnation, which will adopt
+ * again. State that must RESET on switch belongs in a child keyed by
+ * sessionId, or in a session-bound store; chrome that must not flash
+ * (conversation shell, workbench) stays on this identity.
  */
 function SessionMaybeEntry({ entry, ownerProps, slotKey, slotInjected, hookContext, hasHookContext }: {
   entry: StoredEntry
@@ -561,18 +557,13 @@ function SessionMaybeEntry({ entry, ownerProps, slotKey, slotInjected, hookConte
   // guard conditions make it convergent — StrictMode-safe).
   const [state, setState] = useState<MaybeIncarnation>(FIRST_INCARNATION)
   let { adopted, epoch } = state
-  if (info.sessionId !== undefined && adopted === undefined) {
+  if (info.sessionId !== undefined && !adopted) {
     // Adoption: same epoch — no remount.
-    adopted = info.sessionId
+    adopted = true
     setState({ adopted, epoch })
-  } else if (adopted !== undefined && info.sessionId !== undefined && info.sessionId !== adopted) {
-    // Post-adoption session switch: next incarnation, born already adopted.
-    adopted = info.sessionId
-    epoch += 1
-    setState({ adopted, epoch })
-  } else if (adopted !== undefined && info.sessionId === undefined) {
+  } else if (adopted && info.sessionId === undefined) {
     // Back to no-session: next incarnation, born blank (adopts anew later).
-    adopted = undefined
+    adopted = false
     epoch += 1
     setState({ adopted, epoch })
   }
@@ -592,13 +583,13 @@ function SessionMaybeEntry({ entry, ownerProps, slotKey, slotInjected, hookConte
 
 /** Adoption bookkeeping of one session-maybe outlet (see SessionMaybeEntry). */
 interface MaybeIncarnation {
-  /** Session this incarnation adopted; undefined while born blank and unadopted. */
-  readonly adopted: string | undefined
-  /** Incarnation counter — the child key; bumps exactly when an incarnation dies. */
+  /** True after this incarnation adopted a session; false while blank. */
+  readonly adopted: boolean
+  /** Incarnation counter — the child key; bumps only on session loss. */
   readonly epoch: number
 }
 
-const FIRST_INCARNATION: MaybeIncarnation = { adopted: undefined, epoch: 0 }
+const FIRST_INCARNATION: MaybeIncarnation = { adopted: false, epoch: 0 }
 
 function RootEntry({ entry, ownerProps, slotKey, slotInjected, hookContext, hasHookContext }: {
   entry: StoredEntry

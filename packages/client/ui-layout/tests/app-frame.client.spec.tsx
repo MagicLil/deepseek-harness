@@ -531,6 +531,19 @@ describe('AppFrame', () => {
     expect(instance.getSnapshot().workbench).toBe(WORKBENCH_DEFAULT)
   })
 
+  it('arms data-settling on session change so the grid does not ease', () => {
+    const { frame, rerenderFrame, unmount } = mountFrame()
+    expect(frame.hasAttribute('data-settling')).toBe(false)
+    selectedSession.current = 's-next' as SessionId
+    act(() => { rerenderFrame() })
+    expect(frame.hasAttribute('data-settling')).toBe(true)
+    act(() => { vi.advanceTimersByTime(16) })
+    selectedSession.current = 's-third' as SessionId
+    act(() => { rerenderFrame() })
+    expect(frame.hasAttribute('data-settling')).toBe(true)
+    unmount()
+  })
+
   it('openWorkbench after a wide conversation drag shows explorer and splits the leftover', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.setConversation(1100) })

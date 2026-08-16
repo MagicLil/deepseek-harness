@@ -119,8 +119,8 @@ const projectionHookCache = new WeakMap<SessionMaybeProvideInfo, (
 /**
  * Root-level binding provider. It follows current selection without a key;
  * per-entry identity is the outlet's adoption bookkeeping (SessionMaybeEntry):
- * a blank-born incarnation adopts the first session without remounting, and
- * every later transition (switch or loss) remounts like a strict entry.
+ * a blank-born incarnation adopts the first session without remounting, a
+ * later switch keeps that incarnation, and session loss remounts blank.
  */
 export function SessionMaybeProvider({ children }: { children: ReactNode }) {
   const host = useHost()

@@ -50,6 +50,12 @@ export const EMPTY_WORKBENCH_VIEW: WorkbenchView = Object.freeze({
   menu: Object.freeze([] as WorkbenchMenuItem[]),
 })
 
+/** Stable empty source for session-maybe inject while no session is current. */
+export const EMPTY_SESSION_SOURCE: HostObservable<WorkbenchView> = {
+  getSnapshot: () => EMPTY_WORKBENCH_VIEW,
+  subscribe: () => () => {},
+}
+
 /**
  * The outward workbench face (`ctx.xmartWorkbench`): tab/viewer
  * registration, open/close/activate, file routing, and snapshots.

@@ -270,6 +270,220 @@ describe('FileTree', () => {
     expect(screen.getByText('a.ts')).toBeTruthy()
   })
 
+  it('keeps the previous listing painted until the new root is ready', async () => {
+    let settleNew: (value: FileListing) => void = () => {}
+    const listEntries = vi.fn((path: string) => {
+      if (path === '/other') return new Promise<FileListing>((resolve) => { settleNew = resolve })
+      return Promise.resolve({
+        path: '/ws',
+        truncated: false,
+        entries: [entry({ name: 'old.ts', path: '/ws/old.ts', kind: 'file' })],
+      })
+    })
+    const view = render(
+      <FileTree
+        root="/ws"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('old.ts')).toBeTruthy()
+    view.rerender(
+      <FileTree
+        root="/other"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    expect(screen.getByText('old.ts')).toBeTruthy()
+    expect(screen.queryByText('加载中…')).toBeNull()
+    await act(async () => {
+      settleNew({
+        path: '/other',
+        truncated: false,
+        entries: [entry({ name: 'new.ts', path: '/other/new.ts', kind: 'file' })],
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('new.ts')).toBeTruthy()
+    expect(screen.queryByText('old.ts')).toBeNull()
+  })
+
+  it('keeps the previous listing when the root and refresh nonce change together', async () => {
+    const pending = new Map<string, (value: FileListing) => void>()
+    const listEntries = vi.fn((path: string) => {
+      if (path === '/other' || path === '/other/src') {
+        return new Promise<FileListing>((resolve) => { pending.set(path, resolve) })
+      }
+      return Promise.resolve({
+        path: '/ws',
+        truncated: false,
+        entries: [entry({ name: 'old.ts', path: '/ws/old.ts', kind: 'file' })],
+      })
+    })
+    const view = render(
+      <FileTree
+        root="/ws"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('old.ts')).toBeTruthy()
+    view.rerender(
+      <FileTree
+        root="/other"
+        expanded={{ '/other/src': true }}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={1}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    expect(screen.getByText('old.ts')).toBeTruthy()
+    await act(async () => {
+      pending.get('/other/src')?.({
+        path: '/other/src',
+        truncated: false,
+        entries: [entry({ name: 'child.ts', path: '/other/src/child.ts', kind: 'file' })],
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('old.ts')).toBeTruthy()
+    await act(async () => {
+      pending.get('/other')?.({
+        path: '/other',
+        truncated: false,
+        entries: [entry({ name: 'src', path: '/other/src', kind: 'directory' })],
+      })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('src')).toBeTruthy()
+    expect(screen.queryByText('old.ts')).toBeNull()
+  })
+
+  it('aborts an in-flight listing when the root changes', async () => {
+    let settleOld: (value: FileListing) => void = () => {}
+    const listEntries = vi.fn((path: string) => {
+      if (path === '/ws') return new Promise<FileListing>((resolve) => { settleOld = resolve })
+      return Promise.resolve({
+        path: '/other',
+        truncated: false,
+        entries: [entry({ name: 'new.ts', path: '/other/new.ts', kind: 'file' })],
+      })
+    })
+    const view = render(
+      <FileTree
+        root="/ws"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    view.rerender(
+      <FileTree
+        root="/other"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => {
+      settleOld({
+        path: '/ws',
+        truncated: false,
+        entries: [entry({ name: 'late.ts', path: '/ws/late.ts', kind: 'file' })],
+      })
+      await Promise.resolve()
+    })
+    expect(screen.queryByText('late.ts')).toBeNull()
+    expect(screen.getByText('new.ts')).toBeTruthy()
+  })
+
+  it('keeps an in-flight child listing when the root widens', async () => {
+    let settleChild: (value: FileListing) => void = () => {}
+    const listEntries = vi.fn((path: string) => {
+      if (path === '/ws/src') return new Promise<FileListing>((resolve) => { settleChild = resolve })
+      return Promise.resolve({
+        path: '/ws',
+        truncated: false,
+        entries: [entry({ name: 'src', path: '/ws/src', kind: 'directory' })],
+      })
+    })
+    const view = render(
+      <FileTree
+        root="/ws/src"
+        expanded={{}}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    view.rerender(
+      <FileTree
+        root="/ws"
+        expanded={{ '/ws/src': true }}
+        openFile={undefined}
+        dirtyPaths={{}}
+        gitByPath={{}}
+        refreshNonce={0}
+        listEntries={listEntries}
+        onToggleDir={() => {}}
+        onOpenFile={() => {}}
+        labels={labels}
+      />,
+    )
+    await act(async () => {
+      settleChild({ path: '/ws/src', entries: [], truncated: false })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('src')).toBeTruthy()
+    expect(screen.getByText('空目录')).toBeTruthy()
+  })
+
   it('aborts an in-flight listing when refreshNonce changes', async () => {
     let settle: (value: FileListing) => void = () => {}
     const listEntries = vi.fn(() => new Promise<FileListing>((resolve) => { settle = resolve }))

@@ -82,9 +82,14 @@ async function bench() {
         return () => {}
       },
     },
-    listEntries: vi.fn(async () => ({ path: '/ws', entries: [], truncated: false })),
-    gitStatus: vi.fn(async () => ({
-      root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
+    listEntries: vi.fn(async () => ({
+      path: '/ws',
+      entries: [] as { name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }[],
+      truncated: false,
+    })),
+    gitStatus: vi.fn(async (_path: string) => ({
+      root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false,
+      changes: [] as { path: string; status: string; area: string }[],
     })),
     gitDiff: vi.fn(async () => ({ root: '/ws', side: 'worktree', text: '' })),
     gitStage: vi.fn(async () => {}),
@@ -140,11 +145,11 @@ function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
     children: {
-      menuBar: { kind: 'single', scope: 'session' },
-      activityBar: { kind: 'single', scope: 'session' },
-      primarySidebar: { kind: 'single', scope: 'session' },
-      workbench: { kind: 'single', scope: 'session' },
-      bottomPanel: { kind: 'single', scope: 'session' },
+      menuBar: { kind: 'single', scope: 'session-maybe' },
+      activityBar: { kind: 'single', scope: 'session-maybe' },
+      primarySidebar: { kind: 'single', scope: 'session-maybe' },
+      workbench: { kind: 'single', scope: 'session-maybe' },
+      bottomPanel: { kind: 'single', scope: 'session-maybe' },
       'settings.section': { kind: 'list', scope: 'root' },
     },
   } as never, () => null)
@@ -525,6 +530,7 @@ describe('ui-xmart-workbench apply', () => {
       openCommit: (hash: string, subject: string, root?: string) => void
       watchSessions: (fn: () => void) => () => void
       getCwd: (id: string) => string | undefined
+      getWorkspacePaths: () => readonly string[]
     } }
     await gitEl.props.listEntries('/ws')
     await gitEl.props.gitStatus('/ws')
@@ -546,6 +552,11 @@ describe('ui-xmart-workbench apply', () => {
     gitEl.props.openCommit('abcdef1', 'init', '/child')
     gitEl.props.watchSessions(() => {})()
     expect(gitEl.props.getCwd('s1')).toBe('/ws')
+    b.workspaceState.items = [
+      { workspaceId: 'w1', path: '/ws', title: 'ws', sessionIds: ['s1'] },
+      { workspaceId: 'w2', path: '/other', title: 'other', sessionIds: [] },
+    ]
+    expect(gitEl.props.getWorkspacePaths()).toEqual(['/ws', '/other'])
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'diff')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.path === 'commit:abcdef1')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.path === 'worktree:a.ts\x1e/child')).toBe(true)

@@ -181,6 +181,23 @@ export function AppFrame({
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
+  const settleOuter = useRef<number | null>(null)
+  const settleInner = useRef<number | null>(null)
+  const armSettling = () => {
+    const el = frameRef.current
+    /* v8 ignore next -- the ref is attached before session-change effects run. */
+    if (el === null) return
+    el.setAttribute('data-settling', '')
+    if (settleOuter.current !== null) cancelAnimationFrame(settleOuter.current)
+    if (settleInner.current !== null) cancelAnimationFrame(settleInner.current)
+    settleOuter.current = requestAnimationFrame(() => {
+      settleOuter.current = null
+      settleInner.current = requestAnimationFrame(() => {
+        settleInner.current = null
+        el.removeAttribute('data-settling')
+      })
+    })
+  }
   const [viewport, setViewport] = useState(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -190,6 +207,7 @@ export function AppFrame({
   useLayoutEffect(() => {
     if (detailsSession === undefined) return
     if (lastSession.current !== undefined && lastSession.current !== detailsSession) {
+      armSettling()
       actions.closeDetails()
     }
     lastSession.current = detailsSession
@@ -198,10 +216,16 @@ export function AppFrame({
   const lastConversationSession = useRef(currentSession)
   useLayoutEffect(() => {
     if (currentSession !== undefined && lastConversationSession.current !== currentSession) {
+      armSettling()
       actions.openConversation()
     }
     lastConversationSession.current = currentSession
   }, [actions, currentSession])
+
+  useEffect(() => () => {
+    if (settleOuter.current !== null) cancelAnimationFrame(settleOuter.current)
+    if (settleInner.current !== null) cancelAnimationFrame(settleInner.current)
+  }, [])
 
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useEffect(() => {

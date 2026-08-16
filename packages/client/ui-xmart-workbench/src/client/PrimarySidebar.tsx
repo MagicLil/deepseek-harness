@@ -1,8 +1,9 @@
 /**
  * Left primary sidebar: Explorer / Git stay mounted and swap with
  * `hidden`, so switching icons does not remount the file tree. Syncs the
- * session persist store to ctx.layout on session identity change, then
- * writes persist from later preference changes (drag / toggle).
+ * session persist store to ctx.layout on first mount, then writes persist
+ * from later preference changes (drag / toggle). A later session switch
+ * keeps the live rail width so the frame grid does not ease.
  */
 import { Component, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -44,7 +45,6 @@ export function PrimarySidebar({
   setWorkbench,
   resolveBody,
   refreshExplorer,
-  projectKey,
   keepLiveWidth,
   useWorkbenchSession,
   useWorkbenchRegistry,
@@ -67,9 +67,14 @@ export function PrimarySidebar({
   useLayoutEffect(() => {
     const prev = prevSession.current
     prevSession.current = sessionId
-    const from = projectKey(prev)
-    const sameProject = prev !== sessionId && from !== undefined && from === projectKey(sessionId)
-    if (sameProject || keepLiveWidth()) {
+    if (sessionId === undefined) return
+    if (prev === undefined) {
+      syncGen.current += 1
+      const snap = persistRef.current
+      if (snap.open) writes.current.setWorkbench(snap.width)
+      return
+    }
+    if (prev !== sessionId || keepLiveWidth()) {
       syncGen.current += 1
       seenGen.current = syncGen.current
       if (width > 0) writes.current.actions.rememberOpen(width)
@@ -80,7 +85,7 @@ export function PrimarySidebar({
     const snap = persistRef.current
     if (snap.open) writes.current.setWorkbench(snap.width)
     else if (width > 0) writes.current.closeWorkbench()
-  }, [keepLiveWidth, projectKey, sessionId])
+  }, [keepLiveWidth, sessionId])
 
   useEffect(() => {
     if (seenGen.current !== syncGen.current) {
@@ -99,7 +104,8 @@ export function PrimarySidebar({
     if (snap.open) writes.current.actions.rememberClosed()
   }, [width])
 
-  if (width === 0) return null
+  if (sessionId === undefined || width === 0) return null
+  const boundSession = sessionId
 
   return (
     <div className={css.root} data-testid="xmart-primary-sidebar">
@@ -141,7 +147,7 @@ export function PrimarySidebar({
                   <Body
                     tab={{ id, type: id, title: id }}
                     visible={active}
-                    sessionId={sessionId}
+                    sessionId={boundSession}
                   />
                 )}
             </ActivityPaneBoundary>

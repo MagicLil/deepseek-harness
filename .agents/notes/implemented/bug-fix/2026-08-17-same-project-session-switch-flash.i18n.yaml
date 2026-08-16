@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-17-same-project-session-switch-flash.md
+2026-08-17-same-project-session-switch-flash.md: 320111b2b8a1ad2aa9e58b562750ca5a078d503d
+2026-08-17-same-project-session-switch-flash.zh.md: 7b64f8cddc4aee5759baaff1d979c7c66d681f9d

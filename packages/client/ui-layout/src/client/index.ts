@@ -74,31 +74,42 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * Center editor column (file tabs). OCCUPIED by ui-xmart-workbench.
      * Always visible — the occupant receives the concession-resolved editor
      * width. Registering here replaces the column.
+     *
+     * Current-session-optional so switching conversations does not remount
+     * Monaco / the tab strip. Session facts arrive through session-maybe hooks.
      */
-    'workbench': { kind: 'single'; scope: 'session'; owner: WorkbenchOwnerProps }
+    'workbench': { kind: 'single'; scope: 'session-maybe'; owner: WorkbenchOwnerProps }
     /**
      * Full-width top menu bar (web only). OCCUPIED by ui-xmart-workbench.
      * Desktop hides this row — Terminal sits on the Electron File menu.
+     *
+     * Session-maybe: the bar stays mounted when current conversation changes.
      */
-    'menuBar': { kind: 'single'; scope: 'session'; owner: MenuBarOwnerProps }
+    'menuBar': { kind: 'single'; scope: 'session-maybe'; owner: MenuBarOwnerProps }
     /**
      * Far-left activity bar (icon rail). OCCUPIED by ui-xmart-workbench.
      * Always visible at ACTIVITY_WIDTH. The occupant receives whether the
      * primary sidebar and bottom panel are open so icons can stay in sync.
+     *
+     * Session-maybe: the rail stays mounted when current conversation changes.
      */
-    'activityBar': { kind: 'single'; scope: 'session'; owner: ActivityBarOwnerProps }
+    'activityBar': { kind: 'single'; scope: 'session-maybe'; owner: ActivityBarOwnerProps }
     /**
      * Left primary sidebar (Explorer / Git / Tasks). OCCUPIED by
      * ui-xmart-workbench. Width 0 means closed (no rail — the activity bar
      * is the rail). `ctx.layout` openWorkbench/closeWorkbench drive this
      * track.
+     *
+     * Session-maybe: Explorer's loaded tree survives a same-project chat switch.
      */
-    'primarySidebar': { kind: 'single'; scope: 'session'; owner: PrimarySidebarOwnerProps }
+    'primarySidebar': { kind: 'single'; scope: 'session-maybe'; owner: PrimarySidebarOwnerProps }
     /**
      * Bottom panel stacked under the editor track only. OCCUPIED by
      * ui-xmart-workbench. Height 0 means closed; the subtree stays mounted.
+     *
+     * Session-maybe: the panel chrome stays mounted when current conversation changes.
      */
-    'bottomPanel': { kind: 'single'; scope: 'session'; owner: BottomPanelOwnerProps }
+    'bottomPanel': { kind: 'single'; scope: 'session-maybe'; owner: BottomPanelOwnerProps }
     /**
      * Frame-wide floating layer, above every column and outside their scroll
      * containers. Deliberately generic and unowned by any feature: a badge, a
@@ -178,11 +189,11 @@ export function apply(ctx: ClientContext): void {
     const disposeRegistration = ctx.slots.register({
       name: 'root',
       children: {
-        'menuBar': { kind: 'single', scope: 'session' },
-        'activityBar': { kind: 'single', scope: 'session' },
-        'primarySidebar': { kind: 'single', scope: 'session' },
-        'workbench': { kind: 'single', scope: 'session' },
-        'bottomPanel': { kind: 'single', scope: 'session' },
+        'menuBar': { kind: 'single', scope: 'session-maybe' },
+        'activityBar': { kind: 'single', scope: 'session-maybe' },
+        'primarySidebar': { kind: 'single', scope: 'session-maybe' },
+        'workbench': { kind: 'single', scope: 'session-maybe' },
+        'bottomPanel': { kind: 'single', scope: 'session-maybe' },
         'conversation': { kind: 'single', scope: 'session-maybe' },
         'details': { kind: 'single', scope: 'session' },
         'sidebar': { kind: 'single', scope: 'root' },

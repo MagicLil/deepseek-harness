@@ -145,9 +145,8 @@ export interface PrimarySidebarInjected {
    */
   projectKey: (sessionId: string) => string | undefined
   /**
-   * True when `apply` just inherited into this session. The session-scoped
-   * sidebar remounts, so `projectKey` alone cannot see the previous id;
-   * this flag skips persist restore and keeps the live width.
+   * True when `apply` just inherited into this session. Skips persist
+   * restore so a same-project switch keeps the live explorer width.
    */
   keepLiveWidth: () => boolean
   hooks: {

@@ -201,6 +201,71 @@ describe('PrimarySidebar', () => {
     expect(instance.getSnapshot()).toEqual({ open: true, width: 300 })
   })
 
+  it('restores persist after sessionId arrives on a later render', () => {
+    const { setWorkbench, rerender } = mount(0, 's-hydrate', (inst) => {
+      inst.actions.rememberOpen(300)
+    })
+    rerender({ sessionId: undefined, width: 0 })
+    setWorkbench.mockClear()
+    act(() => { rerender({ sessionId: 's-hydrate' as SessionId, width: 0 }) })
+    expect(setWorkbench).toHaveBeenCalledWith(300)
+  })
+
+  it('does not reopen a closed persist when a session appears after a blank chrome', () => {
+    const { setWorkbench, rerender } = mount(0, 's-blank', (inst) => {
+      inst.actions.rememberClosed()
+    })
+    rerender({ sessionId: undefined, width: 0 })
+    setWorkbench.mockClear()
+    act(() => { rerender({ sessionId: 's-blank' as SessionId, width: 0 }) })
+    expect(setWorkbench).not.toHaveBeenCalled()
+  })
+
+  it('writes a closed persist when switching sessions with a collapsed rail', () => {
+    const first = createWorkbenchStore().create('s-closed-a')
+    first.actions.rememberOpen(300)
+    const next = createWorkbenchStore().create('s-closed-b')
+    next.actions.rememberOpen(260)
+    const setWorkbench = vi.fn()
+    const closeWorkbench = vi.fn()
+    const shared = {
+      closeWorkbench,
+      setWorkbench,
+      resolveBody: () => Stub,
+      refreshExplorer: vi.fn(),
+      projectKey: () => '/ws',
+      keepLiveWidth: () => false,
+      useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+      useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+      useSession: (() => null) as never,
+      useSessions: (() => null) as never,
+      useWorkspaces: (() => null) as never,
+      t: ((key: string) => key) as never,
+    }
+    const firstProps = {
+      ...shared,
+      width: 0,
+      sessionId: 's-closed-a' as SessionId,
+      useStore: hookOf(first),
+      actions: first.actions,
+    } as PrimarySidebarProps
+    const utils = render(<PrimarySidebar {...firstProps} />)
+    setWorkbench.mockClear()
+    act(() => {
+      utils.rerender(
+        <PrimarySidebar
+          {...firstProps}
+          sessionId={'s-closed-b' as SessionId}
+          useStore={hookOf(next)}
+          actions={next.actions}
+        />,
+      )
+    })
+    expect(setWorkbench).not.toHaveBeenCalled()
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(next.store.getSnapshot()).toEqual({ open: false, width: 260 })
+  })
+
   it('asks layout to adopt the remembered width when opening from a closed persist', () => {
     const { setWorkbench, instance, rerender } = mount(0, 's-reopen', (inst) => {
       inst.actions.rememberOpen(300)
@@ -256,6 +321,53 @@ describe('PrimarySidebar', () => {
         <PrimarySidebar
           {...firstProps}
           sessionId={'s-b' as SessionId}
+          useStore={hookOf(next)}
+          actions={next.actions}
+        />,
+      )
+    })
+    expect(setWorkbench).not.toHaveBeenCalled()
+    expect(closeWorkbench).not.toHaveBeenCalled()
+    expect(next.store.getSnapshot()).toEqual({ open: true, width: 300 })
+  })
+
+  it('keeps the live width when switching to a different-project session', () => {
+    const first = createWorkbenchStore().create('s-a')
+    first.actions.rememberOpen(300)
+    const next = createWorkbenchStore().create('s-other')
+    next.actions.rememberClosed()
+    const setWorkbench = vi.fn()
+    const closeWorkbench = vi.fn()
+    const projectKey = (id: string) => id === 's-a' ? '/ws' : '/other'
+    const shared = {
+      closeWorkbench,
+      setWorkbench,
+      resolveBody: () => Stub,
+      refreshExplorer: vi.fn(),
+      projectKey,
+      keepLiveWidth: () => false,
+      useWorkbenchSession: constantHook(EMPTY_WORKBENCH_VIEW),
+      useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+      useSession: (() => null) as never,
+      useSessions: (() => null) as never,
+      useWorkspaces: (() => null) as never,
+      t: ((key: string) => key) as never,
+    }
+    const firstProps = {
+      ...shared,
+      width: 300,
+      sessionId: 's-a' as SessionId,
+      useStore: hookOf(first),
+      actions: first.actions,
+    } as PrimarySidebarProps
+    const utils = render(<PrimarySidebar {...firstProps} />)
+    expect(setWorkbench).toHaveBeenCalledWith(300)
+    setWorkbench.mockClear()
+    act(() => {
+      utils.rerender(
+        <PrimarySidebar
+          {...firstProps}
+          sessionId={'s-other' as SessionId}
           useStore={hookOf(next)}
           actions={next.actions}
         />,

@@ -21,7 +21,7 @@ import type {
 import { XMART_ACCENT_TOKENS } from './brand-accent.ts'
 import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
 import { createWorkbenchStore, inheritWorkbenchPersist } from './stores.ts'
-import { XmartWorkbenchController } from './service.ts'
+import { EMPTY_SESSION_SOURCE, XmartWorkbenchController } from './service.ts'
 import { WorkbenchColumn } from './WorkbenchColumn.tsx'
 import { ActivityBar } from './ActivityBar.tsx'
 import { MenuBar } from './MenuBar.tsx'
@@ -49,7 +49,7 @@ import { createChecksStore } from './checks-store.ts'
 import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
 import { editorWorkspaceRoot, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
-import { createGitBadgeStore, startGitBadgeWatch } from './git-badge.ts'
+import { createGitBadgeStore, EMPTY_GIT_BADGE, startGitBadgeWatch } from './git-badge.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
 import { basename, hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
@@ -179,6 +179,9 @@ export function apply(ctx: ClientContext): void {
       snap.recentWorkspaceId,
     )
   }
+  const getWorkspacePaths = () => workspaceSnap().items
+    .map(workspace => workspace.path)
+    .filter(path => path !== '')
   const getTerminalCwd = (sessionId: string) => resolveTerminalCwd(getRoots(sessionId), getCwd(sessionId))
   const watchWorkspaceFacts = (fn: () => void) => {
     const offSessions = ctx.sessions.list.subscribe(fn)
@@ -286,6 +289,7 @@ export function apply(ctx: ClientContext): void {
       ...props,
       t,
       getCwd,
+      getWorkspacePaths,
       watchSessions: watchWorkspaceFacts,
       listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
       gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
@@ -667,16 +671,16 @@ export function apply(ctx: ClientContext): void {
       runMenu(ctx.sessions.list.getSnapshot().current, command)
     }), 'ui-xmart-workbench: desktop app menu')
   }
-  const columnInjected = (sessionId: SessionId): WorkbenchColumnInjected => {
-    workbench.bindSession(sessionId)
+  const columnInjected = (sessionId: SessionId | undefined): WorkbenchColumnInjected => {
+    if (sessionId !== undefined) workbench.bindSession(sessionId)
     return {
-      openTab: (type) => { workbench.openTab({ type }, { sessionId }) },
-      closeTab: (id) => { workbench.closeTab(id, { sessionId }) },
-      activateTab: (id) => { workbench.activateTab(id, { sessionId }) },
+      openTab: (type) => { if (sessionId !== undefined) workbench.openTab({ type }, { sessionId }) },
+      closeTab: (id) => { if (sessionId !== undefined) workbench.closeTab(id, { sessionId }) },
+      activateTab: (id) => { if (sessionId !== undefined) workbench.activateTab(id, { sessionId }) },
       resolveBody: type => workbench.getTab(type)?.component,
       listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
-      getRoots: () => getRoots(sessionId),
-      openFile: (path) => { workbench.openFile(path, { sessionId }) },
+      getRoots: () => sessionId === undefined ? [] : getRoots(sessionId),
+      openFile: (path) => { if (sessionId !== undefined) workbench.openFile(path, { sessionId }) },
       getRemotes: () => peekEditorRemotes(remote, (key) => {
         try {
           return ctx.get(key)
@@ -686,6 +690,7 @@ export function apply(ctx: ClientContext): void {
         }
       }),
       getWorkspaceRoot: (filePath) => {
+        if (sessionId === undefined) return editorWorkspaceRoot(undefined, [], filePath)
         try {
           return editorWorkspaceRoot(getCwd(sessionId), getRoots(sessionId), filePath)
         }
@@ -697,47 +702,51 @@ export function apply(ctx: ClientContext): void {
       readFile: (path, signal) => ctx.workspaces.readFile(path, signal),
       files,
       hooks: {
-        workbenchSession: workbench.observeSession(sessionId),
+        workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
         workbenchRegistry: workbench.observeRegistry(),
       },
     }
   }
-  const activityInjected = (sessionId: SessionId): ActivityBarInjected => ({
-    setActivity: (id) => { workbench.setActivity(id, { sessionId }) },
+  const activityInjected = (sessionId: SessionId | undefined): ActivityBarInjected => ({
+    setActivity: (id) => { if (sessionId !== undefined) workbench.setActivity(id, { sessionId }) },
     resolveIcon: id => workbench.getActivity(id)?.icon,
     openPrimary: () => { ctx.layout.openWorkbench() },
     closePrimary: () => { ctx.layout.closeWorkbench() },
     hooks: {
-      workbenchSession: workbench.observeSession(sessionId),
+      workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),
       gitBadge: {
-        getSnapshot: () => gitBadge.getSnapshot(sessionId),
+        getSnapshot: () => sessionId === undefined ? EMPTY_GIT_BADGE : gitBadge.getSnapshot(sessionId),
         subscribe: fn => gitBadge.subscribe(fn),
       },
     },
   })
-  const primaryInjected = (sessionId: SessionId): PrimarySidebarInjected => ({
+  const primaryInjected = (sessionId: SessionId | undefined): PrimarySidebarInjected => ({
     closeWorkbench: () => { ctx.layout.closeWorkbench() },
     setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
     resolveBody: type => workbench.getActivity(type)?.component ?? workbench.getTab(type)?.component,
     refreshExplorer: () => { files.bumpRefresh() },
     projectKey,
-    keepLiveWidth: () => skipPersistRestoreFor === sessionId,
+    keepLiveWidth: () => sessionId !== undefined && skipPersistRestoreFor === sessionId,
     hooks: {
-      workbenchSession: workbench.observeSession(sessionId),
+      workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),
     },
   })
-  const menuInjected = (sessionId: SessionId): MenuBarInjected => ({
+  const menuInjected = (sessionId: SessionId | undefined): MenuBarInjected => ({
     run: (command) => { runMenu(sessionId, command) },
-    hooks: { workbenchSession: workbench.observeSession(sessionId) },
+    hooks: {
+      workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
+    },
   })
-  const bottomInjected = (sessionId: SessionId): BottomPanelInjected => ({
+  const bottomInjected = (sessionId: SessionId | undefined): BottomPanelInjected => ({
     resolveBody: type => workbench.getTab(type)?.component,
-    activateTab: (id) => { workbench.activateTab(id, { sessionId }) },
-    closeTab: (id) => { closeTerminalTab(sessionId, id) },
-    newTerminal: () => { openTerminalTab(sessionId) },
-    hooks: { workbenchSession: workbench.observeSession(sessionId) },
+    activateTab: (id) => { if (sessionId !== undefined) workbench.activateTab(id, { sessionId }) },
+    closeTab: (id) => { if (sessionId !== undefined) closeTerminalTab(sessionId, id) },
+    newTerminal: () => { if (sessionId !== undefined) openTerminalTab(sessionId) },
+    hooks: {
+      workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
+    },
   })
   const settingsInjected = (): WorkbenchSettingsInjected => ({
     setTabEnabled: (id, enabled) => { workbench.setTabEnabled(id, enabled) },

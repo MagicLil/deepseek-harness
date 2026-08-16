@@ -33,6 +33,7 @@ describe('AppFrame column layout contract', () => {
   it('disables grid easing and descendant pointer events while dragging', () => {
     expect(css).toMatch(/\.frame\[data-dragging\] \{[\s\S]*transition:\s*none/)
     expect(css).toMatch(/\.frame\[data-dragging\] \{[\s\S]*user-select:\s*none/)
+    expect(css).toMatch(/\.frame\[data-settling\] \{[\s\S]*transition:\s*none/)
     expect(css).toMatch(/\.frame\[data-dragging\] \.editorCol/)
     expect(css).toMatch(/pointer-events:\s*none/)
   })

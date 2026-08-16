@@ -20,6 +20,10 @@
   user-select: none;
 }
 
+.frame[data-settling] {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .frame {
     transition: none;
@@ -285,7 +289,9 @@
 }
 
 .frame[data-dragging] .handle,
-.frame[data-dragging] .handleRow {
+.frame[data-dragging] .handleRow,
+.frame[data-settling] .handle,
+.frame[data-settling] .handleRow {
   transition: none;
 }
 

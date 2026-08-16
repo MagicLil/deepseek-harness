@@ -51,11 +51,11 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('sidebar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
     expect(slots.spec('details')).toEqual({ kind: 'single', scope: 'session' })
-    expect(slots.spec('workbench')).toEqual({ kind: 'single', scope: 'session' })
-    expect(slots.spec('menuBar')).toEqual({ kind: 'single', scope: 'session' })
-    expect(slots.spec('activityBar')).toEqual({ kind: 'single', scope: 'session' })
-    expect(slots.spec('primarySidebar')).toEqual({ kind: 'single', scope: 'session' })
-    expect(slots.spec('bottomPanel')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('workbench')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(slots.spec('menuBar')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(slots.spec('activityBar')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(slots.spec('primarySidebar')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(slots.spec('bottomPanel')).toEqual({ kind: 'single', scope: 'session-maybe' })
   })
 
   it('injects no business face and attaches the layout actions', async () => {

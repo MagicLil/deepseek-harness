@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-16-xmart-same-project-inherit.md
-2026-08-16-xmart-same-project-inherit.md: 2ea6ff4c5003247e3d6945006f031506974fba0d
-2026-08-16-xmart-same-project-inherit.zh.md: bcb119be6f946bcc288d6963a7a86373823123b1
+2026-08-16-xmart-same-project-inherit.md: 76b645d153f5f741cca72cea996254bec58b114f
+2026-08-16-xmart-same-project-inherit.zh.md: 96815739e24150f43108e6c3c65002de4ddffaed

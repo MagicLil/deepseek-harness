@@ -55,7 +55,10 @@ export function ExplorerTab({
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const rootsKey = roots.map(root => root.path).join('\0')
 
-  useEffect(() => watchSessions(() => { setRoots(getRoots(sessionId)) }), [getRoots, sessionId, watchSessions])
+  useEffect(() => {
+    setRoots(getRoots(sessionId))
+    return watchSessions(() => { setRoots(getRoots(sessionId)) })
+  }, [getRoots, sessionId, watchSessions])
   useEffect(() => files.subscribe(() => { setSnap(files.getSnapshot()) }), [files])
   useEffect(() => {
     if (watchWorkbench === undefined) return
@@ -123,8 +126,8 @@ export function ExplorerTab({
         </form>
       )}
       <div className={css.treeWrap}>
-        {roots.map(root => (
-          <div key={root.path} data-testid={`xmart-workbench-root-${root.title}`}>
+        {roots.map((root, index) => (
+          <div key={index} data-testid={`xmart-workbench-root-${root.title}`}>
             {roots.length > 1 && <div className={css.section}>{root.title}</div>}
             <FileTree
               root={root.path}

@@ -1,6 +1,7 @@
 /**
  * Lazy workspace tree over an injected listEntries callback. Expansion
- * lives in the owner's store so a remount restores open subtrees.
+ * lives in the owner's store so a remount restores open subtrees. A root
+ * change keeps the last ready listing painted until the new root settles.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
@@ -49,6 +50,9 @@ export function FileTree({
   const levelsRef = useRef(levels)
   levelsRef.current = levels
   const inflight = useRef(new Map<string, AbortController>())
+  const readyPaint = useRef<{ root: string; levels: ReadonlyMap<string, DirLevel> } | undefined>()
+  const liveRoot = useRef(root)
+  liveRoot.current = root
 
   const ensureLoaded = useCallback((path: string) => {
     if (levelsRef.current.has(path) || inflight.current.has(path)) return
@@ -59,28 +63,51 @@ export function FileTree({
       (listing) => {
         inflight.current.delete(path)
         if (controller.signal.aborted) return
-        setLevels(current => new Map(current).set(path, {
-          status: 'ready', entries: listing.entries, truncated: listing.truncated,
-        }))
+        setLevels(current => dropForeign(
+          new Map(current).set(path, {
+            status: 'ready', entries: listing.entries, truncated: listing.truncated,
+          }),
+          liveRoot.current,
+        ))
       },
       (reason: unknown) => {
         inflight.current.delete(path)
         if (controller.signal.aborted) return
-        setLevels(current => new Map(current).set(path, {
-          status: 'error',
-          message: reason instanceof Error ? reason.message : String(reason),
-        }))
+        setLevels(current => dropForeign(
+          new Map(current).set(path, {
+            status: 'error',
+            message: reason instanceof Error ? reason.message : String(reason),
+          }),
+          liveRoot.current,
+        ))
       },
     )
   }, [listEntries])
 
+  const seenRoot = useRef(root)
+  const seenNonce = useRef(refreshNonce)
   useEffect(() => {
+    const rootChanged = seenRoot.current !== root
+    const nonceChanged = seenNonce.current !== refreshNonce
+    seenRoot.current = root
+    seenNonce.current = refreshNonce
+    if (rootChanged) {
+      for (const [path, controller] of inflight.current) {
+        if (path !== root && !isUnder(path, root)) {
+          controller.abort()
+          inflight.current.delete(path)
+        }
+      }
+      return
+    }
+    if (!nonceChanged) return
     for (const controller of inflight.current.values()) controller.abort()
     inflight.current.clear()
     // Drop the ref now so the load effect in this same flush can refetch.
     levelsRef.current = new Map()
     setLevels(new Map())
-  }, [root, refreshNonce])
+    if (readyPaint.current?.root === root) readyPaint.current = undefined
+  }, [refreshNonce, root])
   useEffect(() => () => {
     for (const controller of inflight.current.values()) controller.abort()
     inflight.current.clear()
@@ -92,8 +119,16 @@ export function FileTree({
     }
   })
 
+  const current = levels.get(root)
+  const settled = current !== undefined && current.status !== 'loading'
+  if (settled) readyPaint.current = { root, levels }
+  const stale = readyPaint.current
+  const paint = !settled && stale !== undefined && stale.root !== root
+    ? stale
+    : { root, levels }
+
   const renderLevel = (path: string, depth: number): ReactNode => {
-    const level = levels.get(path)
+    const level = paint.levels.get(path)
     if (level === undefined || level.status === 'loading') {
       return <div className={css.note} style={indent(depth)}>{labels.loading}</div>
     }
@@ -166,10 +201,22 @@ export function FileTree({
     )
   }
 
-  return <div className={css.tree} data-testid="xmart-workbench-tree">{renderLevel(root, 0)}</div>
+  return <div className={css.tree} data-testid="xmart-workbench-tree">{renderLevel(paint.root, 0)}</div>
 }
 
 export { isUnder } from './route-file.ts'
+
+function dropForeign(
+  levels: Map<string, DirLevel>,
+  root: string,
+): Map<string, DirLevel> {
+  const status = levels.get(root)?.status
+  if (status !== 'ready' && status !== 'error') return levels
+  for (const key of [...levels.keys()]) {
+    if (key !== root && !isUnder(key, root)) levels.delete(key)
+  }
+  return levels
+}
 
 function indent(depth: number): { paddingLeft: string } {
   return { paddingLeft: `${8 + depth * 14}px` }

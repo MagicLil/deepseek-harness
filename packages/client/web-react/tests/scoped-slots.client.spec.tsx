@@ -991,7 +991,7 @@ describe('session-maybe adoption identity', () => {
     expect(view.container.textContent).toBe('s1#1')
   })
 
-  it('remounts on a post-adoption session switch (local state must not leak across sessions)', () => {
+  it('keeps the incarnation across a post-adoption session switch', () => {
     const h = makeHost()
     h.addSession('s1')
     h.addSession('s2')
@@ -999,8 +999,8 @@ describe('session-maybe adoption identity', () => {
     act(() => { h.current.set('s1') })
     expect(view.container.textContent).toBe('s1#1')
     act(() => { h.current.set('s2') })
-    // New incarnation (#2): strict-session behavior after adoption.
-    expect(view.container.textContent).toBe('s2#2')
+    // Same incarnation (#1): chrome must not remount when current moves.
+    expect(view.container.textContent).toBe('s2#1')
   })
 
   it('remounts into a fresh blank incarnation on session loss, then adopts anew', () => {

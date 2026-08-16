@@ -62,6 +62,7 @@ export function WorkbenchColumn({
   const view = useWorkbenchSession(s => s)
   const tabs = (view.tabs ?? []).filter(tab => !isShellTabType(tab.type))
   const active = tabs.find(tab => tab.id === view.activeTabId) ?? tabs[tabs.length - 1]
+  if (sessionId === undefined) return null
 
   return (
     <div className={css.root} data-testid="xmart-workbench">
