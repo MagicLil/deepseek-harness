@@ -1,7 +1,8 @@
 /**
- * Cordis-facing desktop shell: open the Electron window over the `dsh://`
- * protocol (so absolute `/assets` URLs from the Vite build resolve), wire IPC
- * to `toFetchHandler`, and inject `__DSH_BOOT__` into index.html.
+ * Cordis-facing desktop shell: open the Electron window at the loopback
+ * webserver URL (community HTTP plugins share origin), keep `dsh://` as a
+ * fallback, wire IPC to `toFetchHandler`, and inject `__DSH_BOOT__` when
+ * serving index over the custom protocol.
  * @module @deepseek-ai/dsh-desktop/shell
  */
 
@@ -10,6 +11,7 @@ import { dirname, extname, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
 import { desktopAppMenuLabels, desktopAppMenuSpec, type AppMenuCommand } from './app-menu.ts'
+import { DSH_DESKTOP_ORIGIN, isDesktopRendererUrl } from './page-url.ts'
 import { applyDesktopTitleBarOverlay, DESKTOP_TITLE_BAR_OVERLAY, desktopTitleBarChrome } from './title-bar.ts'
 import { checkDesktopUpdatesNow, showCloseToTrayHint, startDesktopAutoUpdate } from './auto-update.ts'
 import { consumeCloseToTrayHint } from './desktop-prefs.ts'
@@ -41,8 +43,7 @@ import {
 const CHUNK_CHANNEL = 'dsh:fetch-chunk'
 const END_CHANNEL = 'dsh:fetch-end'
 
-/** Origin the renderer uses; hostname is loopback-shaped for privilege checks. */
-export const DSH_DESKTOP_ORIGIN = 'dsh://app'
+export { DSH_DESKTOP_ORIGIN, desktopLoopbackUrl, isDesktopRendererUrl } from './page-url.ts'
 
 /**
  * Renderer CSP. The web shell inlines cordis-plugin-loader, which builds
@@ -70,6 +71,12 @@ export interface DesktopShellOptions {
   ctx: Context
   /** Absolute path to the preload script Electron loads into the renderer. */
   preloadPath: string
+  /**
+   * Page the window loads. Loopback HTTP (`http://127.0.0.1:<port>/`) is the
+   * product surface so plugin routes share origin; `dsh://app/` is the fallback
+   * when the webserver is not mounted.
+   */
+  pageUrl?: string
 }
 
 /** Handle returned by {@link openDesktopShell}. */
@@ -509,7 +516,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
       event.preventDefault()
       return
     }
-    if (parsed.protocol === 'dsh:' && parsed.hostname === 'app') {
+    if (isDesktopRendererUrl(parsed)) {
       if (parsed.pathname.startsWith('/api/')) {
         event.preventDefault()
         void saveApiDownload(parsed)
@@ -527,16 +534,22 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   })
   win.webContents.session.on('will-download', (_event, item) => {
     const url = item.getURL()
-    if (!url.startsWith(`${DSH_DESKTOP_ORIGIN}/api/`)) return
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      return
+    }
+    if (!isDesktopRendererUrl(parsed) || !parsed.pathname.startsWith('/api/')) return
     item.cancel()
     try {
-      void saveApiDownload(new URL(url))
+      void saveApiDownload(parsed)
     } catch {
       // malformed download URL
     }
   })
 
-  await win.loadURL(`${DSH_DESKTOP_ORIGIN}/`)
+  await win.loadURL(options.pageUrl ?? `${DSH_DESKTOP_ORIGIN}/`)
   win.show()
 
   let tray: DesktopTrayHandle | undefined

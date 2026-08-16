@@ -61,7 +61,12 @@ function readVersion(): string {
 async function main(): Promise<void> {
   // Unpackaged: Electron inserts the script at argv[1]. Packaged: the exe
   // is argv[0] and a double-click has no profile token — inject `desktop`.
-  const invocation = parseDshArgs(desktopElectronUserArgv(process.argv, app.isPackaged), readVersion())
+  // Rewrite process.argv so community plugins that scan `--profile` (dsh-market)
+  // see the desktop profile, not the `desktop` alias (which they treat as `web`).
+  const tokens = desktopElectronUserArgv(process.argv, app.isPackaged)
+  const prefix = app.isPackaged ? process.argv.slice(0, 1) : process.argv.slice(0, 2)
+  process.argv = [...prefix, ...tokens]
+  const invocation = parseDshArgs(tokens, readVersion())
   if (invocation.mode !== 'profile' || invocation.profile !== 'desktop') {
     console.error('dsh desktop: electron-main only boots the desktop profile')
     app.exit(1)

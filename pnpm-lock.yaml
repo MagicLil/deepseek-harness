@@ -5606,6 +5606,10 @@ importers:
         version: link:../../typert/protocol
 
   packages/host/xmart-lan:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

@@ -168,7 +168,7 @@ export class XmartLanService extends TypertRemoteService {
       try {
         await this.ctx.webServer.rebind({ host: '0.0.0.0', port: this.persist.port })
         this.persist.enabled = true
-        this.bindError = undefined
+        this.bindError = null
       } catch (error) {
         this.persist.enabled = false
         this.bindError = bindMessage(error)
@@ -177,7 +177,7 @@ export class XmartLanService extends TypertRemoteService {
       try {
         await this.ctx.webServer.rebind({ host: '127.0.0.1', port: this.persist.port })
         this.persist.enabled = false
-        this.bindError = undefined
+        this.bindError = null
       } catch (error) {
         this.bindError = bindMessage(error)
       }
@@ -202,7 +202,7 @@ export class XmartLanService extends TypertRemoteService {
     try {
       await this.ctx.webServer.rebind({ host, port: request.port })
       this.persist.port = request.port
-      this.bindError = undefined
+      this.bindError = null
     } catch (error) {
       this.bindError = bindMessage(error)
     }

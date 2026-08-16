@@ -15,8 +15,19 @@
  */
 export function desktopElectronUserArgv(processArgv: readonly string[], packaged: boolean): string[] {
   const rest = [...(packaged ? processArgv.slice(1) : processArgv.slice(2))]
-  if (hasDesktopProfile(rest)) return rest
-  return ['desktop', ...rest]
+  return expandDesktopProfileFlag(hasDesktopProfile(rest) ? rest : ['desktop', ...rest])
+}
+
+/**
+ * Community plugins (dsh-market) only read `--profile`, not the `desktop` alias.
+ * @param rest - tokens after the binary / main script.
+ */
+export function expandDesktopProfileFlag(rest: readonly string[]): string[] {
+  if (rest.includes('--profile')) return [...rest]
+  if (rest[0] === 'desktop' || rest[0] === 'web') {
+    return ['--profile', rest[0], ...rest.slice(1)]
+  }
+  return ['--profile', 'desktop', ...rest]
 }
 
 /**

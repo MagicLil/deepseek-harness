@@ -6,20 +6,20 @@ describe('desktopElectronUserArgv', () => {
     expect(desktopElectronUserArgv(
       ['electron', 'lib/electron-main.js', 'desktop', '--patch', 'a.yml'],
       false,
-    )).toEqual(['desktop', '--patch', 'a.yml'])
+    )).toEqual(['--profile', 'desktop', '--patch', 'a.yml'])
   })
 
-  it('injects the desktop alias when a packaged exe is launched with no profile', () => {
+  it('injects --profile desktop when a packaged exe is launched with no profile', () => {
     expect(desktopElectronUserArgv(['C:\\Program Files\\xmart\\xmart.exe'], true))
-      .toEqual(['desktop'])
+      .toEqual(['--profile', 'desktop'])
   })
 
-  it('keeps an explicit packaged profile and prepends desktop only when missing', () => {
+  it('keeps an explicit packaged profile and expands the desktop alias', () => {
     expect(desktopElectronUserArgv(['xmart.exe', 'desktop', '--help'], true))
-      .toEqual(['desktop', '--help'])
+      .toEqual(['--profile', 'desktop', '--help'])
     expect(desktopElectronUserArgv(['xmart.exe', '--profile', 'desktop'], true))
       .toEqual(['--profile', 'desktop'])
     expect(desktopElectronUserArgv(['xmart.exe', '--patch', 'extra.yml'], true))
-      .toEqual(['desktop', '--patch', 'extra.yml'])
+      .toEqual(['--profile', 'desktop', '--patch', 'extra.yml'])
   })
 })

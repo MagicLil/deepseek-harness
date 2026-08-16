@@ -1,7 +1,7 @@
 /**
  * @deepseek-ai/dsh-desktop-app — desktop-surface runtime glue: resolve the
- * built web frontend dist, open the Electron shell over `dsh://` + IPC, and
- * register the desktop surface prompt section.
+ * built web frontend dist, serve it on the loopback webserver, open Electron
+ * at that URL, and register the desktop surface prompt section.
  * @module @deepseek-ai/dsh-desktop-app
  */
 
@@ -10,9 +10,11 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
+import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-host-apiproxy'
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-client-modules'
 
 /** Stable Cordis plugin name. */
@@ -22,7 +24,7 @@ export const name = 'desktop-app'
 const SOURCE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url))
 
 /** Services required before the desktop runtime can mount. */
-export const inject = ['apiProxy', 'clientModules', 'desktopStartup', 'connection']
+export const inject = ['apiProxy', 'clientModules', 'desktopStartup', 'connection', 'webServer']
 
 /** Plugin config. */
 export interface Config {
@@ -52,7 +54,7 @@ function desktopSurfacePrompt(): string {
   return 'You are X-Mart (万物智汇), an industrial-software coding assistant. '
     + 'You are talking with the user in the X-Mart desktop app, which is built on DeepSeek Harness (dsh). '
     + 'When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this desktop window. '
-    + 'The desktop shell loads the same web UI over a local IPC bridge (not a browser URL). '
+    + 'The desktop shell loads the same web UI at a local http://127.0.0.1 URL. '
     + 'Do not start a replacement server unless the user asks.'
 }
 
@@ -76,15 +78,19 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
+  ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
+
   let disposeShell: (() => Promise<void>) | undefined
   const start = async (): Promise<void> => {
     // Dynamic import keeps the Electron shell out of the host tsc graph.
     const shellSpec = '@deepseek-ai/dsh-desktop/shell'
-    const { openDesktopShell, resolvePreloadPath } = await import(shellSpec) as {
+    const { desktopLoopbackUrl, openDesktopShell, resolvePreloadPath } = await import(shellSpec) as {
+      desktopLoopbackUrl: (port: number) => string
       openDesktopShell: (options: {
         distIndex: string
         ctx: Context
         preloadPath: string
+        pageUrl?: string
       }) => Promise<{ dispose(): Promise<void>; closed: Promise<void> }>
       resolvePreloadPath: () => string
     }
@@ -92,6 +98,7 @@ export function apply(ctx: Context, config: Config): void {
       distIndex: internals.resolveDistIndex(),
       ctx,
       preloadPath: resolvePreloadPath(),
+      pageUrl: desktopLoopbackUrl(ctx.webServer.port),
     })
     disposeShell = () => shell.dispose()
     console.log('dsh desktop: window open')

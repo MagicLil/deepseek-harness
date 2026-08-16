@@ -27,6 +27,12 @@
       "path": "../../host/apiproxy"
     },
     {
+      "path": "../../host/frontend-static"
+    },
+    {
+      "path": "../../host/webserver"
+    },
+    {
       "path": "../../client/modules"
     },
     {

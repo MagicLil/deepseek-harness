@@ -12,6 +12,8 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { prependPath, writeCliShim } from './cli-shim.ts'
+import { desktopElectronUserArgv } from './launch-argv.ts'
 
 /**
  * Resolve the compiled Electron main entry next to this module or under lib/.
@@ -74,10 +76,18 @@ export async function relaunchDesktopUnderElectron(dshArgv: readonly string[]): 
     // spawn `process.execPath` (Win32 folder dialog worker) can use a
     // real Node ABI instead of `electron.exe` + `ELECTRON_RUN_AS_NODE`.
     env.DSH_NODE_EXEC_PATH = process.execPath
+    const cliEntry = process.argv[1]
+    if (cliEntry !== undefined && cliEntry.length > 0) {
+      prependPath(env, writeCliShim({
+        node: process.execPath,
+        execArgv: process.execArgv,
+        entry: cliEntry,
+      }))
+    }
     const cleaned = sanitizeNodeOptions(env.NODE_OPTIONS)
     if (cleaned === undefined) delete env.NODE_OPTIONS
     else env.NODE_OPTIONS = cleaned
-    const child = spawn(electronBinary, [entry, ...dshArgv], {
+    const child = spawn(electronBinary, [entry, ...desktopElectronUserArgv(['node', 'dsh', ...dshArgv], false)], {
       stdio: 'inherit',
       env,
       windowsHide: false,

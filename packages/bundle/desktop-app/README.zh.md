@@ -2,11 +2,11 @@
 
 [English](README.md) | 中文
 
-dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：coding persona、storage／workspace／api-gateway、钉死的原生目录选择器、浏览器客户端名录，以及本包的 `desktop-runtime` 粘合插件（**不**挂载 `webserver`）。该运行时通过 `dsh://` 协议打开 Electron，注入 `window.__DSH_BOOT__`，并以 IPC fetch 桥（`toFetchHandler`）承载 `/api`。应用命令行由 [`src/startup.ts`](src/startup.ts) 经 `ctx.cmdlineArgs` 解析。
+dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：coding persona、storage／workspace／api-gateway、钉死的原生目录选择器、浏览器客户端名录、`127.0.0.1:3080` 上的 loopback `webserver`，以及本包的 `desktop-runtime` 粘合插件。该运行时通过 `frontend-static` 提供前端 dist，并让 Electron 打开这个本机 URL，使社区 HTTP 插件与宿主同源。第一方 `/api` 仍可通过 preload IPC 桥。应用命令行由 [`src/startup.ts`](src/startup.ts) 经 `ctx.cmdlineArgs` 解析。
 
 ## 模型体验
 
-当 `surfaceContext` 为 true 时，`app:desktop-surface` 提示词段落会把智能体写成万物智汇（X-Mart），并向模型说明这是桌面窗口（IPC，而非浏览器 URL）。桌面组合包同时设置 `includeHarnessIdentity: false`，避免固定的 DeepSeek Harness 开场白压过这层身份。
+当 `surfaceContext` 为 true 时，`app:desktop-surface` 提示词段落会把智能体写成万物智汇（X-Mart），并向模型说明这是本机 `http://127.0.0.1` 上的桌面窗口。桌面组合包同时设置 `includeHarnessIdentity: false`，避免固定的 DeepSeek Harness 开场白压过这层身份。
 
 ## 已知限制
 
