@@ -7,6 +7,7 @@ import TerminalSessionService, { TerminalBackendCleanupError, TerminalError, Ter
 import type {
   TerminalBackend,
   TerminalBackendSession,
+  TerminalBackendSpawnSpec,
   TerminalReadRequest,
   TerminalSendOperation,
   TerminalSendRequest,
@@ -170,6 +171,22 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     expect(() => ctx.terminals.read(foreign, created.sessionId)).toThrow('belongs to another agent')
     expect(() => ctx.terminals.signal(foreign, created.sessionId, 'SIGINT')).toThrow('belongs to another agent')
     await expect(Promise.resolve().then(() => ctx.terminals.kill(foreign, created.sessionId))).rejects.toThrow('belongs to another agent')
+  })
+
+  it('forwards waitReady: false so UI spawn can skip prompt readiness', async () => {
+    const ctx = await harness()
+    let received: TerminalBackendSpawnSpec | undefined
+    ctx.terminals.registerBackend({
+      type: 'stub',
+      async spawn(spec) {
+        received = spec
+        return new StubSession()
+      },
+    })
+    const owner = stubAgent(ctx, 'owner')
+    ctx.agents.register(owner)
+    await ctx.terminals.spawn(owner, { type: 'stub', waitReady: false })
+    expect(received?.waitReady).toBe(false)
   })
 
   it('rejects unknown backends, non-live owners, duplicate names, and active sends', async () => {

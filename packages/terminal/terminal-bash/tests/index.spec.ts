@@ -252,6 +252,22 @@ describe('BashTerminalBackend startup rollback', () => {
     }])
   })
 
+  it('skips prompt initialization when waitReady is false', async () => {
+    const ctx = new Context()
+    await ctx.plugin(EmptySandbox)
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
+    const initialized = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const session = { initialize: initialized } as unknown as LocalPtySession
+    const backend = new BashTerminalBackend(
+      ctx,
+      config(),
+      async () => terminalHandle(),
+      () => session,
+    )
+    expect(await backend.spawn({ ...spec(agent(ctx)), waitReady: false })).toBe(session)
+    expect(initialized).not.toHaveBeenCalled()
+  })
+
   it('rejects a confined spawn without a sandbox provider', async () => {
     const confinedCtx = new Context()
     await confinedCtx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: '/workspace' })

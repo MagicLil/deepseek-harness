@@ -763,6 +763,22 @@ describe('LocalPtySession readiness and output', () => {
     await expect(unresolved.done).rejects.toThrow('cannot resolve foreground process group')
   })
 
+  it('settles startup as inferred idle when the host has no foreground group', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    inspector.pgid = undefined
+    const session = makeSession(terminal, inspector, config())
+    let settled = false
+    const initializing = session.initialize().then(() => { settled = true })
+    terminal.emitData('Windows PowerShell\n')
+    await vi.advanceTimersByTimeAsync(19)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(11)
+    await initializing
+    expect(settled).toBe(true)
+  })
+
   it('does not treat zero-output startup silence as readiness and fails on startup timeout', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()
