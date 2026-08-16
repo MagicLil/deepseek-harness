@@ -141,6 +141,18 @@ describe('ReviewEngine', () => {
     expect(review.turns[0]!.files).toEqual([])
   })
 
+  it('persists dismissShell so a reload does not revive the shell warning', async () => {
+    await setup()
+    await engine.markShell('s1', 2)
+    expect((await engine.dismissShell('s1', 2)).ok).toBe(true)
+    expect((await engine.get('s1')).turns[0]!.shellMaybeMutated).toBe(false)
+    const reloaded = new ReviewEngine({ dshHome: home, disk })
+    expect((await reloaded.get('s1')).turns[0]!.shellMaybeMutated).toBe(false)
+    await engine.markShell('s1', 2)
+    expect((await engine.get('s1')).turns[0]!.shellMaybeMutated).toBe(true)
+    expect((await engine.dismissShell('s1', 99)).error).toBe('not-found')
+  })
+
   it('captures shell deletes, settles when gone, and reverts from shadow', async () => {
     await setup()
     const path = join(workspace, 'gone.txt')

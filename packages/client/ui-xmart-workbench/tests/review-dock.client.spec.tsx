@@ -4,11 +4,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { ReviewDock } from '../src/client/ReviewDock.tsx'
 import { zh } from '../src/client/locales.ts'
 import type { AgentReviewRemote } from '../src/client/review-client.ts'
+import { shellDismissKey } from '../src/client/review-client.ts'
 import {
   encodeAgentReviewPath, parseAgentReviewPath,
 } from '../src/client/agent-review-path.ts'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.removeItem(shellDismissKey('s1', 9))
+  localStorage.removeItem(shellDismissKey('s2', 4))
+})
 
 describe('agent-review-path', () => {
   it('round-trips turn and path', () => {
@@ -54,6 +59,7 @@ describe('ReviewDock', () => {
         },
       })),
       revertAll: vi.fn(),
+      dismissShell: vi.fn(),
       diff: vi.fn(async () => ({
         ok: true,
         value: { path: '/tmp/a.ts', before: '', after: 'hi\n', ok: true },
@@ -109,11 +115,53 @@ describe('ReviewDock', () => {
       acceptAll: vi.fn(),
       revert: vi.fn(),
       revertAll: vi.fn(),
+      dismissShell: vi.fn(async () => ({
+        ok: true,
+        value: {
+          ok: true,
+          review: {
+            sessionId: 's1',
+            turns: [{ turn: 9, shellMaybeMutated: false, files: [] }],
+          },
+        },
+      })),
       diff: vi.fn(),
     }
     render(
       <ReviewDock
         sessionId="s1"
+        t={key => zh[key]}
+        review={review}
+        openReviewDiff={vi.fn()}
+      />,
+    )
+    expect(await screen.findByTestId('review-shell-warn')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('review-shell-dismiss'))
+    await waitFor(() => {
+      expect(review.dismissShell).toHaveBeenCalledWith({ sessionId: 's1', turn: 9 })
+      expect(localStorage.getItem(shellDismissKey('s1', 9))).toBe('1')
+      expect(screen.queryByTestId('review-dock')).toBeNull()
+    })
+  })
+
+  it('hides the shell warning even when the mounted remote lacks dismissShell', async () => {
+    const review: AgentReviewRemote = {
+      get: vi.fn(async () => ({
+        ok: true,
+        value: {
+          sessionId: 's2',
+          turns: [{ turn: 4, shellMaybeMutated: true, files: [] }],
+        },
+      })),
+      accept: vi.fn(),
+      acceptAll: vi.fn(),
+      revert: vi.fn(),
+      revertAll: vi.fn(),
+      diff: vi.fn(),
+    }
+    render(
+      <ReviewDock
+        sessionId="s2"
         t={key => zh[key]}
         review={review}
         openReviewDiff={vi.fn()}

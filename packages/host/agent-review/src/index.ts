@@ -160,6 +160,15 @@ export class AgentReviewGateway extends TypertRemoteService {
     return this.review.diff(request.sessionId, request.turn, request.path)
   }
 
+  /**
+   * Persist dismissal of the shell-only warning for one turn.
+   * @param request - session/turn.
+   */
+  @Remote('dismissShell')
+  dismissShell(request: ReviewTurnRequest): Promise<AgentReviewJobResult> {
+    return this.review.dismissShell(request.sessionId, request.turn)
+  }
+
   private async onPreExecute(exec: ToolExecution): Promise<void> {
     const session = exec.agent?.session
     if (session === undefined) return

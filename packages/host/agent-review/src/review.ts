@@ -239,6 +239,21 @@ export class ReviewEngine {
   }
 
   /**
+   * Persist dismissal of the shell-only warning for a turn.
+   * A later `markShell` on the same turn raises the flag again.
+   * @param sessionId - session id.
+   * @param turn - turn number.
+   */
+  async dismissShell(sessionId: string, turn: number): Promise<AgentReviewJobResult> {
+    const session = asMutable(await loadIndex(sessionId, this.dshHome))
+    const turnRow = session.turns.find(row => row.turn === turn)
+    if (turnRow === undefined) return { ok: false, error: 'not-found' }
+    turnRow.shellMaybeMutated = false
+    await saveIndex(session, this.dshHome)
+    return { ok: true, review: project(session) }
+  }
+
+  /**
    * After a successful write/edit/delete, refresh afterHash (null when gone).
    * Failed first settles (or failed deletes that left the file) drop the row.
    * @param sessionId - session id.

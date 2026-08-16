@@ -52,6 +52,7 @@ describe('AgentReviewGateway', () => {
       'accept',
       'acceptAll',
       'diff',
+      'dismissShell',
       'get',
       'revert',
       'revertAll',

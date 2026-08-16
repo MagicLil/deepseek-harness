@@ -6,7 +6,7 @@ import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from 'react/jsx-run
 import { useCallback, useEffect, useState } from 'react'
 import { IconCheckOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { isActionable, pickReviewTurn, reviewKindCounts, reviewPendingTotal, showShellOnlyWarn } from './review-counts.ts'
-import { roughLineStats, unwrapReview } from './review-client.ts'
+import { readShellDismissed, roughLineStats, unwrapReview, writeShellDismissed } from './review-client.ts'
 import { basename } from './route-file.ts'
 import css from './ReviewDock.module.css'
 /**
@@ -31,9 +31,6 @@ export function ReviewDock(props) {
     }
   }, [review, sessionId])
   useEffect(() => {
-    setShellDismissedTurn(undefined)
-  }, [sessionId])
-  useEffect(() => {
     void reload()
     const id = window.setInterval(() => { void reload() }, 2500)
     return () => { window.clearInterval(id) }
@@ -47,6 +44,7 @@ export function ReviewDock(props) {
   const shellOnly = showShellOnlyWarn(turn, pending)
         && turn !== undefined
         && shellDismissedTurn !== turn.turn
+        && !readShellDismissed(sessionId, turn.turn)
   useEffect(() => {
     if (!expanded || turn === undefined || pendingFiles.length === 0)
       return
@@ -119,7 +117,12 @@ export function ReviewDock(props) {
     const first = pendingFiles[0]
     if (first !== undefined)
       openReviewDiff(first.path, turn.turn)
-  }, children: t('review.review') })] })), shellOnly && (_jsx('button', { type: 'button', className: css.textBtn, 'data-testid': 'review-shell-dismiss', onClick: () => { setShellDismissedTurn(turn.turn) }, children: t('review.shellDismiss') }))] })] }), turn.shellMaybeMutated && pending > 0 && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), shellOnly && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), message !== undefined && (_jsx('div', { className: css.message, 'data-testid': 'review-message', children: message })), expanded && pendingFiles.length > 0 && (_jsx('ul', { className: css.list, 'data-testid': 'review-dock-list', children: pendingFiles.map(file => (_jsx(DockRow, { file: file, chip: chips[file.path], t: t, busy: busy, onOpen: () => { openReviewDiff(file.path, turn.turn) }, onKeep: () => {
+  }, children: t('review.review') })] })), shellOnly && (_jsx('button', { type: 'button', className: css.textBtn, 'data-testid': 'review-shell-dismiss', onClick: () => {
+    setShellDismissedTurn(turn.turn)
+    writeShellDismissed(sessionId, turn.turn)
+    if (typeof review.dismissShell === 'function')
+      void run(() => review.dismissShell({ sessionId, turn: turn.turn }))
+  }, children: t('review.shellDismiss') }))] })] }), turn.shellMaybeMutated && pending > 0 && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), shellOnly && (_jsx('div', { className: css.warn, 'data-testid': 'review-shell-warn', children: t('review.shellWarn') })), message !== undefined && (_jsx('div', { className: css.message, 'data-testid': 'review-message', children: message })), expanded && pendingFiles.length > 0 && (_jsx('ul', { className: css.list, 'data-testid': 'review-dock-list', children: pendingFiles.map(file => (_jsx(DockRow, { file: file, chip: chips[file.path], t: t, busy: busy, onOpen: () => { openReviewDiff(file.path, turn.turn) }, onKeep: () => {
     void run(() => review.accept({ sessionId, turn: turn.turn, path: file.path }))
   }, onUndo: () => {
     if (dirty(file.path)) {

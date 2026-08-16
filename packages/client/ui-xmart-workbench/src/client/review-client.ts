@@ -4,11 +4,65 @@
  * Business payloads that also use `ok` (diff / job results) pass through when
  * they have no `value` twin and their `error` is not a RemoteFailure object.
  */
+
+/** Host Remote surface used by the Cursor-style review dock. */
+export type AgentReviewRemote = {
+  get: (request: { sessionId: string }) => Promise<unknown>
+  accept: (request: { sessionId: string; turn: number; path: string }) => Promise<unknown>
+  acceptAll: (request: { sessionId: string; turn: number }) => Promise<unknown>
+  revert: (request: {
+    sessionId: string
+    turn: number
+    path: string
+    force?: boolean
+  }) => Promise<unknown>
+  revertAll: (request: {
+    sessionId: string
+    turn: number
+    force?: boolean
+  }) => Promise<unknown>
+  dismissShell?: (request: { sessionId: string; turn: number }) => Promise<unknown>
+  diff: (request: { sessionId: string; turn: number; path: string }) => Promise<unknown>
+}
+
+/** localStorage key for a dismissed shell-only warning. */
+export function shellDismissKey(sessionId, turn) {
+  return `dsh.review.shellDismissed:${sessionId}:${turn}`
+}
+
+/**
+ * Whether this session/turn's shell warning was dismissed in this browser.
+ * @param sessionId - session id.
+ * @param turn - turn number.
+ */
+export function readShellDismissed(sessionId, turn) {
+  try {
+    return globalThis.localStorage?.getItem(shellDismissKey(sessionId, turn)) === '1'
+  }
+  catch {
+    return false
+  }
+}
+
+/**
+ * Remember a shell-warning dismiss so a remount without Host persist still hides it.
+ * @param sessionId - session id.
+ * @param turn - turn number.
+ */
+export function writeShellDismissed(sessionId, turn) {
+  try {
+    globalThis.localStorage?.setItem(shellDismissKey(sessionId, turn), '1')
+  }
+  catch {
+    /* private mode / quota */
+  }
+}
+
 /**
  * Unwrap a Typert RemoteResult when present.
  * @param promise - remote method promise.
  */
-export async function unwrapReview(promise) {
+export async function unwrapReview(promise: Promise<unknown>): Promise<unknown> {
   const raw = await promise
   if (raw !== null && typeof raw === 'object' && 'ok' in raw) {
     const boxed = raw
