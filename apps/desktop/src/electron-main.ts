@@ -6,12 +6,13 @@
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { app } from 'electron'
+import { app, net, session } from 'electron'
 import { loadLayeredEnv } from '@deepseek-ai/dsh-app-boot'
 import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import { desktopElectronUserArgv } from './launch-argv.ts'
 import { markAppQuitting } from './lifecycle.ts'
+import { desktopSplitProxyPacScript, resolveDesktopProxyServer } from './proxy-env.ts'
 import { desktopSecondInstanceAction } from './title-bar.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 
@@ -73,6 +74,14 @@ async function main(): Promise<void> {
     return
   }
   await app.whenReady()
+  const desktopProxy = resolveDesktopProxyServer(process.env)
+  await session.defaultSession.setProxy({
+    pacScript: desktopSplitProxyPacScript(desktopProxy),
+  })
+  // Host plugins (Codex Connect) call global `fetch`. Electron's Node does
+  // not honour NODE_USE_ENV_PROXY; Chromium `net.fetch` honours the PAC.
+  globalThis.fetch = net.fetch.bind(net) as typeof fetch
+  console.log(`dsh desktop: split proxy ${desktopProxy} (OpenAI via proxy, domestic DIRECT)`)
   const { shutdown } = await runProfile({
     environment: loadLayeredEnv('dsh'),
     profile: invocation.profile,
