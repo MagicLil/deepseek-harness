@@ -20,6 +20,12 @@ Opening a workbench terminal on Windows failed before ConPTY allocated. `spawnTe
 
 **Toolhelp32 via koffi.** Rejected for this fix: koffi already has an Electron ABI history in this fork, and the inspector only needs to construct so ConPTY can start.
 
+## Follow-up: stuck on "Starting terminal..."
+
+After the inspector unblocked ConPTY, the UI still waited on bash MOTD. `host.terminalOpen` awaited `session.initialize()`, which looks for the OSC prompt `dsh> `, then 3s silence, then a 30s timeout. PowerShell never emits that marker, and `inspectForeground` is undefined on Windows, so the tab stayed on "Starting terminal..." even though the PTY was already up. Live xterm watch only attaches after spawn returns.
+
+UI spawn now passes `waitReady: false` so the backend returns as soon as the PTY exists. Agent-tool spawn still waits for readiness; when the provider cannot report a foreground group, observed output plus a short idle settles `inferred_idle` instead of sitting on the 3s/30s bounds.
+
 ## Consequences
 
-Desktop must restart `pnpm dsh desktop` (source plane) or reload rebuilt `@deepseek-ai/dsh-subprocess-local` `lib/` before the bottom-panel shell opens. Windows still has no exact foreground-group SIGINT; line-oriented `host.terminalSignal` cannot resolve a process group. Descendant discovery without an injected snapshot is the PTY root only; ConPTY close and `taskkill /T` remain the tree teardown.
+Desktop must fully quit and rerun `pnpm dsh desktop` after rebuilding host `lib/` for `dsh-terminal`, `dsh-terminal-bash`, and `dsh-host-apiproxy`. Open a new terminal tab; leftover tabs from the old wait can stay on "starting". Windows still has no exact foreground-group SIGINT; line-oriented `host.terminalSignal` cannot resolve a process group. Descendant discovery without an injected snapshot is the PTY root only; ConPTY close and `taskkill /T` remain the tree teardown.

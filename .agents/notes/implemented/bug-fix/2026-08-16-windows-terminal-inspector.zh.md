@@ -20,6 +20,12 @@ Windows 上打开工作台终端会在分配 ConPTY 之前失败。`spawnTermina
 
 **用 koffi 调 Toolhelp32。** 这次修复否决：本 fork 里 koffi 已有 Electron ABI 前科，而检查器此刻只需要能构造，好让 ConPTY 启动。
 
+## 后续：卡在「正在启动终端...」
+
+检查器让 ConPTY 能分配之后，界面仍在等 bash MOTD。`host.terminalOpen` 会等到 `session.initialize()`：先找 OSC 提示符 `dsh> `，再等 3 秒静默，再 30 秒超时。PowerShell 从不发这个标记，Windows 上 `inspectForeground` 也是 undefined，所以 PTY 已经起来了，标签还停在「正在启动终端...」。xterm 的实时输出要等 spawn 返回才挂上。
+
+UI spawn 现在传 `waitReady: false`，后端在 PTY 一存在就返回。Agent 工具那条路径仍等就绪；提供方报不出前台进程组时，有输出再加短暂静默就结算 `inferred_idle`，不再卡在 3 秒 / 30 秒上限。
+
 ## 后果
 
-桌面端必须重启 `pnpm dsh desktop`（源码面）或加载重建后的 `@deepseek-ai/dsh-subprocess-local` `lib/`，底栏才能开壳。Windows 仍然没有精确的前台进程组 SIGINT；按行的 `host.terminalSignal` 解析不出进程组。没有注入快照时，后代发现只覆盖 PTY 根进程；拆树仍靠关掉 ConPTY 和 `taskkill /T`。
+重建 `dsh-terminal`、`dsh-terminal-bash`、`dsh-host-apiproxy` 的 Host `lib/` 后，必须完全退出再跑 `pnpm dsh desktop`。请新开一个终端标签；旧等待留下的标签可能还停在「正在启动」。Windows 仍然没有精确的前台进程组 SIGINT；按行的 `host.terminalSignal` 解析不出进程组。没有注入快照时，后代发现只覆盖 PTY 根进程；拆树仍靠关掉 ConPTY 和 `taskkill /T`。
