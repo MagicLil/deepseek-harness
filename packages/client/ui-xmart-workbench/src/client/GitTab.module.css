@@ -297,15 +297,15 @@
   align-items: center;
   justify-content: center;
   min-width: 18px;
-  height: 16px;
+  height: 18px;
   padding: 0 5px;
-  border-radius: 8px;
-  background: var(--dsw-alias-brand-primary);
+  border-radius: 999px;
+  background: var(--dsw-alias-button-info-fill);
   color: #fff;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 16px;
+  line-height: 18px;
 }
 
 .sectionActions {
@@ -424,12 +424,20 @@
   color: var(--dsw-alias-brand-primary);
 }
 
+.graphList {
+  display: flex;
+  flex-direction: column;
+}
+
 .history {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
   gap: 8px;
-  min-height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  overflow: visible;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -444,7 +452,8 @@
   flex: 1;
   min-width: 0;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-height: 26px;
   border: none;
   background: none;
   color: inherit;
@@ -455,18 +464,27 @@
 }
 
 .graph {
-  display: block;
   flex: none;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.graph line,
-.graph path {
+.graph line {
   stroke-width: 1.5;
+  stroke-linecap: butt;
 }
 
-.headRing {
+.graph path {
   fill: none;
   stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.graph .mergeRing {
+  fill: none;
+  stroke-width: 2;
 }
 
 .refs {

@@ -20,24 +20,53 @@
 .icon {
   display: grid;
   place-items: center;
+  position: relative;
   width: 36px;
   height: 36px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
-  opacity: 0.72;
   cursor: pointer;
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  opacity: 0.72;
+}
+
+.badge {
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-button-info-fill);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  opacity: 1;
 }
 
 .icon:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
+
+.icon:hover .glyph,
+.icon[aria-pressed='true'] .glyph {
   opacity: 1;
 }
 
 .icon[aria-pressed='true'] {
   color: var(--dsw-alias-state-business-primary);
   background: var(--dsw-alias-interactive-bg-hover);
-  opacity: 1;
 }

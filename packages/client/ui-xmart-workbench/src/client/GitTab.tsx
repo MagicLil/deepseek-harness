@@ -21,12 +21,19 @@ import {
   probeGitRoots, readGitSnapshot, visibleChildDirectories,
 } from './git-root.ts'
 import { gitFileKind, gitPathParts } from './git-display.ts'
-import { gitLaneClass, gitRefClass, layoutGitGraph, type GitGraphNode, type GitGraphRef } from './git-graph.ts'
+import {
+  GIT_GRAPH_DOT, GIT_GRAPH_MERGE_DOT, GIT_GRAPH_MERGE_RING, GIT_GRAPH_MID, GIT_GRAPH_ROW,
+  gitGraphMergePath, gitGraphPageWidth, gitGraphX, gitLaneClass, gitRefClass,
+  layoutGitGraph, type GitGraphNode, type GitGraphRef,
+} from './git-graph.ts'
 import { gitHoverModel, gitRelativeLabel, gitWebLabel } from './git-hover.ts'
 import {
   GIT_LOG_PAGE_SIZE, canRequestGitLogPage, gitHistoryObserverTarget, gitLogHasMore,
   mergeGitLogPage, observeGitHistorySentinel, shouldLoadMoreFromScroll,
 } from './git-log-page.ts'
+import {
+  EMPTY_GIT_BADGE, gitChangeCounts, type GitBadgeStore,
+} from './git-badge.ts'
 import {
   gitActionMessage, gitBranchPickerItems, gitChangeKey, gitCheckoutNameForPicker,
   gitDiffSideOf, gitMenuItemIds, gitSectionPaths, isGitBranchName,
@@ -146,13 +153,14 @@ export type GitTabProps = TabBodyProps & {
   openDiff: (side: 'worktree' | 'staged', file: string, root: string) => void
   openCommit: (hash: string, subject: string, root: string) => void
   files: WorkbenchFilesStore
+  gitBadge: GitBadgeStore
 }
 
 /** Git SCM tab body. */
 export function GitTab({
   sessionId, t, getCwd, watchSessions, listEntries, gitStatus, gitStage, gitUnstage,
   gitDiscard, gitCommit, gitLog, gitSync, gitBranches, gitCheckout, gitCheckoutCommit,
-  gitSuggestCommit, openFile, openDiff, openCommit, files,
+  gitSuggestCommit, openFile, openDiff, openCommit, files, gitBadge,
 }: GitTabProps) {
   const [cwd, setCwd] = useState(() => getCwd(sessionId))
   const [phase, setPhase] = useState<Phase>('loading')
@@ -195,6 +203,7 @@ export function GitTab({
     if (cwd === undefined || cwd === '') {
       setPhase('missing')
       setStatus(undefined)
+      gitBadge.set(sessionId, EMPTY_GIT_BADGE)
       return
     }
     const controller = new AbortController()
@@ -211,6 +220,7 @@ export function GitTab({
       setRepos(current => roots ?? (current.length > 0 ? current : [next.root]))
       setDetail(undefined)
       setPhase('ready')
+      gitBadge.set(sessionId, { ...gitChangeCounts(next.changes), root: next.root })
       let listed: GitBranch[] = []
       try {
         listed = await gitBranches(next.root, controller.signal)
@@ -224,6 +234,7 @@ export function GitTab({
       setStatus(undefined)
       setDetail(text)
       setPhase(unavailable ? 'missing' : 'error')
+      gitBadge.set(sessionId, EMPTY_GIT_BADGE)
     }
     void (async () => {
       const first = await readGitSnapshot(selected ?? cwd, gitStatus, gitLog, controller.signal)
@@ -259,7 +270,7 @@ export function GitTab({
       setSelected(pick)
     })()
     return () => { controller.abort() }
-  }, [cwd, nonce, selected, gitStatus, gitLog, gitBranches, listEntries])
+  }, [cwd, nonce, selected, sessionId, gitStatus, gitLog, gitBranches, listEntries, gitBadge])
 
   const requestMore = () => {
     const nextRoot = rootRef.current
@@ -328,7 +339,7 @@ export function GitTab({
   const canCommit = message.trim() !== '' && staged.length > 0
   const canSuggest = staged.length > 0 && !busy && !suggesting
   const graph = layoutGitGraph(log)
-  const graphWidth = graph.reduce((max, row) => Math.max(max, row.railCount), 1) * GRAPH_LANE + 8
+  const graphWidth = gitGraphPageWidth(graph)
   const suggest = () => {
     setSuggesting(true)
     setActionError(undefined)
@@ -500,6 +511,7 @@ export function GitTab({
                     open={sectionOpen.staged}
                     onToggle={() => { toggleSection('staged') }}
                     count={staged.length}
+                    countTestId="xmart-git-staged-count"
                     actions={(
                       <button
                         type="button"
@@ -531,6 +543,7 @@ export function GitTab({
                     open={sectionOpen.changes}
                     onToggle={() => { toggleSection('changes') }}
                     count={unstaged.length}
+                    countTestId="xmart-git-changes-count"
                     actions={(
                       <>
                         <button
@@ -574,111 +587,111 @@ export function GitTab({
               open={sectionOpen.graph}
               onToggle={() => { toggleSection('graph') }}
             >
-              {graph.map(row => (
-                <HoverCard
-                  key={row.hash}
-                  openDelayMs={HOVER_SHOW_MS}
-                  cardClassName={css.hoverPlate}
-                  content={<GitCommitHover row={row} t={t} />}
-                  anchor={(
-                    <div
-                      className={`${css.history} ${activeHash === row.hash ? css.historyActive : ''}`}
-                      data-testid={`xmart-git-graph-${row.hash}`}
-                      data-active={activeHash === row.hash ? 'true' : undefined}
-                    >
-                      <button
-                        type="button"
-                        className={css.historyHit}
-                        aria-label={t('git.openCommit')}
-                        onClick={() => {
-                          setActiveHash(row.hash)
-                          openCommit(row.hash, row.subject, root)
-                        }}
+              <div className={css.graphList}>
+                {graph.map(row => (
+                  <HoverCard
+                    key={row.hash}
+                    openDelayMs={HOVER_SHOW_MS}
+                    cardClassName={css.hoverPlate}
+                    content={<GitCommitHover row={row} t={t} />}
+                    anchor={(
+                      <div
+                        className={`${css.history} ${activeHash === row.hash ? css.historyActive : ''}`}
+                        data-testid={`xmart-git-graph-${row.hash}`}
+                        data-active={activeHash === row.hash ? 'true' : undefined}
                       >
-                        <svg
-                          className={css.graph}
-                          width={graphWidth}
-                          height={GRAPH_ROW}
-                          aria-hidden
+                        <button
+                          type="button"
+                          className={css.historyHit}
+                          aria-label={t('git.openCommit')}
+                          onClick={() => {
+                            setActiveHash(row.hash)
+                            openCommit(row.hash, row.subject, root)
+                          }}
                         >
-                          {row.rails.map(rail => (
-                            <line
-                              key={rail}
-                              className={css[gitLaneClass(rail)]}
-                              x1={rail * GRAPH_LANE + 6}
-                              y1={0}
-                              x2={rail * GRAPH_LANE + 6}
-                              y2={GRAPH_ROW}
-                            />
-                          ))}
-                          {row.merges.map(edge => (
-                            <path
-                              key={`${edge.from}-${edge.to}-${edge.stub === true ? 'stub' : 'join'}`}
-                              className={css[gitLaneClass(edge.to)]}
-                              fill="none"
-                              d={edge.stub === true
-                                ? `M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID + 6}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID + 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW - 8}`
-                                : `M ${edge.from * GRAPH_LANE + 6} ${GRAPH_MID} C ${edge.from * GRAPH_LANE + 6} ${GRAPH_ROW - 2}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_MID}, ${edge.to * GRAPH_LANE + 6} ${GRAPH_ROW}`}
-                            />
-                          ))}
-                          {row.refs.some(ref => ref.kind === 'head')
-                            ? (
-                              <circle
-                                className={`${css.headRing} ${css[gitLaneClass(row.lane)]}`}
-                                cx={row.lane * GRAPH_LANE + 6}
-                                cy={GRAPH_MID}
-                                r={6}
+                          <svg
+                            className={css.graph}
+                            width={graphWidth}
+                            height={GIT_GRAPH_ROW}
+                            aria-hidden
+                          >
+                            {row.rails.map(rail => (
+                              <line
+                                key={rail}
+                                className={css[gitLaneClass(rail)]}
+                                x1={gitGraphX(rail)}
+                                y1={-1}
+                                x2={gitGraphX(rail)}
+                                y2={GIT_GRAPH_ROW + 1}
                               />
-                            )
-                            : null}
-                          <circle
-                            className={css[gitLaneClass(row.lane)]}
-                            cx={row.lane * GRAPH_LANE + 6}
-                            cy={GRAPH_MID}
-                            r={4}
-                          />
-                        </svg>
-                        <span className={css.historyBody}>
-                          <span className={css.subject}>{row.subject}</span>
-                          {row.author !== '' ? <span className={css.author}>{row.author}</span> : null}
-                        </span>
-                      </button>
-                      {row.refs.length > 0
-                        ? (
-                          <span className={css.refs}>
-                            {row.refs.map((ref: GitGraphRef) => (
-                              <button
-                                key={`${ref.kind}:${ref.name}`}
-                                type="button"
-                                className={`${css.ref} ${css[gitRefClass(ref.kind)]}`}
-                                title={ref.kind === 'remote' || ref.kind === 'tag' ? t('git.checkoutCommit') : undefined}
-                                disabled={ref.kind === 'head' || busy}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  if (ref.kind === 'branch') {
-                                    run(() => gitCheckout(root, ref.name))
-                                    return
-                                  }
-                                  if (ref.kind === 'remote') {
-                                    const local = localBranchNameForRemote(ref.name, branches)
-                                    if (local !== undefined) {
-                                      run(() => gitCheckout(root, local))
+                            ))}
+                            {row.merges.map(edge => (
+                              <path
+                                key={`${edge.from}-${edge.to}-${edge.stub === true ? 'stub' : 'join'}`}
+                                className={css[gitLaneClass(edge.to)]}
+                                fill="none"
+                                d={gitGraphMergePath(edge.from, edge.to, edge.stub === true, edge.join === true)}
+                              />
+                            ))}
+                            {row.merge === true
+                              ? (
+                                <circle
+                                  className={`${css.mergeRing} ${css[gitLaneClass(row.lane)]}`}
+                                  cx={gitGraphX(row.lane)}
+                                  cy={GIT_GRAPH_MID}
+                                  r={GIT_GRAPH_MERGE_RING}
+                                />
+                              )
+                              : null}
+                            <circle
+                              className={css[gitLaneClass(row.lane)]}
+                              cx={gitGraphX(row.lane)}
+                              cy={GIT_GRAPH_MID}
+                              r={row.merge === true ? GIT_GRAPH_MERGE_DOT : GIT_GRAPH_DOT}
+                            />
+                          </svg>
+                          <span className={css.historyBody}>
+                            <span className={css.subject}>{row.subject}</span>
+                            {row.author !== '' ? <span className={css.author}>{row.author}</span> : null}
+                          </span>
+                        </button>
+                        {row.refs.length > 0
+                          ? (
+                            <span className={css.refs}>
+                              {row.refs.map((ref: GitGraphRef) => (
+                                <button
+                                  key={`${ref.kind}:${ref.name}`}
+                                  type="button"
+                                  className={`${css.ref} ${css[gitRefClass(ref.kind)]}`}
+                                  title={ref.kind === 'remote' || ref.kind === 'tag' ? t('git.checkoutCommit') : undefined}
+                                  disabled={ref.kind === 'head' || busy}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    if (ref.kind === 'branch') {
+                                      run(() => gitCheckout(root, ref.name))
                                       return
                                     }
-                                  }
-                                  run(() => gitCheckoutCommit(root, row.hash))
-                                }}
-                              >
-                                {ref.name}
-                              </button>
-                            ))}
-                          </span>
-                        )
-                        : null}
-                    </div>
-                  )}
-                />
-              ))}
+                                    if (ref.kind === 'remote') {
+                                      const local = localBranchNameForRemote(ref.name, branches)
+                                      if (local !== undefined) {
+                                        run(() => gitCheckout(root, local))
+                                        return
+                                      }
+                                    }
+                                    run(() => gitCheckoutCommit(root, row.hash))
+                                  }}
+                                >
+                                  {ref.name}
+                                </button>
+                              ))}
+                            </span>
+                          )
+                          : null}
+                      </div>
+                    )}
+                  />
+                ))}
+              </div>
               {logHasMore
                 ? (
                   <div
@@ -720,6 +733,7 @@ function GitChangeSection(props: {
   open: boolean
   onToggle: () => void
   count?: number
+  countTestId?: string
   actions?: ReactNode
   children: ReactNode
 }) {
@@ -737,12 +751,16 @@ function GitChangeSection(props: {
             <IconChevronDownOutline14 size={14} />
           </span>
           <span className={css.sectionTitle}>{props.title}</span>
-          {props.count !== undefined
-            ? <span className={css.sectionCount}>{props.count}</span>
-            : null}
         </button>
         {props.actions !== undefined
           ? <span className={css.sectionActions}>{props.actions}</span>
+          : null}
+        {props.count !== undefined
+          ? (
+            <span className={css.sectionCount} data-testid={props.countTestId}>
+              {props.count}
+            </span>
+          )
           : null}
       </div>
       {props.open ? props.children : null}
@@ -945,7 +963,4 @@ function HoverClockIcon() {
   )
 }
 
-const GRAPH_ROW = 26
-const GRAPH_LANE = 10
-const GRAPH_MID = 13
 const HOVER_SHOW_MS = 400

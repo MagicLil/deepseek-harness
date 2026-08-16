@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-16-git-graph-cursor-layout.md
+2026-08-16-git-graph-cursor-layout.md: 60b3eb12115ba3fe3be32bf23d963ddf23264aaf
+2026-08-16-git-graph-cursor-layout.zh.md: 5fd0d99ee49b797319a7c10249732cb6d23ae94f

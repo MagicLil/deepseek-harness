@@ -45,6 +45,7 @@ export function gitHoverModel(row: GitGraphNode, nowMs: number, locale?: string)
   const body = row.body ?? ''
   const webUrl = row.originUrl === undefined ? undefined : gitCommitWebUrl(row.originUrl, row.hash)
   const host = row.originUrl === undefined ? undefined : gitRemoteHost(row.originUrl)
+  const stats = gitStatParts(row.files, row.insertions, row.deletions)
   return {
     author: row.author,
     relative: gitRelativeTime(row.timestamp, nowMs),
@@ -52,10 +53,10 @@ export function gitHoverModel(row: GitGraphNode, nowMs: number, locale?: string)
     subject: row.subject,
     bodyLines: gitBodyLines(body),
     coAuthors: gitCoAuthors(body),
-    stats: gitStatParts(row.files, row.insertions, row.deletions),
     refs: row.refs.filter(ref => ref.kind !== 'head'),
     hash: row.hash,
     shortHash: gitShortHash(row.hash),
+    ...stats === undefined ? {} : { stats },
     ...webUrl !== undefined && host !== undefined ? { web: { url: webUrl, host } } : {},
   }
 }

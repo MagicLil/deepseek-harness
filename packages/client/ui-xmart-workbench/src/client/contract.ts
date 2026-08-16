@@ -18,6 +18,7 @@ import type {
 import type { ExplorerRoot } from './explorer-roots.ts'
 import type { EditorLspRemotes } from './editor-lsp.ts'
 import type { WorkbenchFilesStore } from './files-store.ts'
+import type { GitBadgeSnapshot } from './git-badge.ts'
 
 /** Activity-bar icon component (primitives or a plugin SVG). */
 export type ActivityIcon = ComponentType<{ size?: number }>
@@ -110,6 +111,8 @@ export interface ActivityBarInjected {
     workbenchSession: HostObservable<WorkbenchView>
     /** Registered activities (empty until plugins register). */
     workbenchRegistry: HostObservable<WorkbenchRegistrySnapshot>
+    /** Staged + unstaged counts for the Git icon bubble. */
+    gitBadge: HostObservable<GitBadgeSnapshot>
   }
 }
 

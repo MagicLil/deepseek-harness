@@ -40,6 +40,7 @@ import { TerminalTab } from './TerminalTab.tsx'
 import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
 import { editorWorkspaceRoot, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
 import { createWorkbenchFilesStore } from './files-store.ts'
+import { createGitBadgeStore, startGitBadgeWatch } from './git-badge.ts'
 import { createWorkbenchFsDefinition } from './fs-events.ts'
 import { noteFsTouch } from './fs-touch.ts'
 import { hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts'
@@ -103,6 +104,7 @@ export function apply(ctx: ClientContext): void {
 
   const workbench = new XmartWorkbenchController()
   const files = createWorkbenchFilesStore()
+  const gitBadge = createGitBadgeStore()
   const persist = createWorkbenchStore()
   workbench.attachPanel(() => { ctx.layout.openWorkbench() })
   const projectKey = (sessionId: string): string | undefined => projectKeyOf(
@@ -166,6 +168,21 @@ export function apply(ctx: ClientContext): void {
       offWorkspaces()
     }
   }
+  ctx.effect(() => startGitBadgeWatch({
+    getSessionId: () => ctx.sessions.list.getSnapshot().current,
+    getCwd,
+    gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
+    listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
+    store: gitBadge,
+    watch: (fn) => {
+      const offFacts = watchWorkspaceFacts(fn)
+      const offFiles = files.subscribe(fn)
+      return () => {
+        offFacts()
+        offFiles()
+      }
+    },
+  }), 'ui-xmart-workbench: git badge')
   const getActivePath = (sessionId: string) => activeEditorPath(workbench.getSnapshot(sessionId))
   const watchWorkbench = (fn: () => void) => workbench.subscribe(fn)
   const mentionFile = (sessionId: string, path: string) => {
@@ -255,6 +272,7 @@ export function apply(ctx: ClientContext): void {
         }, { sessionId: props.sessionId })
       },
       files,
+      gitBadge,
     })
     const disposeTab = workbench.registerTab({
       id: 'git',
@@ -536,6 +554,7 @@ export function apply(ctx: ClientContext): void {
       showActivity: (id, activity) => { showActivity(id as SessionId, activity) },
       togglePrimary: () => { ctx.layout.toggleWorkbench() },
       toggleSessions: () => { ctx.layout.toggleSidebar() },
+      toggleConversation: () => { ctx.layout.toggleConversation() },
       newTerminal: (id) => { openTerminalTab(id as SessionId) },
       toggleTerminal: (id) => { toggleTerminalPanel(id as SessionId) },
       dispatch: dispatchWindow,
@@ -592,6 +611,10 @@ export function apply(ctx: ClientContext): void {
     hooks: {
       workbenchSession: workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),
+      gitBadge: {
+        getSnapshot: () => gitBadge.getSnapshot(sessionId),
+        subscribe: fn => gitBadge.subscribe(fn),
+      },
     },
   })
   const primaryInjected = (sessionId: SessionId): PrimarySidebarInjected => ({

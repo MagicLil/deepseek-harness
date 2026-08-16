@@ -30,6 +30,7 @@ async function bench() {
     toggleWorkbench: vi.fn(),
     toggleBottom: vi.fn(),
     toggleSidebar: vi.fn(),
+    toggleConversation: vi.fn(),
     openBottom: vi.fn(),
     closeBottom: vi.fn(),
     setBottomHeight: vi.fn(),
@@ -143,6 +144,7 @@ async function bench() {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
     setDraft, conversationEvents, sessions, cancel, openSubagent,
     sessionById, workspaceState, overrideTokens, sessionList, sessionListeners,
+    workspaces,
   }
 }
 
@@ -338,6 +340,12 @@ describe('ui-xmart-workbench apply', () => {
     activity.setActivity('git')
     activity.openPrimary()
     activity.closePrimary()
+    const offBadge = activity.hooks.gitBadge.subscribe(() => {})
+    offBadge()
+    expect(activity.hooks.gitBadge.getSnapshot()).toMatchObject({ staged: 0, unstaged: 0 })
+    await vi.waitFor(() => {
+      expect(b.workspaces.gitStatus).toHaveBeenCalled()
+    })
     menu.run('terminal-toggle')
     menu.run('terminal-toggle')
     expect(b.layout.toggleBottom).toHaveBeenCalledOnce()
@@ -637,6 +645,32 @@ describe('ui-xmart-workbench apply', () => {
     expect(b.layout.openWorkbench).toHaveBeenCalled()
   })
 
+  it('loads the git icon badge from a child repo when cwd is not a work tree', async () => {
+    const b = await bench()
+    b.workspaces.gitStatus.mockImplementation(async (path: string) => {
+      if (path === '/ws') throw new Error('not a repo')
+      return {
+        root: path, branch: 'main', ahead: 0, behind: 0, detached: false,
+        changes: [{ path: 'a.ts', status: 'modified', area: 'worktree' }],
+      }
+    })
+    b.workspaces.listEntries.mockResolvedValue({
+      path: '/ws',
+      entries: [{ name: 'app', path: '/ws/app', kind: 'directory', hidden: false }],
+      truncated: false,
+    })
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const activity = (
+      b.slots.entries('activityBar')[0]!.inject as unknown as (id: string) => ActivityBarInjected
+    )('s1')
+    await vi.waitFor(() => {
+      expect(activity.hooks.gitBadge.getSnapshot()).toEqual({
+        staged: 0, unstaged: 1, root: '/ws/app',
+      })
+    })
+  })
+
   it('routes settings inject writes onto the service', async () => {
     const b = await bench()
     declare(b.slots)
@@ -709,6 +743,7 @@ describe('ui-xmart-workbench apply', () => {
       listener?.('activity-git')
       listener?.('sidebar-primary')
       listener?.('sidebar-sessions')
+      listener?.('sidebar-conversation')
       const workspaces = b.ctx.get('workspaces')
       expect(workspaces).toBeDefined()
       expect(workspaces!.startSession).toHaveBeenCalledOnce()
@@ -723,6 +758,7 @@ describe('ui-xmart-workbench apply', () => {
       expect(b.layout.openWorkbench).toHaveBeenCalled()
       expect(b.layout.toggleWorkbench).toHaveBeenCalledOnce()
       expect(b.layout.toggleSidebar).toHaveBeenCalledOnce()
+      expect(b.layout.toggleConversation).toHaveBeenCalledOnce()
       listener?.('activity-explorer')
       listener?.('activity-tasks')
       expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('tasks')

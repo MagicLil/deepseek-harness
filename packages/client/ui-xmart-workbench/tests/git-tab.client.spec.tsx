@@ -8,6 +8,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GitTab, gitMenuAnchor, handleGitMenuSelect } from '../src/client/GitTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
+import { createGitBadgeStore } from '../src/client/git-badge.ts'
 import { zh } from '../src/client/locales.ts'
 
 beforeEach(() => { localStorage.clear() })
@@ -49,6 +50,7 @@ function mount(opts?: {
   listEntries?: (path: string, signal?: AbortSignal) => Promise<FileListing>
 }) {
   const files = createWorkbenchFilesStore()
+  const gitBadge = createGitBadgeStore()
   const gitStatus = opts?.gitStatus ?? vi.fn(async () => status)
   const gitLog = opts?.gitLog ?? vi.fn(async () => [
     { hash: 'abcdef1', subject: 'init', author: 'Ann', timestamp: 1 },
@@ -92,10 +94,11 @@ function mount(opts?: {
       openDiff={openDiff}
       openCommit={openCommit}
       files={files}
+      gitBadge={gitBadge}
     />,
   )
   return {
-    files, gitStage, gitUnstage, gitDiscard, gitCommit, gitSync, gitCheckout,
+    files, gitBadge, gitStage, gitUnstage, gitDiscard, gitCommit, gitSync, gitCheckout,
     gitCheckoutCommit, gitSuggestCommit, openFile, openDiff, openCommit, gitLog,
   }
 }
@@ -119,8 +122,9 @@ function gitRowAction(key: string, label: string) {
 
 describe('GitTab', () => {
   it('shows the empty-workspace copy', () => {
-    mount({ cwd: '' })
+    const { gitBadge } = mount({ cwd: '' })
     expect(screen.getByText('当前会话没有工作区。请先在对话里选一个工作区，或用最右列添加。')).toBeTruthy()
+    expect(gitBadge.getSnapshot('s1')).toEqual({ staged: 0, unstaged: 0, root: undefined })
   })
 
   it('shows missing and error states, then retries', async () => {
@@ -132,12 +136,13 @@ describe('GitTab', () => {
     await act(async () => { await Promise.resolve() })
     expect(await screen.findByText(/当前打开的文件夹不是 Git 仓库/)).toBeTruthy()
     cleanup()
-    const { files } = mount({
+    const { files, gitBadge } = mount({
       gitStatus: async () => {
         throw new GitAccessError({ code: 'git-failed', message: 'no' } as never)
       },
     })
     expect(await screen.findByText('Git 状态读取失败。')).toBeTruthy()
+    expect(gitBadge.getSnapshot('s1')).toEqual({ staged: 0, unstaged: 0, root: undefined })
     expect(screen.getByText('no')).toBeTruthy()
     fireEvent.click(screen.getByText('重试'))
     expect(files.getSnapshot().refreshNonce).toBeGreaterThan(0)
@@ -193,7 +198,14 @@ describe('GitTab', () => {
       ],
     })
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByTestId('xmart-git-graph-m1merge').querySelector('path')).toBeTruthy()
+    const mergeRow = screen.getByTestId('xmart-git-graph-m1merge')
+    expect(mergeRow.querySelector('path')).toBeTruthy()
+    expect(mergeRow.querySelectorAll('circle')).toHaveLength(2)
+    expect(mergeRow.querySelector('circle[class*="mergeRing"]')).toBeTruthy()
+    const mergeSvg = mergeRow.querySelector('svg')
+    const otherSvg = screen.getByTestId('xmart-git-graph-aaaaaaa').querySelector('svg')
+    expect(mergeSvg?.getAttribute('width')).toBe(otherSvg?.getAttribute('width'))
+    expect((mergeRow.querySelector('[class*="historyBody"]') as HTMLElement).style.marginLeft).toBe('')
   })
 
   it('fills the commit box from a generated message', async () => {
@@ -229,7 +241,7 @@ describe('GitTab', () => {
     })
     await act(async () => { await Promise.resolve() })
     const graphRow = () => screen.getByTestId('xmart-git-graph-abcdef1')
-    expect(graphRow().querySelectorAll('circle').length).toBeGreaterThan(1)
+    expect(graphRow().querySelectorAll('circle')).toHaveLength(1)
     fireEvent.click(screen.getByLabelText('查看此提交'))
     expect(openCommit).toHaveBeenCalledWith('abcdef1', 'init', '/ws')
     expect(gitCheckoutCommit).not.toHaveBeenCalled()
@@ -339,6 +351,15 @@ describe('GitTab', () => {
     const block = text.slice(start, hover)
     expect(block).toContain('color: var(--dsw-alias-label-primary)')
     expect(block).toContain('background: var(--dsw-alias-bg-layer-3)')
+    const pathRule = text.slice(text.indexOf('.graph path {'), text.indexOf('.graph .mergeRing'))
+    expect(pathRule).toContain('fill: none')
+    expect(text).toContain('.graph .mergeRing')
+    expect(text.slice(text.indexOf('.graph .mergeRing {'), text.indexOf('.refs {'))).toContain('fill: none')
+    const graphBox = text.slice(text.indexOf('.graph {'), text.indexOf('.graph line'))
+    expect(graphBox).toContain('flex: none')
+    expect(graphBox).not.toContain('position: absolute')
+    const hit = text.slice(text.indexOf('.historyHit {'), text.indexOf('.graph {'))
+    expect(hit).toContain('gap: 8px')
   })
 
   it('lists branches in a themed menu instead of a native select', async () => {
@@ -608,7 +629,7 @@ describe('GitTab', () => {
   })
 
   it('splits staged and unstaged, stages from the row, and opens the matching diff', async () => {
-    const { gitStage, gitUnstage, gitDiscard, openDiff, openFile } = mount({
+    const { gitStage, gitUnstage, gitDiscard, openDiff, openFile, gitBadge } = mount({
       gitStatus: async () => ({
         ...status,
         changes: [
@@ -622,6 +643,9 @@ describe('GitTab', () => {
     await act(async () => { await Promise.resolve() })
     expect(screen.getByTestId('xmart-git-staged')).toBeTruthy()
     expect(screen.getByTestId('xmart-git-changes')).toBeTruthy()
+    expect(screen.getByTestId('xmart-git-staged-count').textContent).toBe('2')
+    expect(screen.getByTestId('xmart-git-changes-count').textContent).toBe('2')
+    expect(gitBadge.getSnapshot('s1')).toEqual({ staged: 2, unstaged: 2, root: '/ws' })
     fireEvent.click(gitPathButton('index:staged.ts'))
     expect(openDiff).toHaveBeenCalledWith('staged', 'staged.ts', '/ws')
     fireEvent.click(gitRowAction('worktree:dirty.ts', '暂存'))
@@ -834,6 +858,7 @@ describe('GitTab', () => {
         openDiff={() => {}}
         openCommit={() => {}}
         files={createWorkbenchFilesStore()}
+        gitBadge={createGitBadgeStore()}
       />,
     )
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
@@ -867,6 +892,7 @@ describe('GitTab', () => {
         openDiff={() => {}}
         openCommit={() => {}}
         files={createWorkbenchFilesStore()}
+        gitBadge={createGitBadgeStore()}
       />,
     )
     expect(screen.getByText('正在读取 Git 状态…')).toBeTruthy()
@@ -898,6 +924,7 @@ describe('GitTab', () => {
         openDiff={() => {}}
         openCommit={() => {}}
         files={createWorkbenchFilesStore()}
+        gitBadge={createGitBadgeStore()}
       />,
     )
     dying.unmount()

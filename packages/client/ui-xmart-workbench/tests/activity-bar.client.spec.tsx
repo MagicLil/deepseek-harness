@@ -9,6 +9,7 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import { ActivityBar } from '../src/client/ActivityBar.tsx'
 import type { ActivityBarProps } from '../src/client/contract.ts'
+import { EMPTY_GIT_BADGE, type GitBadgeSnapshot } from '../src/client/git-badge.ts'
 import { EMPTY_WORKBENCH_VIEW } from '../src/client/service.ts'
 import type { WorkbenchView } from '../src/client/types.ts'
 import { zh } from '../src/client/locales.ts'
@@ -23,7 +24,7 @@ function constantHook<T>(value: T) {
   }
 }
 
-function mount(opts: { primaryOpen?: boolean; view?: WorkbenchView }) {
+function mount(opts: { primaryOpen?: boolean; view?: WorkbenchView; badge?: GitBadgeSnapshot }) {
   const setActivity = vi.fn()
   const openPrimary = vi.fn()
   const closePrimary = vi.fn()
@@ -38,6 +39,7 @@ function mount(opts: { primaryOpen?: boolean; view?: WorkbenchView }) {
     closePrimary,
     useWorkbenchSession: constantHook(opts.view ?? EMPTY_WORKBENCH_VIEW),
     useWorkbenchRegistry: constantHook({ tabs: [], viewers: [], activities: [] }),
+    useGitBadge: constantHook(opts.badge ?? EMPTY_GIT_BADGE),
     resolveIcon: () => undefined,
     t,
   } as ActivityBarProps
@@ -99,6 +101,7 @@ describe('ActivityBar', () => {
           { id: 'plugins', title: '插件', enabled: true },
         ],
       }),
+      useGitBadge: constantHook(EMPTY_GIT_BADGE),
       t,
     } as ActivityBarProps
     render(<ActivityBar {...props} />)
@@ -126,6 +129,7 @@ describe('ActivityBar', () => {
         viewers: [],
         activities: [{ id: 'ghost', title: 'Ghost', enabled: true }],
       }),
+      useGitBadge: constantHook(EMPTY_GIT_BADGE),
       t,
     } as ActivityBarProps
     render(<ActivityBar {...props} />)
@@ -136,5 +140,16 @@ describe('ActivityBar', () => {
     mount({})
     expect(screen.queryByTestId('xmart-activity-settings')).toBeNull()
     expect(screen.queryByTestId('xmart-activity-terminal')).toBeNull()
+  })
+
+  it('shows a summary bubble on the git icon and hides it when clean', () => {
+    mount({ badge: { staged: 1, unstaged: 74, root: '/ws' } })
+    expect(screen.getByTestId('xmart-activity-git-badge').textContent).toBe('75')
+    cleanup()
+    mount({ badge: { staged: 40, unstaged: 60, root: '/ws' } })
+    expect(screen.getByTestId('xmart-activity-git-badge').textContent).toBe('99+')
+    cleanup()
+    mount({ badge: EMPTY_GIT_BADGE })
+    expect(screen.queryByTestId('xmart-activity-git-badge')).toBeNull()
   })
 })

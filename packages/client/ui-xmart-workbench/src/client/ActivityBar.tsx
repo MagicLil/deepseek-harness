@@ -7,6 +7,7 @@ import {
   IconBranchOutline16, IconChecklistOutline14, IconFolderOpenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ActivityBarProps, ActivityIcon } from './contract.ts'
+import { gitBadgeLabel, gitBadgeTotal } from './git-badge.ts'
 import { PRIMARY_ACTIVITIES } from './types.ts'
 import css from './ActivityBar.module.css'
 
@@ -31,10 +32,12 @@ export function ActivityBar({
   closePrimary,
   useWorkbenchSession,
   useWorkbenchRegistry,
+  useGitBadge,
   t,
 }: ActivityBarProps) {
   const activity = useWorkbenchSession(s => s.activity)
   const registered = useWorkbenchRegistry(s => s.activities)
+  const gitLabel = gitBadgeLabel(gitBadgeTotal(useGitBadge(s => s)))
   const rows = registered.length > 0
     ? registered
     : PRIMARY_ACTIVITIES.map(id => ({ id, title: t(FALLBACK_LABEL[id]), enabled: true }))
@@ -63,7 +66,14 @@ export function ActivityBar({
                 openPrimary()
               }}
             >
-              <Icon size={18} />
+              <span className={css.glyph}><Icon size={18} /></span>
+              {row.id === 'git' && gitLabel !== undefined
+                ? (
+                  <span className={css.badge} data-testid="xmart-activity-git-badge">
+                    {gitLabel}
+                  </span>
+                )
+                : null}
             </button>
           )
         })}
