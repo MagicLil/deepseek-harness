@@ -335,6 +335,15 @@ describe('conversation slot inject API', () => {
   })
 })
 
+describe('session header inject API', () => {
+  it('header injects the view ledger and session navigation', async () => {
+    const b = await bench()
+    const { injected } = b.conversationHeaderApi(ROOT)
+    expect(Object.keys(injected)).toEqual(['views', 'open'])
+    await b.runtime.dispose()
+  })
+})
+
 describe('details inject API', () => {
   it('details injects the one layout callback; selection rides the shared store instead', async () => {
     const b = await bench()

@@ -26,6 +26,9 @@ function fakePanels(): PanelActions {
     openBottom: vi.fn(),
     closeBottom: vi.fn(),
     toggleBottom: vi.fn(),
+    openConversation: vi.fn(),
+    closeConversation: vi.fn(),
+    toggleConversation: vi.fn(),
   }
 }
 
@@ -47,6 +50,9 @@ describe('LayoutController', () => {
     service.closeBottom()
     service.toggleBottom()
     service.setBottomHeight(180)
+    service.openConversation()
+    service.closeConversation()
+    service.toggleConversation()
 
     expect(panels.toggleSidebar).toHaveBeenCalledTimes(1)
     expect(panels.openDetails).toHaveBeenCalledTimes(1)
@@ -60,6 +66,9 @@ describe('LayoutController', () => {
     expect(panels.closeBottom).toHaveBeenCalledTimes(1)
     expect(panels.toggleBottom).toHaveBeenCalledTimes(1)
     expect(panels.setBottom).toHaveBeenCalledWith(180)
+    expect(panels.openConversation).toHaveBeenCalledTimes(1)
+    expect(panels.closeConversation).toHaveBeenCalledTimes(1)
+    expect(panels.toggleConversation).toHaveBeenCalledTimes(1)
     expect(panels.setSidebar).not.toHaveBeenCalled()
     expect(panels.setDetails).not.toHaveBeenCalled()
   })
@@ -78,6 +87,9 @@ describe('LayoutController', () => {
     expect(() => { service.closeBottom() }).toThrow(/panel actions not wired/)
     expect(() => { service.toggleBottom() }).toThrow(/panel actions not wired/)
     expect(() => { service.setBottomHeight(200) }).toThrow(/panel actions not wired/)
+    expect(() => { service.openConversation() }).toThrow(/panel actions not wired/)
+    expect(() => { service.closeConversation() }).toThrow(/panel actions not wired/)
+    expect(() => { service.toggleConversation() }).toThrow(/panel actions not wired/)
   })
 
   it('re-attach overwrites the stale action set (entry re-register)', () => {

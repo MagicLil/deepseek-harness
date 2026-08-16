@@ -638,12 +638,16 @@ describe('persist sanitization', () => {
     expect(service.getSnapshot('s1').activity).toBe('git')
     service.setActivity('git', { sessionId: 's1' })
     expect(service.getSnapshot('s1').activity).toBe('git')
-    service.setActivity('tasks', { sessionId: 's1' })
-    expect(service.getSnapshot('s1').activity).toBe('tasks')
+    service.setActivity('explorer', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('explorer')
     localStorage.setItem(`${TABS_PERSIST}.act`, JSON.stringify({
       tabs: [], activeTabId: null, nextSeq: 1, activity: 'NOPE',
     }))
     expect(new XmartWorkbenchController().getSnapshot('act').activity).toBe('explorer')
+    localStorage.setItem(`${TABS_PERSIST}.legacy-tasks`, JSON.stringify({
+      tabs: [], activeTabId: null, nextSeq: 1, activity: 'tasks',
+    }))
+    expect(new XmartWorkbenchController().getSnapshot('legacy-tasks').activity).toBe('explorer')
     localStorage.setItem(`${TABS_PERSIST}.act2`, JSON.stringify({
       tabs: [], activeTabId: null, nextSeq: 1, activity: 'git',
     }))
@@ -682,8 +686,8 @@ describe('persist sanitization', () => {
     service.subscribe(listener)
     service.setActivity('git', { sessionId: 's1' })
     expect(listener).not.toHaveBeenCalled()
-    service.setActivity('tasks', { sessionId: 's1' })
-    expect(service.getSnapshot('s1').activity).toBe('tasks')
+    service.setActivity('explorer', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').activity).toBe('explorer')
     localStorage.setItem(`${TABS_PERSIST}.act`, JSON.stringify({
       tabs: [], activeTabId: null, nextSeq: 1, activity: 'git',
     }))

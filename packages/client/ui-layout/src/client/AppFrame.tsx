@@ -11,10 +11,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  chromeMenuBarVisible, computeBottom, computeColumns, MENU_BAR_HEIGHT, SIDEBAR_AUTO_COLLAPSE,
-  SIDEBAR_DEFAULT,
+  chromeMenuBarVisible, chromeTitleBarVisible, computeBottom, computeColumns,
+  conversationToggleLabel, MENU_BAR_HEIGHT, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, TITLE_BAR_HEIGHT,
 } from './columns.ts'
-import { applyFrameGeometry, solveFramePaint, type FramePaintPrefs } from './frame-geometry.ts'
+import { applyFrameGeometry, frameGridRows, solveFramePaint, type FramePaintPrefs } from './frame-geometry.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -53,6 +53,51 @@ function BottomColumn(props: { children?: ReactNode }) {
 }
 
 type HandleSide = 'primary' | 'conversation' | 'details' | 'sidebar' | 'bottom'
+
+/** Title-track lockup. Drawn here so desktop does not depend on the
+ *  web-shell seed table's BrandWordmark (that SVG used a 130px canvas
+ *  and left a hole after 汇). Path matches ui-primitives x-mark. */
+function TitleBrand() {
+  return (
+    <div className={css.titleBrand} data-testid="layout-title-brand">
+      <svg width="36" height="22" viewBox="0 0 40 24" aria-hidden="true">
+        <g fill="#5BB73B" fillRule="evenodd">
+          <path d="M3 0h9l25 24H28zM28 0h9L12 24H3z" />
+        </g>
+      </svg>
+      <span className={css.titleBrandName}>万物智汇</span>
+    </div>
+  )
+}
+
+/** Right-panel glyph: collapse/reveal the conversation column. */
+function ConversationPanelIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M2.25 2.2h11.5c.69 0 1.25.56 1.25 1.25v9.1c0 .69-.56 1.25-1.25 1.25H2.25C1.56 13.8 1 13.24 1 12.55v-9.1c0-.69.56-1.25 1.25-1.25Zm9.35 1.2h2.15c.14 0 .25.11.25.25v8.7c0 .14-.11.25-.25.25h-2.15v-9.2ZM2.25 3.4c-.14 0-.25.11-.25.25v8.7c0 .14.11.25.25.25h8.15v-9.2H2.25Z"
+      />
+    </svg>
+  )
+}
+
+/** Chat-column toggle; sits in the desktop title track next to Minimize. */
+function ConversationToggle(props: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className={css.conversationToggle}
+      data-testid="layout-conversation-toggle"
+      data-open={props.open || undefined}
+      aria-pressed={props.open}
+      aria-label={conversationToggleLabel(props.open)}
+      onClick={props.onToggle}
+    >
+      <ConversationPanelIcon />
+    </button>
+  )
+}
 
 /**
  * One drag handle: pointer capture, rAF-throttled delta reports against the
@@ -150,6 +195,14 @@ export function AppFrame({
     lastSession.current = detailsSession
   }, [actions, detailsSession])
 
+  const lastConversationSession = useRef(currentSession)
+  useLayoutEffect(() => {
+    if (currentSession !== undefined && lastConversationSession.current !== currentSession) {
+      actions.openConversation()
+    }
+    lastConversationSession.current = currentSession
+  }, [actions, currentSession])
+
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useEffect(() => {
     const el = frameRef.current
@@ -184,8 +237,6 @@ export function AppFrame({
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
   const workbenchPanels = currentSession !== undefined
-  // Conversation has no close action (setConversation clamps to CONVERSATION_MIN);
-  // concession in computeColumns is what visually collapses it.
   const cols = computeColumns(
     viewport.width,
     sidebarPreference,
@@ -194,9 +245,11 @@ export function AppFrame({
     panels.conversation,
   )
   const chromeMenu = chromeMenuBarVisible()
+  const titleOverlay = chromeTitleBarVisible()
   const menuBarPx = chromeMenu ? MENU_BAR_HEIGHT : 0
+  const titleBarPx = titleOverlay ? TITLE_BAR_HEIGHT : 0
   const bottom = workbenchPanels
-    ? computeBottom(Math.max(0, viewport.height - menuBarPx), panels.bottom)
+    ? computeBottom(Math.max(0, viewport.height - menuBarPx - titleBarPx), panels.bottom)
     : 0
   const colsRef = useRef(cols)
   colsRef.current = cols
@@ -225,6 +278,7 @@ export function AppFrame({
     workbenchPanels,
     detailsOn: detailsSession !== undefined,
     menuBarPx,
+    titleBarPx,
   })
   prefsRef.current = {
     viewport,
@@ -236,6 +290,7 @@ export function AppFrame({
     workbenchPanels,
     detailsOn: detailsSession !== undefined,
     menuBarPx,
+    titleBarPx,
   }
 
   const paintLive = useCallback(() => {
@@ -250,8 +305,9 @@ export function AppFrame({
       workbench: l.workbench ?? p.workbench,
       conversation: l.conversation ?? p.conversation,
       bottom: l.bottom ?? p.bottom,
+      prefer: l.workbench !== undefined ? 'primary' : 'conversation',
     })
-    applyFrameGeometry(el, solved, p.viewport, p.menuBarPx)
+    applyFrameGeometry(el, solved, p.viewport, p.menuBarPx, p.titleBarPx)
   }, [])
 
   useLayoutEffect(() => {
@@ -260,8 +316,19 @@ export function AppFrame({
 
   const onDragEnd = useCallback(() => {
     const l = live.current
-    if (l.workbench !== undefined) actions.setWorkbench(l.workbench)
-    if (l.conversation !== undefined) actions.setConversation(l.conversation)
+    const p = prefsRef.current
+    if (l.workbench !== undefined) {
+      const solved = solveFramePaint({
+        ...p,
+        workbench: l.workbench,
+        prefer: 'primary',
+      })
+      if (solved.cols.primary === 0) actions.closeWorkbench()
+      else actions.setWorkbench(solved.cols.primary)
+      if (solved.cols.conversation === 0) actions.closeConversation()
+      else actions.setConversation(solved.cols.conversation)
+    }
+    else if (l.conversation !== undefined) actions.setConversation(l.conversation)
     if (l.details !== undefined) actions.setDetails(l.details)
     if (l.sidebar !== undefined) actions.setSidebar(l.sidebar)
     if (l.bottom !== undefined) actions.setBottom(l.bottom)
@@ -326,9 +393,10 @@ export function AppFrame({
       className={css.frame}
       style={{
         gridTemplateColumns: `${cols.activity}px ${cols.primary}px minmax(0, 1fr) ${cols.conversation}px ${cols.details}px ${cols.sidebar}px`,
-        gridTemplateRows: `${String(menuBarPx)}px minmax(0, 1fr) ${bottom}px`,
+        gridTemplateRows: frameGridRows(menuBarPx, bottom, titleBarPx),
       }}
       data-chrome-menu={chromeMenu || undefined}
+      data-title-overlay={titleOverlay || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-primary-collapsed={cols.primary === 0 || undefined}
@@ -360,6 +428,24 @@ export function AppFrame({
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
+      {titleOverlay
+        ? (
+          <div className={css.titleBar} data-testid="layout-title-drag">
+            <TitleBrand />
+            <div className={css.titleMenu}>{renderSlot('menuBar', {})}</div>
+            <div className={css.titleSpacer} />
+            <ConversationToggle
+              open={cols.conversation > 0}
+              onToggle={() => { actions.toggleConversation() }}
+            />
+          </div>
+        )
+        : (
+          <ConversationToggle
+            open={cols.conversation > 0}
+            onToggle={() => { actions.toggleConversation() }}
+          />
+        )}
       {cols.primary > 0 && (
         <DragHandle
           side="primary"

@@ -4,7 +4,7 @@
  * the top bar. Components never see ctx.
  */
 import {
-  IconBranchOutline16, IconChecklistOutline14, IconFolderOpenOutline16,
+  IconBranchOutline16, IconFolderOpenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ActivityBarProps, ActivityIcon } from './contract.ts'
 import { gitBadgeLabel, gitBadgeTotal } from './git-badge.ts'
@@ -14,14 +14,12 @@ import css from './ActivityBar.module.css'
 const FALLBACK_ICONS: Record<string, ActivityIcon> = {
   explorer: IconFolderOpenOutline16,
   git: IconBranchOutline16,
-  tasks: IconChecklistOutline14,
 }
 
 const FALLBACK_LABEL = {
   explorer: 'activity.explorer',
   git: 'activity.git',
-  tasks: 'activity.tasks',
-} as const satisfies Record<(typeof PRIMARY_ACTIVITIES)[number], 'activity.explorer' | 'activity.git' | 'activity.tasks'>
+} as const satisfies Record<(typeof PRIMARY_ACTIVITIES)[number], 'activity.explorer' | 'activity.git'>
 
 /** Activity-bar icon rail (see module doc). */
 export function ActivityBar({

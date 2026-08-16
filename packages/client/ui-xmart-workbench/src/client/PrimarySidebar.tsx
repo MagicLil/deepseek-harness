@@ -1,5 +1,5 @@
 /**
- * Left primary sidebar: Explorer / Git / Tasks stay mounted and swap with
+ * Left primary sidebar: Explorer / Git stay mounted and swap with
  * `hidden`, so switching icons does not remount the file tree. Syncs the
  * session persist store to ctx.layout on session identity change, then
  * writes persist from later preference changes (drag / toggle).
@@ -14,7 +14,6 @@ import css from './PrimarySidebar.module.css'
 const TITLE_KEY = {
   explorer: 'activity.explorer',
   git: 'activity.git',
-  tasks: 'activity.tasks',
 } as const satisfies Record<typeof PRIMARY_ACTIVITIES[number], WorkbenchKey>
 
 /**
@@ -122,7 +121,7 @@ export function PrimarySidebar({
         const Body = resolveBody(id)
         const active = id === activity
         // Keep Explorer mounted across icon switches so the file tree does
-        // not remount. Git / Tasks mount only while selected.
+        // not remount. Git mounts only while selected.
         if (!active && id !== 'explorer') return null
         const fallback = (
           <div className={css.fallback} data-testid={`xmart-primary-fallback-${id}`}>

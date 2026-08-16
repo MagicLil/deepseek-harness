@@ -1,6 +1,6 @@
 /**
  * Active editor-column path from a session snapshot. Shell tabs (explorer /
- * git / tasks / terminal) never count — they live outside this strip.
+ * git / terminal) never count — they live outside this strip.
  */
 import { activeFileTab } from './app-menu-dispatch.ts'
 import type { WorkbenchView } from './types.ts'

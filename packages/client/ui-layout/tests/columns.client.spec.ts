@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACTIVITY_WIDTH, BOTTOM_DEFAULT, BOTTOM_MIN, chromeMenuBarVisible, clampWidth, computeBottom, computeColumns,
-  CONVERSATION_DEFAULT, CONVERSATION_MIN, conversationMax, DETAILS_DEFAULT, EDITOR_MIN,
-  EDITOR_MIN_HEIGHT, planPrimaryReveal, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
-  WORKBENCH_DEFAULT, WORKBENCH_MAX, WORKBENCH_MIN,
+  ACTIVITY_WIDTH, BOTTOM_DEFAULT, BOTTOM_MIN, chromeMenuBarVisible, chromeTitleBarVisible, clampWidth, computeBottom, computeColumns,
+  CONVERSATION_DEFAULT, CONVERSATION_MIN, conversationMax, conversationToggleLabel, DETAILS_DEFAULT,
+  EDITOR_MIN, EDITOR_MIN_HEIGHT, planPrimaryReveal, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
+  WORKBENCH_DEFAULT, WORKBENCH_MAX, WORKBENCH_MIN, workbenchMax,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 
 const open = (width: number) => width
@@ -162,24 +162,38 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(cols.conversation).toBe(1280)
   })
 
-  it('primary shrinks after conversation has auto-closed', () => {
-    const fits = computeColumns(
-      ACTIVITY_WIDTH + SIDEBAR_DEFAULT + WORKBENCH_MIN + EDITOR_MIN,
+  it('keeps a two-thirds primary after conversation has closed', () => {
+    const want = workbenchMax(1920)
+    const cols = computeColumns(
+      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(want), closed(CONVERSATION_DEFAULT),
+    )
+    expect(cols.primary).toBe(want)
+    expect(cols.conversation).toBe(0)
+    expect(cols.editor).toBe(1920 - ACTIVITY_WIDTH - SIDEBAR_DEFAULT - want)
+  })
+
+  it('primary keeps its preference after conversation has auto-closed when it still fits', () => {
+    const leftover = 100
+    const cols = computeColumns(
+      ACTIVITY_WIDTH + SIDEBAR_DEFAULT + WORKBENCH_DEFAULT + leftover,
       open(SIDEBAR_DEFAULT),
       closed(DETAILS_DEFAULT),
       open(WORKBENCH_DEFAULT),
       closed(CONVERSATION_DEFAULT),
     )
-    expect(fits).toEqual({
+    expect(cols).toEqual({
       activity: ACTIVITY_WIDTH,
-      primary: WORKBENCH_MIN,
-      editor: EDITOR_MIN,
+      primary: WORKBENCH_DEFAULT,
+      editor: leftover,
       conversation: 0,
       details: 0,
       sidebar: SIDEBAR_DEFAULT,
     })
+  })
+
+  it('primary closes when it cannot fit beside the session sidebar', () => {
     const starved = computeColumns(
-      ACTIVITY_WIDTH + SIDEBAR_DEFAULT + WORKBENCH_MIN + EDITOR_MIN - 1,
+      ACTIVITY_WIDTH + SIDEBAR_DEFAULT + WORKBENCH_MIN - 1,
       open(SIDEBAR_DEFAULT),
       closed(DETAILS_DEFAULT),
       open(WORKBENCH_DEFAULT),
@@ -188,7 +202,7 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(starved).toEqual({
       activity: ACTIVITY_WIDTH,
       primary: 0,
-      editor: WORKBENCH_MIN + EDITOR_MIN - 1,
+      editor: WORKBENCH_MIN - 1,
       conversation: 0,
       details: 0,
       sidebar: SIDEBAR_DEFAULT,
@@ -208,6 +222,18 @@ describe('computeColumns — conversation and primary concession', () => {
     expect(restored.details).toBe(DETAILS_DEFAULT)
     expect(restored.conversation).toBe(CONVERSATION_DEFAULT)
     expect(restored.primary).toBe(WORKBENCH_DEFAULT)
+  })
+
+  it('a preferred primary drag to two-thirds shrinks conversation', () => {
+    const want = workbenchMax(1920)
+    const cols = computeColumns(
+      1920, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT), open(want), open(CONVERSATION_DEFAULT),
+      'primary',
+    )
+    expect(want).toBe(Math.floor(1920 * 2 / 3))
+    expect(cols.primary).toBeGreaterThan(WORKBENCH_DEFAULT)
+    expect(cols.primary).toBeLessThanOrEqual(want)
+    expect(cols.conversation).toBeLessThan(CONVERSATION_DEFAULT)
   })
 
   it('primary hits its floor before conversation leaves its preference', () => {
@@ -285,6 +311,25 @@ describe('planPrimaryReveal', () => {
     const plan = planPrimaryReveal(800, SIDEBAR_DEFAULT, 0, 600)
     expect(plan.conversation).toBe(CONVERSATION_MIN)
     expect(plan.primary).toBeGreaterThanOrEqual(WORKBENCH_MIN)
+  })
+})
+
+describe('chromeTitleBarVisible', () => {
+  it('is desktop-only', () => {
+    expect(chromeTitleBarVisible('dsh:')).toBe(true)
+    expect(chromeTitleBarVisible('http:')).toBe(false)
+    expect(chromeTitleBarVisible('https:')).toBe(false)
+    expect(chromeTitleBarVisible('')).toBe(false)
+  })
+})
+
+describe('conversationToggleLabel', () => {
+  it('names collapse and open in the document language', () => {
+    expect(conversationToggleLabel(true, 'zh')).toBe('收起对话')
+    expect(conversationToggleLabel(false, 'zh-CN')).toBe('打开对话')
+    expect(conversationToggleLabel(true, 'en-US')).toBe('Collapse chat')
+    expect(conversationToggleLabel(false, 'en')).toBe('Open chat')
+    expect(conversationToggleLabel(true)).toMatch(/收起对话|Collapse chat/)
   })
 })
 

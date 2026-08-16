@@ -21,6 +21,7 @@ function deps(overrides: Partial<AppMenuDispatchDeps> = {}): AppMenuDispatchDeps
     showActivity: record('showActivity'),
     togglePrimary: record('togglePrimary'),
     toggleSessions: record('toggleSessions'),
+    toggleConversation: record('toggleConversation'),
     newTerminal: record('newTerminal'),
     toggleTerminal: record('toggleTerminal'),
     dispatch: record('dispatch'),
@@ -35,7 +36,7 @@ describe('dispatchAppMenu', () => {
     const rows: AppMenuCommand[] = [
       'settings-open', 'file-save', 'file-find', 'file-replace', 'file-quick-open',
       'file-goto-line', 'file-goto-definition', 'session-new', 'workspace-open',
-      'sidebar-primary', 'sidebar-sessions',
+      'sidebar-primary', 'sidebar-sessions', 'sidebar-conversation',
     ]
     for (const command of rows) dispatchAppMenu(command, d)
     expect(d.calls.dispatch).toEqual([
@@ -48,6 +49,7 @@ describe('dispatchAppMenu', () => {
     expect(d.calls.openWorkspace).toHaveLength(1)
     expect(d.calls.togglePrimary).toHaveLength(1)
     expect(d.calls.toggleSessions).toHaveLength(1)
+    expect(d.calls.toggleConversation).toHaveLength(1)
     expect(d.calls.newTerminal).toBeUndefined()
   })
 
@@ -64,12 +66,11 @@ describe('dispatchAppMenu', () => {
     dispatchAppMenu('file-close', d)
     dispatchAppMenu('activity-explorer', d)
     dispatchAppMenu('activity-git', d)
-    dispatchAppMenu('activity-tasks', d)
     dispatchAppMenu('terminal-new', d)
     dispatchAppMenu('terminal-toggle', d)
     expect(d.calls.closeActiveEditor).toEqual([['s1']])
     expect(d.calls.showActivity).toEqual([
-      ['s1', 'explorer'], ['s1', 'git'], ['s1', 'tasks'],
+      ['s1', 'explorer'], ['s1', 'git'],
     ])
     expect(d.calls.newTerminal).toEqual([['s1']])
     expect(d.calls.toggleTerminal).toEqual([['s1']])

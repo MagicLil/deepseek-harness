@@ -1,12 +1,13 @@
 /**
  * Pure concession-chain solver for the Cursor-style AppFrame.
  * Horizontal order is fixed: keep the editor >= EDITOR_MIN by closing
- * details, shrinking then closing the primary sidebar (so a conversation
- * drag can reach two-thirds of the frame), then shrinking then closing
- * the conversation. The activity bar and the session sidebar
- * never concede (AppFrame turns the session sidebar into a rail by
- * passing preference 0). The editor absorbs any remaining deficit as
- * the last resort (and may drop below EDITOR_MIN).
+ * details, then the column the user is not dragging. A conversation
+ * drag shrinks then closes the primary so chat can reach two-thirds;
+ * a primary drag is the mirror (shrink then close conversation). Idle
+ * paints keep chat. The activity bar and the session sidebar never
+ * concede (AppFrame turns the session sidebar into a rail by passing
+ * preference 0). The editor absorbs any remaining deficit as the last
+ * resort (and may drop below EDITOR_MIN).
  * Preferences are never rewritten, so widening the window restores them.
  * Inputs are the layout store's plain width preferences (0 = closed);
  * a closed session sidebar resolves to the fixed SIDEBAR_COLLAPSED rail
@@ -51,8 +52,13 @@ export const DETAILS_MAX = 520
 export const DETAILS_DEFAULT = 360
 /** Primary-sidebar (Explorer/Git/Tasks) drag clamp floor. `workbench` store field. */
 export const WORKBENCH_MIN = 200
-/** Primary-sidebar drag clamp ceiling (Cursor-like; git graph needs more than 420). */
-export const WORKBENCH_MAX = 800
+/** Primary sidebar may grow to this fraction of the frame (user drag ceiling). */
+export const WORKBENCH_MAX_RATIO = 2 / 3
+/**
+ * Store-side primary ceiling: 2/3 of a 4K frame. The solver still caps
+ * each paint at {@link workbenchMax} for the live viewport.
+ */
+export const WORKBENCH_MAX = Math.floor(3840 * WORKBENCH_MAX_RATIO)
 /** Primary-sidebar width before any user drag. */
 export const WORKBENCH_DEFAULT = 260
 /** Conversation-column drag clamp floor. */
@@ -75,6 +81,18 @@ export const CONVERSATION_DEFAULT = 380
 export function conversationMax(viewport: number): number {
   return Math.max(CONVERSATION_MIN, Math.floor(viewport * CONVERSATION_MAX_RATIO))
 }
+
+/**
+ * Live primary-sidebar drag ceiling: two-thirds of the current frame.
+ * @param viewport - available frame width in px.
+ * @returns the clamp max, never below {@link WORKBENCH_MIN}.
+ */
+export function workbenchMax(viewport: number): number {
+  return Math.max(WORKBENCH_MIN, Math.floor(viewport * WORKBENCH_MAX_RATIO))
+}
+
+/** Which flexible column a live sash drag should keep. */
+export type ColumnPrefer = 'primary' | 'conversation'
 
 /**
  * Plan a user gesture that must make the primary sidebar visible
@@ -142,15 +160,44 @@ export const BOTTOM_MAX = 400
 export const BOTTOM_DEFAULT = 200
 /** Top menu-bar track; never dragged and never conceded. */
 export const MENU_BAR_HEIGHT = 28
+/** Desktop title-bar overlay track (Window Controls Overlay); never dragged. */
+export const TITLE_BAR_HEIGHT = 32
 
 /**
- * The in-frame HTML menu bar is web-only. Desktop already has a native
- * product application menu, so a second strip must not appear underneath it.
+ * The standalone HTML menu-bar row is web-only. Desktop paints that menu
+ * inside the 32px title track so a second strip does not appear.
  * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
  */
 export function chromeMenuBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {
   return protocol !== 'dsh:'
 }
+
+/**
+ * Desktop `dsh:` renderer always owns a 32px title-bar track so a chat
+ * toggle can sit next to Minimize. Electron applies Window Controls Overlay
+ * on the same surface; the track is a real grid row and never paints over
+ * the columns underneath.
+ * @param protocol - `location.protocol`; `dsh:` is the desktop renderer.
+ */
+export function chromeTitleBarVisible(protocol: string = globalThis.location?.protocol ?? ''): boolean {
+  return protocol === 'dsh:'
+}
+
+/**
+ * Desktop title-track chat toggle label. Follows the document language.
+ * @param open - whether the conversation column is currently open.
+ * @param lang - document / navigator language.
+ */
+export function conversationToggleLabel(
+  open: boolean,
+  lang: string = globalThis.document?.documentElement?.lang
+    || globalThis.navigator?.language
+    || '',
+): string {
+  if (lang.toLowerCase().startsWith('zh')) return open ? '收起对话' : '打开对话'
+  return open ? 'Collapse chat' : 'Open chat'
+}
+
 /** Editor column vertical floor above the bottom panel. */
 export const EDITOR_MIN_HEIGHT = 160
 
@@ -170,14 +217,17 @@ export function clampWidth(px: number, min: number, max: number): number {
  * the output is a function of (viewport, preferences) only, so recovery on
  * re-widening is automatic. Preferences re-clamp here because they cross the
  * store boundary and callers may still supply stale ranges.
- * Concession order: details, primary (so a 2/3 conversation drag can keep
- * the chat), then conversation, then the leftover primary shrink. The session sidebar
- * is fixed at its preference (or the rail AppFrame already chose).
+ * Concession order: details, then the non-preferred flexible column
+ * (primary when idle / conversation-drag, conversation when primary-drag),
+ * then the leftover shrink. A 2/3 drag may drop the editor below
+ * EDITOR_MIN, same as the existing conversation ceiling. The session
+ * sidebar is fixed at its preference (or the rail AppFrame already chose).
  * @param viewport - available frame width in px.
  * @param sidebar - session-sidebar width preference in px (0 = rail).
  * @param details - details width preference in px (0 = closed).
  * @param primary - primary-sidebar width preference in px (0 = closed).
  * @param conversation - conversation width preference in px (0 = closed).
+ * @param prefer - which flexible column a live sash drag should keep.
  * @returns resolved widths; 0 means visually closed (never unmounted) except
  *   the session sidebar, which keeps its compact rail.
  */
@@ -187,10 +237,11 @@ export function computeColumns(
   details: number,
   primary: number,
   conversation: number,
+  prefer: ColumnPrefer = 'conversation',
 ): Columns {
   const activity = ACTIVITY_WIDTH
   const sOpen = sidebar === 0 ? SIDEBAR_COLLAPSED : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
-  const p0 = primary === 0 ? 0 : clampWidth(primary, WORKBENCH_MIN, WORKBENCH_MAX)
+  const p0 = primary === 0 ? 0 : clampWidth(primary, WORKBENCH_MIN, workbenchMax(viewport))
   const c0 = conversation === 0 ? 0 : clampWidth(conversation, CONVERSATION_MIN, conversationMax(viewport))
   const d0 = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
 
@@ -214,6 +265,22 @@ export function computeColumns(
 
   if (fits(sOpen, p0, c0, 0)) return pack(sOpen, p0, c0, 0)
 
+  // A live primary drag (up to 2/3) wins over conversation, same as a
+  // conversation drag winning over the primary. Idle paints keep chat.
+  if (prefer === 'primary' && p0 > 0) {
+    if (c0 > 0) {
+      const c1 = Math.max(CONVERSATION_MIN, viewport - activity - sOpen - p0 - EDITOR_MIN)
+      if (fits(sOpen, p0, c1, 0)) return pack(sOpen, p0, c1, 0)
+    }
+    if (fits(sOpen, p0, 0, 0)) return pack(sOpen, p0, 0, 0)
+    if (c0 > 0 && activity + sOpen + p0 + c0 <= viewport) return pack(sOpen, p0, c0, 0)
+    if (c0 > 0) {
+      const cFit = viewport - activity - sOpen - p0
+      if (cFit >= CONVERSATION_MIN) return pack(sOpen, p0, cFit, 0)
+    }
+    if (activity + sOpen + p0 <= viewport) return pack(sOpen, p0, 0, 0)
+  }
+
   // A wide conversation (up to 2/3) wins over the primary sidebar so a drag
   // to the left can keep the chat; the editor floor is protected first.
   if (c0 > 0 && p0 > 0) {
@@ -231,6 +298,9 @@ export function computeColumns(
   }
 
   if (fits(sOpen, p0, 0, 0)) return pack(sOpen, p0, 0, 0)
+  // Conversation already closed (or just conceded): keep a wide primary
+  // the same way a 2/3 chat keeps its preference and starves the editor.
+  if (p0 > 0 && activity + sOpen + p0 <= viewport) return pack(sOpen, p0, 0, 0)
 
   if (p0 > 0) {
     const p1 = Math.max(WORKBENCH_MIN, viewport - activity - sOpen - EDITOR_MIN)

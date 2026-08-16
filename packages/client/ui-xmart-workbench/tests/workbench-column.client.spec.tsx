@@ -91,7 +91,7 @@ describe('WorkbenchColumn', () => {
     expect(screen.getByText('gone')).toBeTruthy()
   })
 
-  it('keeps explorer / git / tasks / terminal off the editor strip', () => {
+  it('keeps explorer / git / terminal off the editor strip', () => {
     mount(viewOf({
       tabs: [
         { id: 'explorer:1', type: 'explorer', title: '资源管理器' },

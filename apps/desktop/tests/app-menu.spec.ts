@@ -21,6 +21,13 @@ describe('desktopAppMenuSpec', () => {
       { type: 'separator' },
       { type: 'role', role: 'quit' },
     ])
+    const view = desktopAppMenuSpec(labels)[3]
+    expect(view?.submenu).toEqual(expect.arrayContaining([
+      { type: 'command', id: 'activity-explorer', label: '资源管理器' },
+      { type: 'command', id: 'activity-git', label: '源代码管理' },
+      { type: 'command', id: 'sidebar-conversation', label: '切换对话', accelerator: 'CommandOrControl+Alt+B' },
+    ]))
+    expect(view?.submenu.some(row => row.type === 'command' && row.id === 'activity-tasks')).toBe(false)
     const go = desktopAppMenuSpec(labels)[2]
     expect(go?.submenu).toEqual(expect.arrayContaining([
       { type: 'command', id: 'file-quick-open', label: '转到文件', accelerator: 'CommandOrControl+P' },
@@ -51,6 +58,7 @@ describe('desktopAppMenuSpec', () => {
     expect(desktopAppMenuLabels('en-US').fileFind).toBe('Find')
     expect(desktopAppMenuLabels('en-US').fileReplace).toBe('Replace')
     expect(desktopAppMenuLabels('en-US').goFile).toBe('Go to File')
+    expect(desktopAppMenuLabels('en-US').viewConversation).toBe('Toggle Chat')
     expect(desktopAppMenuLabels('en-US').terminal).toBe('Terminal')
     expect(desktopAppMenuLabels('EN').fileNewSession).toBe('New Session')
     expect(desktopAppMenuLabels('en').helpAbout).toBe('About Xmart')

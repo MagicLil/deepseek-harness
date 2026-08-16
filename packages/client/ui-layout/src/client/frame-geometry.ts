@@ -3,7 +3,7 @@
  * instead of through the layout store — a store write re-renders every
  * slot (Monaco, chat, file tree) and that is the editor-column flicker.
  */
-import { computeBottom, computeColumns, type Columns } from './columns.ts'
+import { computeBottom, computeColumns, type ColumnPrefer, type Columns } from './columns.ts'
 
 /** Inputs the concession solver needs for one live paint. */
 export interface FramePaintPrefs {
@@ -16,6 +16,8 @@ export interface FramePaintPrefs {
   workbenchPanels: boolean
   detailsOn: boolean
   menuBarPx: number
+  titleBarPx: number
+  prefer?: ColumnPrefer
 }
 
 /** Solved tracks plus the bottom-row height. */
@@ -35,9 +37,10 @@ export function solveFramePaint(prefs: FramePaintPrefs): FramePaint {
     prefs.detailsOn ? prefs.details : 0,
     prefs.workbenchPanels ? prefs.workbench : 0,
     prefs.conversation,
+    prefs.prefer ?? 'conversation',
   )
   const bottom = prefs.workbenchPanels
-    ? computeBottom(Math.max(0, prefs.viewport.height - prefs.menuBarPx), prefs.bottom)
+    ? computeBottom(Math.max(0, prefs.viewport.height - prefs.menuBarPx - prefs.titleBarPx), prefs.bottom)
     : 0
   return { cols, bottom }
 }
@@ -48,15 +51,23 @@ export function solveFramePaint(prefs: FramePaintPrefs): FramePaint {
  * @param paint - solved geometry.
  * @param viewport - frame box used for the far-right sash.
  */
+/** Grid rows: optional title track, menu track, body, bottom. */
+export function frameGridRows(menuBarPx: number, bottom: number, titleBarPx = 0): string {
+  return titleBarPx > 0
+    ? `${String(titleBarPx)}px ${String(menuBarPx)}px minmax(0, 1fr) ${String(bottom)}px`
+    : `${String(menuBarPx)}px minmax(0, 1fr) ${String(bottom)}px`
+}
+
 export function applyFrameGeometry(
   el: HTMLElement,
   paint: FramePaint,
   viewport: { width: number; height: number },
   menuBarPx: number,
+  titleBarPx = 0,
 ): void {
   const { cols, bottom } = paint
   el.style.gridTemplateColumns = `${String(cols.activity)}px ${String(cols.primary)}px minmax(0, 1fr) ${String(cols.conversation)}px ${String(cols.details)}px ${String(cols.sidebar)}px`
-  el.style.gridTemplateRows = `${String(menuBarPx)}px minmax(0, 1fr) ${String(bottom)}px`
+  el.style.gridTemplateRows = frameGridRows(menuBarPx, bottom, titleBarPx)
   const primaryLeft = cols.activity + cols.primary
   const conversationLeft = primaryLeft + cols.editor
   const detailsLeft = conversationLeft + cols.conversation

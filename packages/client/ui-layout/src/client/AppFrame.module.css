@@ -3,6 +3,7 @@
   display: grid;
   height: 100%;
   overflow: hidden;
+  box-sizing: border-box;
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
@@ -149,6 +150,128 @@
 
 .frame[data-chrome-menu] .handle {
   top: 28px;
+}
+
+/* Desktop title track is a real grid row. Columns start on the next
+   row, so the strip cannot paint over the activity / git / chat chrome. */
+.titleBar {
+  display: none;
+}
+
+.frame[data-title-overlay] .titleBar {
+  display: flex;
+  position: relative;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-items: center;
+  box-sizing: border-box;
+  /* WCO client rect when Electron sets the env vars; otherwise leave 138px
+     for the three Windows caption buttons so the toggle cannot sit under
+     Minimize. */
+  width: env(titlebar-area-width, 100%);
+  max-width: calc(100% - 138px);
+  margin-left: env(titlebar-area-x, 0px);
+  height: 32px;
+  padding: 0 2px 0 10px;
+  overflow: visible;
+  background: var(--dsw-specific-sidebar-fill);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  -webkit-app-region: drag;
+}
+
+.titleMenu {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  overflow: visible;
+  -webkit-app-region: no-drag;
+}
+
+.titleBrand {
+  display: flex;
+  flex: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  margin-right: 8px;
+  color: var(--dsw-alias-label-primary);
+  pointer-events: none;
+}
+
+.titleBrandName {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.titleSpacer {
+  flex: 1;
+  min-width: 12px;
+  height: 100%;
+}
+
+.frame[data-title-overlay] .menuBar {
+  grid-row: 2;
+}
+
+.frame[data-title-overlay] .activityCol,
+.frame[data-title-overlay] .primaryCol,
+.frame[data-title-overlay] .conversationCol,
+.frame[data-title-overlay] .detailsCol,
+.frame[data-title-overlay] .sidebarCol {
+  grid-row: 3 / -1;
+}
+
+.frame[data-title-overlay] .editorCol {
+  grid-row: 3;
+}
+
+.frame[data-title-overlay] .bottomCol {
+  grid-row: 4;
+}
+
+.frame[data-title-overlay] .handle {
+  top: 32px;
+}
+
+.frame[data-title-overlay][data-chrome-menu] .handle {
+  top: 60px;
+}
+
+.conversationToggle {
+  z-index: 30;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.frame[data-title-overlay] .conversationToggle {
+  display: flex;
+  position: relative;
+  flex: none;
+}
+
+.conversationToggle:hover,
+.conversationToggle[data-open] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.conversationToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
 }
 
 .handleRow {

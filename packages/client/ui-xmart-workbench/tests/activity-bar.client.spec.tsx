@@ -72,8 +72,8 @@ describe('ActivityBar', () => {
       primaryOpen: true,
       view: { ...EMPTY_WORKBENCH_VIEW, activity: 'explorer' },
     })
-    act(() => { screen.getByTestId('xmart-activity-tasks').click() })
-    expect(setActivity).toHaveBeenCalledWith('tasks')
+    act(() => { screen.getByTestId('xmart-activity-git').click() })
+    expect(setActivity).toHaveBeenCalledWith('git')
     expect(openPrimary).toHaveBeenCalledOnce()
     expect(closePrimary).not.toHaveBeenCalled()
   })

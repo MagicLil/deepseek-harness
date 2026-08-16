@@ -12,6 +12,7 @@ import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import { desktopElectronUserArgv } from './launch-argv.ts'
 import { markAppQuitting } from './lifecycle.ts'
+import { desktopSecondInstanceAction } from './title-bar.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 
 registerDesktopSchemes()
@@ -22,6 +23,12 @@ if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
   app.on('second-instance', () => {
+    if (desktopSecondInstanceAction(app.isPackaged) === 'relaunch') {
+      markAppQuitting()
+      app.relaunch()
+      app.exit(0)
+      return
+    }
     focusDesktopWindow()
   })
   app.on('activate', () => {

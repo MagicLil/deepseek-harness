@@ -14,6 +14,7 @@ import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import {
   ACTIVITY_WIDTH, CONVERSATION_DEFAULT, EDITOR_MIN, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, WORKBENCH_DEFAULT,
+  workbenchMax,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
@@ -191,18 +192,45 @@ describe('AppFrame', () => {
     expect(slotCalls.find(c => c.key === 'bottomPanel')!.props).toEqual({ height: 0 })
   })
 
-  it('hides the HTML menu bar on the desktop dsh: renderer', () => {
+  it('reserves a title-bar track on the desktop dsh: renderer', () => {
     const previous = window.location
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: new URL('dsh://app/'),
     })
     try {
-      const { queryByTestId, slotCalls, frame } = mountFrame()
-      expect(queryByTestId('menu-content')).toBeNull()
-      expect(slotCalls.map(c => c.key)).not.toContain('menuBar')
+      const { frame, queryByTestId, getByTestId } = mountFrame()
+      expect(frame.getAttribute('data-title-overlay')).not.toBeNull()
+      expect(queryByTestId('layout-title-drag')).toBeTruthy()
+      expect(getByTestId('layout-conversation-toggle').parentElement).toBe(queryByTestId('layout-title-drag'))
+      const brand = getByTestId('layout-title-brand')
+      expect(brand.textContent).toContain('万物智汇')
+      const mark = brand.querySelector('svg')
+      expect(mark).toBeTruthy()
+      expect(Number(mark?.getAttribute('width'))).toBeLessThan(50)
+      const titleBar = queryByTestId('layout-title-drag')
+      expect(titleBar?.firstElementChild).toBe(getByTestId('layout-title-brand'))
+      expect(titleBar?.lastElementChild).toBe(getByTestId('layout-conversation-toggle'))
+      expect(getByTestId('layout-conversation-toggle').previousElementSibling).not.toBeNull()
+      expect(getByTestId('menu-content').closest('[data-testid="layout-title-drag"]')).toBeTruthy()
+      expect(frame.style.gridTemplateRows.startsWith('32px 0px ')).toBe(true)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: previous })
+    }
+  })
+
+  it('keeps the HTML menu inside the title track without a second chrome row', () => {
+    const previous = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('dsh://app/'),
+    })
+    try {
+      const { getByTestId, slotCalls, frame } = mountFrame()
+      expect(slotCalls.map(c => c.key)).toContain('menuBar')
+      expect(getByTestId('menu-content').closest('[data-testid="layout-title-drag"]')).toBeTruthy()
       expect(frame.getAttribute('data-chrome-menu')).toBeNull()
-      expect(frame.style.gridTemplateRows.startsWith('0px ')).toBe(true)
+      expect(frame.style.gridTemplateRows.startsWith('32px 0px ')).toBe(true)
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: previous })
     }
@@ -287,6 +315,16 @@ describe('AppFrame', () => {
     const { frame } = mountFrame()
     drag(handleOf(frame, 'primary'), ACTIVITY_WIDTH + WORKBENCH_DEFAULT, ACTIVITY_WIDTH + WORKBENCH_DEFAULT + 40)
     expect(tracks(frame)[1]).toBe(WORKBENCH_DEFAULT + 40)
+  })
+
+  it('primary drag toward two-thirds shrinks conversation', () => {
+    const { frame, instance } = mountFrame()
+    const want = workbenchMax(1920)
+    drag(handleOf(frame, 'primary'), ACTIVITY_WIDTH + WORKBENCH_DEFAULT, ACTIVITY_WIDTH + want)
+    expect(tracks(frame)[1]).toBeGreaterThan(WORKBENCH_DEFAULT)
+    expect(tracks(frame)[1]).toBeLessThanOrEqual(want)
+    expect(tracks(frame)[2]).toBeLessThan(CONVERSATION_DEFAULT)
+    expect(instance.getSnapshot().workbench).toBe(tracks(frame)[1])
   })
 
   it('conversation drag widens leftward', () => {
@@ -394,6 +432,48 @@ describe('AppFrame', () => {
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)[3]).toBe(360)
+  })
+
+  it('selecting another Session reopens a collapsed conversation column', () => {
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.closeConversation() })
+    expect(tracks(frame)[2]).toBe(0)
+    selectedSession.current = 's-next' as SessionId
+    act(() => { rerenderFrame() })
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT)
+  })
+
+  it('opening a Session from empty reveals a collapsed conversation column', () => {
+    selectedSession.current = undefined
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.closeConversation() })
+    expect(tracks(frame)[2]).toBe(0)
+    selectedSession.current = 's-first' as SessionId
+    act(() => { rerenderFrame() })
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT)
+  })
+
+  it('does not reopen conversation when the same Session rerenders', () => {
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.closeConversation() })
+    act(() => { rerenderFrame() })
+    expect(tracks(frame)[2]).toBe(0)
+  })
+
+  it('title-bar chat toggle closes and reopens the conversation column', () => {
+    const { frame, instance, getByTestId } = mountFrame()
+    const toggle = getByTestId('layout-conversation-toggle')
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(toggle.getAttribute('aria-label')).toMatch(/收起对话|Collapse chat/)
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT)
+    act(() => { toggle.click() })
+    expect(instance.getSnapshot().conversation).toBe(0)
+    expect(tracks(frame)[2]).toBe(0)
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    expect(toggle.getAttribute('aria-label')).toMatch(/打开对话|Open chat/)
+    act(() => { toggle.click() })
+    expect(instance.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT)
+    expect(tracks(frame)[2]).toBe(CONVERSATION_DEFAULT)
   })
 
   it('drag handles disappear for collapsed columns', () => {

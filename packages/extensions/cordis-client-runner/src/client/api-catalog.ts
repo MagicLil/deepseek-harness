@@ -121,6 +121,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Write the workbench width preference (clamped to the contract range).',
         parameters: [{ name: 'px', description: 'requested width in px; closing uses {@link closeWorkbench} instead.' }],
       },
+      {
+        signature: 'openConversation(): void',
+        description: 'Open the conversation column (no-op when already open).',
+        parameters: [],
+      },
+      {
+        signature: 'closeConversation(): void',
+        description: 'Close the conversation column.',
+        parameters: [],
+      },
+      {
+        signature: 'toggleConversation(): void',
+        description: 'Toggle the conversation column (closed ⟷ contract default width).',
+        parameters: [],
+      },
     ],
   },
   {

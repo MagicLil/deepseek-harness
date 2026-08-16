@@ -6,7 +6,7 @@
  */
 import { createElement } from 'react'
 import {
-  IconBranchOutline16, IconChecklistOutline14, IconFolderOpenOutline16,
+  IconBranchOutline16, IconFolderOpenOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -35,7 +35,6 @@ import { peekEditorRemotes } from './editor-lsp.ts'
 import { BinaryTab, ImageTab } from './MediaTabs.tsx'
 import { GitTab } from './GitTab.tsx'
 import { DiffTab } from './DiffTab.tsx'
-import { readTaskTurn, TasksTab } from './TasksTab.tsx'
 import { TerminalTab } from './TerminalTab.tsx'
 import { commitDiffTitle, encodeCommitDiffPath, encodeDiffPath } from './git-diff-path.ts'
 import { editorWorkspaceRoot, resolveExplorerRoots, resolveSessionCwd, resolveTerminalCwd } from './explorer-roots.ts'
@@ -295,72 +294,6 @@ export function apply(ctx: ClientContext): void {
       disposeTab()
     }
   }, 'ui-xmart-workbench: git')
-  ctx.effect(() => {
-    const component = (props: TabBodyProps) => createElement(TasksTab, {
-      ...props,
-      t,
-      watchSessions: (fn) => {
-        let offSession: (() => void) | undefined
-        const attachSession = () => {
-          offSession?.()
-          offSession = ctx.sessions.binding(props.sessionId as SessionId)?.session.subscribe(fn)
-        }
-        const offList = ctx.sessions.list.subscribe(() => {
-          attachSession()
-          fn()
-        })
-        attachSession()
-        return () => {
-          offList()
-          offSession?.()
-        }
-      },
-      listTurn: id => readTaskTurn(
-        ctx.sessions.list.getSnapshot().byId[id as SessionId]?.running,
-        ctx.sessions.binding(id as SessionId)?.session.getSnapshot(),
-      ),
-      listJobs: id => ctx.sessions.list.getSnapshot().jobsBySession[id as SessionId] ?? [],
-      listSubagents: (id) => {
-        const entries = ctx.sessions.list.getSnapshot().subagentsByParent[id as SessionId]?.entries ?? []
-        return entries.flatMap((row) => {
-          if (row.kind !== 'child') return []
-          return row.label === undefined
-            ? [{ id: row.id, activity: row.activity }]
-            : [{ id: row.id, label: row.label, activity: row.activity }]
-        })
-      },
-      cancelTurn: () => { void ctx.sessions.binding(props.sessionId as SessionId)?.session.cancel() },
-      cancelSubagent: (id) => { void ctx.sessions.binding(id as SessionId)?.session.cancel() },
-      openSubagent: (id) => {
-        const parent = props.sessionId as SessionId
-        const entries = ctx.sessions.list.getSnapshot().subagentsByParent[parent]?.entries ?? []
-        const row = entries.find(entry => entry.id === id)
-        if (row === undefined || row.kind !== 'child') return
-        ctx.sessions.openSubagent({
-          parentSessionId: parent, childSessionId: row.id, mode: row.mode,
-        })
-      },
-    })
-    const disposeTab = workbench.registerTab({
-      id: 'tasks',
-      title: () => t('tab.tasks'),
-      order: 20,
-      hidden: true,
-      single: true,
-      component,
-    })
-    const disposeActivity = workbench.registerActivity({
-      id: 'tasks',
-      title: () => t('activity.tasks'),
-      order: 20,
-      icon: IconChecklistOutline14,
-      component,
-    })
-    return () => {
-      disposeActivity()
-      disposeTab()
-    }
-  }, 'ui-xmart-workbench: tasks')
   ctx.effect(() => workbench.registerTab({
     id: 'terminal',
     title: () => t('tab.terminal'),
@@ -523,7 +456,7 @@ export function apply(ctx: ClientContext): void {
     const tab = activeFileTab(workbench.getSnapshot(sessionId))
     if (tab !== undefined) workbench.closeTab(tab.id, { sessionId })
   }
-  const showActivity = (sessionId: SessionId, id: 'explorer' | 'git' | 'tasks'): void => {
+  const showActivity = (sessionId: SessionId, id: 'explorer' | 'git'): void => {
     workbench.setActivity(id, { sessionId })
     ctx.layout.openWorkbench()
   }

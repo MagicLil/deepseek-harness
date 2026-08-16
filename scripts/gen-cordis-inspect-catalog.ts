@@ -14,6 +14,7 @@ const CLIENT_SERVICES: Readonly<Record<string, readonly string[]>> = {
     'toggleSidebar', 'openDetails', 'closeDetails',
     'openWorkbench', 'closeWorkbench', 'toggleWorkbench', 'setWorkbench', 'setPrimarySidebar',
     'openBottom', 'closeBottom', 'toggleBottom', 'setBottomHeight',
+    'openConversation', 'closeConversation', 'toggleConversation',
   ],
   locale: ['getLocale', 'getSnapshot', 'subscribe', 'setLocale', 'register', 'bind'],
   sessions: ['open', 'openSubagent', 'setSubagentCatalogOpen', 'refreshSubagents', 'search', 'fork', 'scope', 'binding'],

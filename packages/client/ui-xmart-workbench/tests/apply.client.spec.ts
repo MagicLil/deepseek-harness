@@ -40,8 +40,6 @@ async function bench() {
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   const setDraft = vi.fn()
-  const cancel = vi.fn()
-  const openSubagent = vi.fn()
   const sessionById: Record<string, { cwd?: string; running?: boolean; blank?: boolean }> = {
     s1: { cwd: '/ws', running: true },
   }
@@ -56,16 +54,8 @@ async function bench() {
       getSnapshot: () => ({
         current: sessionList.current,
         byId: sessionById,
-        jobsBySession: { s1: [{ id: 'bash-1', kind: 'bash', label: 'ls', status: 'running' }] },
-        subagentsByParent: {
-          s1: {
-            entries: [
-              { kind: 'child', id: 'c1', activity: 'running', hasChildren: false, mode: 'continuable', label: 'child' },
-              { kind: 'child', id: 'c2', activity: 'inactive', hasChildren: false, mode: 'one-shot' },
-              { kind: 'diagnostic', id: 'd1', reason: 'corrupt' },
-            ],
-          },
-        },
+        jobsBySession: {},
+        subagentsByParent: {},
       }),
       subscribe: (fn?: () => void) => {
         if (fn !== undefined) sessionListeners.add(fn)
@@ -75,21 +65,14 @@ async function bench() {
     },
     scope: (id: string) => id === 's1' ? ({}) : undefined,
     binding: (id: string) => {
-      if (id === 's1') {
-        return {
-          session: {
-            cancel,
-            getSnapshot: () => ({
-              running: true,
-              runningCalls: [{ callId: 't1', name: 'Read' }],
-            }),
-            subscribe: () => () => {},
-          },
-        }
+      if (id !== 's1') return undefined
+      return {
+        session: {
+          getSnapshot: () => ({}),
+          subscribe: () => () => {},
+        },
       }
-      return id === 'c1' ? { session: { cancel } } : undefined
     },
-    openSubagent,
   }
   const workspaces = {
     list: {
@@ -142,7 +125,7 @@ async function bench() {
   ctx.provide('theme', { overrideTokens })
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, layout,
-    setDraft, conversationEvents, sessions, cancel, openSubagent,
+    setDraft, conversationEvents, sessions,
     sessionById, workspaceState, overrideTokens, sessionList, sessionListeners,
     workspaces,
   }
@@ -190,11 +173,10 @@ describe('ui-xmart-workbench apply', () => {
     expect(file?.hidden).toBe(true)
     expect(editor?.hidden).toBe(true)
     expect(service.getTab('git')?.single).toBe(true)
-    expect(service.getTab('tasks')?.single).toBe(true)
     expect(service.getTab('diff')?.hidden).toBe(true)
     expect(service.getTab('git')?.hidden).toBe(true)
     expect(service.getTab('explorer')?.hidden).toBe(true)
-    expect(service.getTab('tasks')?.hidden).toBe(true)
+    expect(service.getTab('tasks')).toBeUndefined()
     expect(service.getTab('terminal')?.hidden).toBe(true)
     expect(service.getTab('git')?.available?.({ sessionId: 's1' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(true)
     expect(service.getTab('git')?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(false)
@@ -362,9 +344,9 @@ describe('ui-xmart-workbench apply', () => {
     expect(activity.resolveIcon('explorer')).toBeTypeOf('function')
     expect(activity.resolveIcon('missing')).toBeUndefined()
     expect(activity.hooks.workbenchRegistry.getSnapshot().activities.map(row => row.id))
-      .toEqual(['explorer', 'git', 'tasks'])
+      .toEqual(['explorer', 'git'])
     expect(column.hooks.workbenchRegistry.getSnapshot().tabs.some(row => row.id === 'explorer')).toBe(true)
-    expect(primary.hooks.workbenchRegistry.getSnapshot().activities).toHaveLength(3)
+    expect(primary.hooks.workbenchRegistry.getSnapshot().activities).toHaveLength(2)
     expect(primary.resolveBody('missing')).toBeUndefined()
     primary.refreshExplorer()
     expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('git')
@@ -492,15 +474,14 @@ describe('ui-xmart-workbench apply', () => {
     await binaryEl.props.openSystem('/p/a.bin')
     const Git = column.resolveBody('git')
     const Diff = column.resolveBody('diff')
-    const Tasks = column.resolveBody('tasks')
     const Terminal = column.resolveBody('terminal')
     expect(Git).toBeTypeOf('function')
     expect(Diff).toBeTypeOf('function')
-    expect(Tasks).toBeTypeOf('function')
+    expect(column.resolveBody('tasks')).toBeUndefined()
     expect(Terminal).toBeTypeOf('function')
     if (
       typeof Git !== 'function' || typeof Diff !== 'function'
-      || typeof Tasks !== 'function' || typeof Terminal !== 'function'
+      || typeof Terminal !== 'function'
     ) return
     expect((Terminal as typeof renderFile)({
       tab: { id: 'tm', type: 'terminal', title: '终端' }, visible: true, sessionId: 's1',
@@ -558,43 +539,6 @@ describe('ui-xmart-workbench apply', () => {
     } }
     await diffEl.props.gitDiff('/ws', 'worktree', 'a.ts')
     await diffEl.props.gitCommitDiff('/ws', 'abcdef1')
-    const tasksEl = (Tasks as typeof renderFile)({
-      tab: { id: 'tk', type: 'tasks', title: '任务' }, visible: true, sessionId: 's1',
-    }) as { props: {
-      listTurn: (id: string) => { running: boolean; calls: { id: string; name: string }[] }
-      listJobs: (id: string) => unknown[]
-      listSubagents: (id: string) => { id: string }[]
-      cancelTurn: () => void
-      cancelSubagent: (id: string) => void
-      openSubagent: (id: string) => void
-      watchSessions: (fn: () => void) => () => void
-    } }
-    expect(tasksEl.props.listTurn('s1')).toEqual({
-      running: true, calls: [{ id: 't1', name: 'Read' }],
-    })
-    expect(tasksEl.props.listTurn('missing')).toEqual({ running: false, calls: [] })
-    expect(tasksEl.props.listJobs('s1')).toHaveLength(1)
-    expect(tasksEl.props.listJobs('missing')).toEqual([])
-    expect(tasksEl.props.listSubagents('s1').map(row => row.id)).toEqual(['c1', 'c2'])
-    expect(tasksEl.props.listSubagents('missing')).toEqual([])
-    tasksEl.props.cancelSubagent('c1')
-    tasksEl.props.cancelSubagent('gone')
-    expect(b.cancel).toHaveBeenCalledOnce()
-    tasksEl.props.cancelTurn()
-    expect(b.cancel).toHaveBeenCalledTimes(2)
-    tasksEl.props.openSubagent('c1')
-    tasksEl.props.openSubagent('d1')
-    tasksEl.props.openSubagent('gone')
-    const missingTasks = (Tasks as typeof renderFile)({
-      tab: { id: 'tk2', type: 'tasks', title: '任务' }, visible: true, sessionId: 'missing',
-    }) as { props: { openSubagent: (id: string) => void; listSubagents: (id: string) => unknown[] } }
-    missingTasks.props.openSubagent('c1')
-    expect(missingTasks.props.listSubagents('missing')).toEqual([])
-    expect(b.openSubagent).toHaveBeenCalledWith({
-      parentSessionId: 's1', childSessionId: 'c1', mode: 'continuable',
-    })
-    expect(b.openSubagent).toHaveBeenCalledTimes(1)
-    tasksEl.props.watchSessions(() => {})()
     explorerEl.props.mentionFile('/ws/a.ts')
     expect(b.setDraft).toHaveBeenCalledWith('hello /ws/a.ts ')
     const conversation = b.ctx.get('conversation') as unknown as {
@@ -760,8 +704,7 @@ describe('ui-xmart-workbench apply', () => {
       expect(b.layout.toggleSidebar).toHaveBeenCalledOnce()
       expect(b.layout.toggleConversation).toHaveBeenCalledOnce()
       listener?.('activity-explorer')
-      listener?.('activity-tasks')
-      expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('tasks')
+      expect(workbench(b.ctx).getSnapshot('s1').activity).toBe('explorer')
     } finally {
       if (previousDispatch === undefined) delete (globalThis as { dispatchEvent?: unknown }).dispatchEvent
       else (globalThis as { dispatchEvent: (event: Event) => boolean }).dispatchEvent = previousDispatch

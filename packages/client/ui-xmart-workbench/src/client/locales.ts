@@ -85,7 +85,6 @@ export type WorkbenchKey =
   | 'editor.dismiss'
   | 'tab.git'
   | 'tab.diff'
-  | 'tab.tasks'
   | 'tab.terminal'
   | 'git.noWorkspace'
   | 'git.loading'
@@ -139,14 +138,6 @@ export type WorkbenchKey =
   | 'diff.error'
   | 'diff.empty'
   | 'diff.files'
-  | 'tasks.jobs'
-  | 'tasks.subagents'
-  | 'tasks.turn'
-  | 'tasks.turnRunning'
-  | 'tasks.statusRunning'
-  | 'tasks.noJobs'
-  | 'tasks.noSubagents'
-  | 'tasks.stop'
   | 'terminal.unavailable'
   | 'terminal.empty'
   | 'terminal.prompt'
@@ -189,7 +180,6 @@ export type WorkbenchKey =
   | 'menu.help.aboutDetail'
   | 'activity.explorer'
   | 'activity.git'
-  | 'activity.tasks'
   | 'activity.terminal'
   | 'sidebar.missing'
   | 'sidebar.crashed'
@@ -210,7 +200,6 @@ export const zh: Record<WorkbenchKey, string> = {
   'toggle.open': '打开工作台',
   'activity.explorer': '资源管理器',
   'activity.git': '源代码管理',
-  'activity.tasks': '任务',
   'activity.terminal': '终端',
   'tab.demo': '演示',
   'tab.demo.body': '演示标签仍可用。用左侧活动栏打开资源管理器，浏览工作区文件。',
@@ -287,7 +276,6 @@ export const zh: Record<WorkbenchKey, string> = {
   'editor.dismiss': '忽略',
   'tab.git': 'Git',
   'tab.diff': '差异',
-  'tab.tasks': '任务',
   'tab.terminal': '终端',
   'sidebar.missing': '这个面板还没挂上。',
   'sidebar.crashed': '这个面板渲染失败，请切换一次活动栏图标再试。',
@@ -343,14 +331,6 @@ export const zh: Record<WorkbenchKey, string> = {
   'diff.error': '差异读取失败。',
   'diff.empty': '这一侧没有差异。',
   'diff.files': '文件',
-  'tasks.jobs': '后台任务',
-  'tasks.subagents': '子代理',
-  'tasks.turn': '当前回合',
-  'tasks.turnRunning': '智能体正在工作',
-  'tasks.statusRunning': '进行中',
-  'tasks.noJobs': '这个会话现在没有正在执行的任务。',
-  'tasks.noSubagents': '没有子代理。',
-  'tasks.stop': '停止',
   'terminal.unavailable': '这个环境还没有挂上主机终端通道，所以这里不能开壳。',
   'terminal.empty': '用菜单「终端 → 新建终端」开一个壳。',
   'terminal.prompt': '输入命令，回车发送。Ctrl+C 中断。',
@@ -402,7 +382,6 @@ export const en: Record<WorkbenchKey, string> = {
   'toggle.open': 'Open workbench',
   'activity.explorer': 'Explorer',
   'activity.git': 'Source Control',
-  'activity.tasks': 'Tasks',
   'activity.terminal': 'Terminal',
   'tab.demo': 'Demo',
   'tab.demo.body': 'The demo tab is still here. Open Explorer from the activity bar to browse the workspace.',
@@ -479,7 +458,6 @@ export const en: Record<WorkbenchKey, string> = {
   'editor.dismiss': 'Dismiss',
   'tab.git': 'Git',
   'tab.diff': 'Diff',
-  'tab.tasks': 'Tasks',
   'tab.terminal': 'Terminal',
   'sidebar.missing': 'This panel is not registered.',
   'sidebar.crashed': 'This panel crashed. Switch the activity-bar icon and try again.',
@@ -535,14 +513,6 @@ export const en: Record<WorkbenchKey, string> = {
   'diff.error': 'Could not read the diff.',
   'diff.empty': 'This side has no diff.',
   'diff.files': 'files',
-  'tasks.jobs': 'Background jobs',
-  'tasks.subagents': 'Subagents',
-  'tasks.turn': 'Current turn',
-  'tasks.turnRunning': 'Agent is working',
-  'tasks.statusRunning': 'Running',
-  'tasks.noJobs': 'This session has no running work.',
-  'tasks.noSubagents': 'No subagents.',
-  'tasks.stop': 'Stop',
   'terminal.unavailable': 'This surface has no host terminal bridge, so a shell cannot start here.',
   'terminal.empty': 'Use Terminal → New Terminal from the menu to open a shell.',
   'terminal.prompt': 'Type a command and press Enter. Ctrl+C interrupts.',

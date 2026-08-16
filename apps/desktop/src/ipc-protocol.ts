@@ -38,9 +38,9 @@ export type AppMenuCommand =
   | 'settings-open'
   | 'activity-explorer'
   | 'activity-git'
-  | 'activity-tasks'
   | 'sidebar-primary'
   | 'sidebar-sessions'
+  | 'sidebar-conversation'
   | 'terminal-new'
   | 'terminal-toggle'
 

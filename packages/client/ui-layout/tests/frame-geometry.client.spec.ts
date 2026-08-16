@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACTIVITY_WIDTH, CONVERSATION_DEFAULT, SIDEBAR_DEFAULT, WORKBENCH_DEFAULT,
 } from '../src/client/columns.ts'
-import { applyFrameGeometry, solveFramePaint } from '../src/client/frame-geometry.ts'
+import { applyFrameGeometry, frameGridRows, solveFramePaint } from '../src/client/frame-geometry.ts'
 
 describe('solveFramePaint', () => {
   it('solves open tracks and a closed bottom', () => {
@@ -17,6 +17,7 @@ describe('solveFramePaint', () => {
       workbenchPanels: true,
       detailsOn: false,
       menuBarPx: 28,
+      titleBarPx: 0,
     })
     expect(paint.cols.activity).toBe(ACTIVITY_WIDTH)
     expect(paint.cols.primary).toBe(WORKBENCH_DEFAULT)
@@ -35,6 +36,7 @@ describe('solveFramePaint', () => {
       workbenchPanels: false,
       detailsOn: true,
       menuBarPx: 0,
+      titleBarPx: 0,
     })
     expect(paint.cols.primary).toBe(0)
     expect(paint.cols.details).toBe(360)
@@ -60,10 +62,14 @@ describe('applyFrameGeometry', () => {
       workbenchPanels: true,
       detailsOn: false,
       menuBarPx: 28,
+      titleBarPx: 0,
     })
     applyFrameGeometry(el, paint, { width: 1920, height: 1080 }, 28)
     expect(el.style.gridTemplateColumns).toContain('minmax(0, 1fr)')
     expect(el.style.gridTemplateRows).toBe('28px minmax(0, 1fr) 200px')
+    expect(frameGridRows(0, 0, 32)).toBe('32px 0px minmax(0, 1fr) 0px')
+    applyFrameGeometry(el, paint, { width: 1920, height: 1080 }, 0, 32)
+    expect(el.style.gridTemplateRows).toBe('32px 0px minmax(0, 1fr) 200px')
     expect(conversation.style.left).toBe(`${ACTIVITY_WIDTH + WORKBENCH_DEFAULT + paint.cols.editor}px`)
     expect(bottomHandle.style.top).toBe(`${1080 - 200}px`)
     expect(bottomHandle.style.width).toBe(`${paint.cols.editor}px`)

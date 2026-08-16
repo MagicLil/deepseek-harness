@@ -66,6 +66,12 @@ export interface ILayout {
    * @param px - requested height in px; closing uses {@link closeBottom} instead.
    */
   setBottomHeight(px: number): void
+  /** Open the conversation column (no-op when already open). */
+  openConversation(): void
+  /** Close the conversation column. */
+  closeConversation(): void
+  /** Toggle the conversation column (closed ⟷ contract default width). */
+  toggleConversation(): void
 }
 
 /** Cross-plugin panel-action face (ctx.layout). */
@@ -157,6 +163,21 @@ export class LayoutController implements ILayout {
    */
   setBottomHeight(px: number): void {
     this.#require().setBottom(px)
+  }
+
+  /** Open the conversation column (no-op when already open). */
+  openConversation(): void {
+    this.#require().openConversation()
+  }
+
+  /** Close the conversation column. */
+  closeConversation(): void {
+    this.#require().closeConversation()
+  }
+
+  /** Toggle the conversation column (closed ⟷ contract default width). */
+  toggleConversation(): void {
+    this.#require().toggleConversation()
   }
 
   #require(): PanelActions {

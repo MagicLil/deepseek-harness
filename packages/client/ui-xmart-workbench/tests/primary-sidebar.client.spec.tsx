@@ -118,18 +118,14 @@ describe('PrimarySidebar', () => {
     expect(screen.getByTestId('xmart-primary-pane-custom').textContent).toBe('custom')
   })
 
-  it('titles Git and Tasks', () => {
-    const { rerender } = mount(
+  it('titles Git', () => {
+    mount(
       260,
       's-title',
       undefined,
       { ...EMPTY_WORKBENCH_VIEW, activity: 'git' },
     )
     expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.git')
-    rerender({
-      useWorkbenchSession: constantHook({ ...EMPTY_WORKBENCH_VIEW, activity: 'tasks' }),
-    })
-    expect(screen.getByTestId('xmart-primary-title').textContent).toBe('activity.tasks')
   })
 
   it('keeps the explorer tree mounted when switching to Git and back', () => {

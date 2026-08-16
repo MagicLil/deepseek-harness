@@ -1,6 +1,6 @@
 /**
  * Center editor column: file tab strip and the active file body.
- * Explorer / Git / Tasks / terminal are filtered out of the strip — they
+ * Explorer / Git / terminal are filtered out of the strip — they
  * live on the activity bar, primary sidebar, and bottom panel.
  */
 import { Component, type ComponentType, type ReactNode } from 'react'

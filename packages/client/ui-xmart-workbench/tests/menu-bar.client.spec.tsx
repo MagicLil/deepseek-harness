@@ -2,6 +2,8 @@
 /**
  * MenuBar: product menus and keyboard accelerators.
  */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -60,13 +62,15 @@ describe('MenuBar', () => {
     act(() => { screen.getByRole('menuitem', { name: '切换左侧边栏' }).click() })
     act(() => { screen.getByTestId('xmart-menu-view').click() })
     act(() => { screen.getByRole('menuitem', { name: '切换会话列表' }).click() })
+    act(() => { screen.getByTestId('xmart-menu-view').click() })
+    act(() => { screen.getByRole('menuitem', { name: '切换对话' }).click() })
     act(() => { screen.getByTestId('xmart-menu-terminal').click() })
     act(() => { screen.getByRole('menuitem', { name: '新建终端' }).click() })
     act(() => { screen.getByTestId('xmart-menu-terminal').click() })
     act(() => { screen.getByRole('menuitem', { name: '切换终端' }).click() })
     expect(run.mock.calls.map(row => row[0])).toEqual([
       'session-new', 'workspace-open', 'file-save', 'file-close', 'settings-open',
-      'activity-git', 'sidebar-primary', 'sidebar-sessions',
+      'activity-git', 'sidebar-primary', 'sidebar-sessions', 'sidebar-conversation',
       'terminal-new', 'terminal-toggle',
     ])
   })
@@ -99,6 +103,7 @@ describe('MenuBar', () => {
     act(() => { fireEvent.keyDown(window, { key: 'P', ctrlKey: true, shiftKey: true, code: 'KeyP' }) })
     act(() => { fireEvent.keyDown(window, { key: ',', ctrlKey: true, code: 'Comma' }) })
     act(() => { fireEvent.keyDown(window, { key: 'b', ctrlKey: true, code: 'KeyB' }) })
+    act(() => { fireEvent.keyDown(window, { key: 'b', ctrlKey: true, altKey: true, code: 'KeyB' }) })
     act(() => { fireEvent.keyDown(window, { key: 'L', ctrlKey: true, shiftKey: true, code: 'KeyL' }) })
     act(() => { fireEvent.keyDown(window, { key: '`', ctrlKey: true, altKey: true, code: 'Backquote' }) })
     act(() => { fireEvent.keyDown(window, { key: 'j', ctrlKey: true, code: 'KeyJ' }) })
@@ -108,7 +113,7 @@ describe('MenuBar', () => {
     expect(run.mock.calls.map(row => row[0])).toEqual([
       'terminal-toggle', 'session-new', 'workspace-open', 'file-save',
       'file-find', 'file-replace', 'file-quick-open', 'file-goto-line',
-      'settings-open', 'sidebar-primary', 'sidebar-sessions',
+      'settings-open', 'sidebar-primary', 'sidebar-conversation', 'sidebar-sessions',
     ])
   })
 
@@ -155,5 +160,13 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: '新会话' })).toBeTruthy()
     act(() => { screen.getByTestId('xmart-menu-file').click() })
     expect(screen.queryByRole('menuitem', { name: '新会话' })).toBeNull()
+  })
+
+  it('keeps title-bar menu items full-height and spaced from the brand', () => {
+    const text = readFileSync(join(process.cwd(), 'packages/client/ui-xmart-workbench/src/client/MenuBar.module.css'), 'utf8')
+    expect(text).toContain('padding: 0 8px')
+    expect(text).toContain('height: 100%')
+    expect(text.slice(text.indexOf('.root {'), text.indexOf('.item {'))).toContain('padding: 0;')
+    expect(text.slice(text.indexOf('.root {'), text.indexOf('.item {'))).toContain('gap: 0;')
   })
 })

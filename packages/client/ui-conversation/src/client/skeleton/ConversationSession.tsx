@@ -80,49 +80,50 @@ export function ConversationSessionHeader({
         <>
           <div className={css.titleRow}>
             <div className={css.titleCluster}>
-              <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
-                {ancestry.map((summary, index) => {
-                  const last = index === ancestry.length - 1
-                  return (
-                    <span key={summary.id} className={css.crumbSeg}>
-                      {index > 0 && <span className={css.crumbSep}>/</span>}
-                      <button
-                        type="button"
-                        className={clsx(css.crumb, last && css.crumbCurrent)}
-                        disabled={last}
-                        onClick={() => { open(summary.id) }}
-                      >
-                        {summary.displayTitle}
-                      </button>
-                    </span>
-                  )
-                })}
-                {ancestry.length === 0 && <span className={css.crumbCurrent}>{sessionId}</span>}
-              </nav>
+              {ancestry.length > 1 && (
+                <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
+                  {ancestry.map((summary, index) => {
+                    const last = index === ancestry.length - 1
+                    return (
+                      <span key={summary.id} className={css.crumbSeg}>
+                        {index > 0 && <span className={css.crumbSep}>/</span>}
+                        <button
+                          type="button"
+                          className={clsx(css.crumb, last && css.crumbCurrent)}
+                          disabled={last}
+                          onClick={() => { open(summary.id) }}
+                        >
+                          {summary.displayTitle}
+                        </button>
+                      </span>
+                    )
+                  })}
+                </nav>
+              )}
               <div className={css.headerActions}>
                 {renderSlot('conversation.session.header.actions', {})}
               </div>
+              {tabs.length > 1 && (
+                <div className={css.tabs} role="tablist">
+                  {tabs.map(viewTab => (
+                    <button
+                      key={viewTab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={viewTab.id === active?.id}
+                      className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                      onClick={() => { actions.setView(viewTab.id) }}
+                    >
+                      {viewTab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className={css.headerUtilities}>
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>
-          {tabs.length > 1 && (
-            <div className={css.tabs} role="tablist">
-              {tabs.map(viewTab => (
-                <button
-                  key={viewTab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={viewTab.id === active?.id}
-                  className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                  onClick={() => { actions.setView(viewTab.id) }}
-                >
-                  {viewTab.label}
-                </button>
-              ))}
-            </div>
-          )}
         </>
       )}
     </header>

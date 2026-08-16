@@ -60,6 +60,9 @@ type LayoutActions = {
   openBottom: (draft: LayoutState) => void
   closeBottom: (draft: LayoutState) => void
   toggleBottom: (draft: LayoutState) => void
+  openConversation: (draft: LayoutState) => void
+  closeConversation: (draft: LayoutState) => void
+  toggleConversation: (draft: LayoutState) => void
 }
 
 /**
@@ -159,6 +162,11 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       toggleBottom: (d) => {
         if (d.bottom === 0) d.bottom = BOTTOM_DEFAULT
         else d.bottom = 0
+      },
+      openConversation: (d) => { if (d.conversation === 0) d.conversation = CONVERSATION_DEFAULT },
+      closeConversation: (d) => { d.conversation = 0 },
+      toggleConversation: (d) => {
+        d.conversation = d.conversation === 0 ? CONVERSATION_DEFAULT : 0
       },
     },
   })

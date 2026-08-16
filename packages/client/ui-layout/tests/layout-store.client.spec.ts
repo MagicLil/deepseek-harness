@@ -203,6 +203,22 @@ describe('createLayoutStore', () => {
       .toBeGreaterThan(0)
   })
 
+  it('openConversation uses the contract default and close/toggle forget the drag width', () => {
+    const { store, actions } = createLayoutStore().create()
+    expect(store.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT)
+    actions.closeConversation()
+    expect(store.getSnapshot().conversation).toBe(0)
+    actions.openConversation()
+    expect(store.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT)
+    actions.setConversation(600)
+    actions.openConversation()
+    expect(store.getSnapshot().conversation).toBe(600)
+    actions.toggleConversation()
+    expect(store.getSnapshot().conversation).toBe(0)
+    actions.toggleConversation()
+    expect(store.getSnapshot().conversation).toBe(CONVERSATION_DEFAULT)
+  })
+
   it('openBottom uses the contract default and close/toggle forget the drag height', () => {
     const { store, actions } = createLayoutStore().create()
     actions.openBottom()

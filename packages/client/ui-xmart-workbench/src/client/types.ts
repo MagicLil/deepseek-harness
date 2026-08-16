@@ -23,20 +23,23 @@ export const DEFAULT_TAB_ORDER = 100
 /** Default activity-bar order when a descriptor omits `order`. */
 export const DEFAULT_ACTIVITY_ORDER = 100
 
-/** Activity-bar views that live in the primary sidebar, not the editor tab bar. */
+/**
+ * Activity-bar views that live in the primary sidebar, not the editor tab bar.
+ * `tasks` stays listed so leftover persist tabs never land on the editor strip.
+ */
 export const SHELL_TAB_TYPES = ['explorer', 'git', 'tasks', 'terminal'] as const
 
 /** Max UI terminal tabs per session (host enforces the same cap). */
 export const TERMINAL_TAB_LIMIT = 3
 
 /**
- * Primary-sidebar activity id. Built-in ids stay `explorer` / `git` /
- * `tasks`; other plugins register more through `registerActivity`.
+ * Primary-sidebar activity id. Built-in ids stay `explorer` / `git`;
+ * other plugins register more through `registerActivity`.
  */
 export type ActivityId = string
 
 /** Built-in activity ids that remain valid before any plugin registers. */
-export const PRIMARY_ACTIVITIES = ['explorer', 'git', 'tasks'] as const
+export const PRIMARY_ACTIVITIES = ['explorer', 'git'] as const
 
 /** True when an id is a built-in primary-sidebar activity. */
 export function isPrimaryActivity(id: string): id is typeof PRIMARY_ACTIVITIES[number] {

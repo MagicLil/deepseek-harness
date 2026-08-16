@@ -30,9 +30,9 @@ export interface DesktopAppMenuLabels {
   view: string
   viewExplorer: string
   viewGit: string
-  viewTasks: string
   viewPrimary: string
   viewSessions: string
+  viewConversation: string
   terminal: string
   terminalNew: string
   terminalToggle: string
@@ -86,9 +86,9 @@ export function desktopAppMenuLabels(locale: string): DesktopAppMenuLabels {
     view: zh ? '视图' : 'View',
     viewExplorer: zh ? '资源管理器' : 'Explorer',
     viewGit: zh ? '源代码管理' : 'Source Control',
-    viewTasks: zh ? '任务' : 'Tasks',
     viewPrimary: zh ? '切换左侧边栏' : 'Toggle Primary Sidebar',
     viewSessions: zh ? '切换会话列表' : 'Toggle Session List',
+    viewConversation: zh ? '切换对话' : 'Toggle Chat',
     terminal: zh ? '终端' : 'Terminal',
     terminalNew: zh ? '新建终端' : 'New Terminal',
     terminalToggle: zh ? '切换终端' : 'Toggle Terminal',
@@ -153,10 +153,10 @@ export function desktopAppMenuSpec(labels: DesktopAppMenuLabels): DesktopAppMenu
       submenu: [
         { type: 'command', id: 'activity-explorer', label: labels.viewExplorer },
         { type: 'command', id: 'activity-git', label: labels.viewGit },
-        { type: 'command', id: 'activity-tasks', label: labels.viewTasks },
         { type: 'separator' },
         { type: 'command', id: 'sidebar-primary', label: labels.viewPrimary, accelerator: 'CommandOrControl+B' },
         { type: 'command', id: 'sidebar-sessions', label: labels.viewSessions, accelerator: 'CommandOrControl+Shift+L' },
+        { type: 'command', id: 'sidebar-conversation', label: labels.viewConversation, accelerator: 'CommandOrControl+Alt+B' },
         { type: 'separator' },
         { type: 'role', role: 'resetZoom' },
         { type: 'role', role: 'zoomIn' },

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Conversation assembly acceptance independent of Tool presentation. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ISession, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
@@ -54,7 +54,7 @@ async function bench(opts?: { blank?: boolean }) {
   // The plugin injects both; these specs exercise no settings path.
   runtime.provide('remote', { $on: () => () => {} })
   runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-  runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
+  runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn(), closeConversation: vi.fn() })
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.provide('locale', locale)
   runtime.slots.installLocale(locale)
@@ -82,7 +82,7 @@ describe('resident composer', () => {
     // The plugin injects both; these specs exercise no settings path.
     runtime.provide('remote', { $on: () => () => {} })
     runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
+    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn(), closeConversation: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
     runtime.slots.installLocale(locale)
@@ -112,7 +112,7 @@ describe('resident composer', () => {
     // The plugin injects both; these specs exercise no settings path.
     runtime.provide('remote', { $on: () => () => {} })
     runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
+    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn(), closeConversation: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
     runtime.slots.installLocale(locale)
@@ -181,7 +181,7 @@ describe('prompt rejection through the assembled composer', () => {
     // The plugin injects both; these specs exercise no settings path.
     runtime.provide('remote', { $on: () => () => {} })
     runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
+    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn(), closeConversation: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
     runtime.slots.installLocale(locale)
@@ -218,17 +218,26 @@ describe('prompt rejection through the assembled composer', () => {
 })
 
 describe('title projection across assembled surfaces', () => {
-  it('one summary update re-labels the current-session crumb', async () => {
-    const runtime = await bench()
-    const view = runtime.renderRoot()
-    const hierarchy = view.getByRole('navigation', { name: '会话层级' })
-    expect(within(hierarchy).getByRole('button', { name: 'S' }).hasAttribute('disabled')).toBe(true)
-
-    await runtime.sessions.updateSummary(SID, { displayTitle: '修订标题', title: '修订标题' })
-    await waitFor(() => {
-      expect(within(hierarchy).getByRole('button', { name: '修订标题' }).hasAttribute('disabled')).toBe(true)
+  it('hides the current-session title from the header', async () => {
+    const runtime = await SlotTestRuntime.create()
+    runtime.provide('connection', { api: { settings: {} }, isLoopback: false })
+    runtime.provide('remote', { $on: () => () => {} })
+    runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+    runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn(), closeConversation: vi.fn() })
+    const locale = new LocaleRuntime(runtime.ctx)
+    runtime.provide('locale', locale)
+    runtime.slots.installLocale(locale)
+    await runtime.sessions.add({
+      id: SID,
+      summary: { title: 'S', displayTitle: 'S', cwd: '/proj' },
+      snapshot: { nodes: [] },
     })
-    expect(within(hierarchy).queryByRole('button', { name: 'S' })).toBeNull()
+    await runtime.root.declare(LAYOUT_CHILDREN, AppRoot)
+    await runtime.mount({ inject: [...inject], apply })
+    const view = runtime.renderRoot()
+    expect(view.queryByRole('navigation', { name: '会话层级' })).toBeNull()
+    expect(view.queryByRole('button', { name: 'S' })).toBeNull()
+    expect(view.queryByRole('button', { name: '收起对话' })).toBeNull()
     await runtime.dispose()
   })
 })

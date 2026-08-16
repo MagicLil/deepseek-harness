@@ -10,6 +10,7 @@ import { dirname, extname, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, shell as electronShell } from 'electron'
 import { desktopAppMenuLabels, desktopAppMenuSpec, type AppMenuCommand } from './app-menu.ts'
+import { applyDesktopTitleBarOverlay, DESKTOP_TITLE_BAR_OVERLAY, desktopTitleBarChrome } from './title-bar.ts'
 import { checkDesktopUpdatesNow, showCloseToTrayHint, startDesktopAutoUpdate } from './auto-update.ts'
 import { consumeCloseToTrayHint } from './desktop-prefs.ts'
 import { desktopIconFilePath, ensureDesktopIconFile } from './icon.ts'
@@ -422,6 +423,7 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   const iconPath = ensureDesktopIconFile(desktopIconFilePath(packageRoot), app.isPackaged)
   const iconImage = nativeImage.createFromPath(iconPath)
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
+    ...(applyDesktopTitleBarOverlay() ? desktopTitleBarChrome() : {}),
     width: restored?.width ?? DEFAULT_WINDOW_WIDTH,
     height: restored?.height ?? DEFAULT_WINDOW_HEIGHT,
     show: false,
@@ -439,6 +441,14 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
     windowOptions.y = restored.y
   }
   const win = new BrowserWindow(windowOptions)
+  if (applyDesktopTitleBarOverlay()) {
+    win.setTitleBarOverlay(DESKTOP_TITLE_BAR_OVERLAY)
+    // Native caption is gone; the HTML title track paints the menu.
+    // Keep the application menu for accelerators, but do not show a
+    // second native menu bar under the 32px overlay.
+    win.setAutoHideMenuBar(true)
+    win.setMenuBarVisibility(false)
+  }
   if (restored?.isMaximized === true) win.maximize()
   installDesktopAppMenu(win)
 

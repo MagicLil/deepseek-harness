@@ -310,8 +310,8 @@ describe('ConversationRoot resident composer', () => {
     expect(b.chat.store.getSnapshot().draft).toBe('ordinary revised')
     fireEvent.keyDown(box, { key: 'Enter' })
     expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue')
-    expect((b.view.getByRole('button', { name: 'Child' }) as HTMLButtonElement).disabled).toBe(true)
-    expect(b.view.queryByText('Root')).toBeNull()
+    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
+    expect(b.view.queryByRole('button', { name: '收起对话' })).toBeNull()
   })
 
   it('shows hierarchy only for subagents and opens their ordinary owner', () => {

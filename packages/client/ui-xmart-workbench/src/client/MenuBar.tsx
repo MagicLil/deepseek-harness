@@ -1,6 +1,8 @@
 /**
- * Product application menu for the web HTML bar. Desktop hides this row and
- * uses the Electron menu; both call the same `run` commands.
+ * Product application menu. Web paints it as a full-width row; desktop
+ * paints the same control inside the 32px title track. Dropdowns portal
+ * so the title-track clip cannot swallow them. Both call the same `run`
+ * commands.
  */
 import { useEffect, useState } from 'react'
 import { Menu, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -27,7 +29,8 @@ export function MenuBar({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+      if (!(event.ctrlKey || event.metaKey)) return
+      if (event.altKey && event.code !== 'KeyB') return
       if (event.code === 'Backquote' || event.key === '`') {
         event.preventDefault()
         run('terminal-toggle')
@@ -71,6 +74,11 @@ export function MenuBar({
       if (event.code === 'Comma') {
         event.preventDefault()
         run('settings-open')
+        return
+      }
+      if (event.code === 'KeyB' && event.altKey) {
+        event.preventDefault()
+        run('sidebar-conversation')
         return
       }
       if (event.code === 'KeyB' && !event.shiftKey) {
@@ -168,10 +176,10 @@ export function MenuBar({
         items={[
           { id: 'activity-explorer', label: t('activity.explorer') },
           { id: 'activity-git', label: t('activity.git') },
-          { id: 'activity-tasks', label: t('activity.tasks') },
           { type: 'separator', id: 'view-sep' },
           { id: 'sidebar-primary', label: t('menu.view.primary') },
           { id: 'sidebar-sessions', label: t('menu.view.sessions') },
+          { id: 'sidebar-conversation', label: t('menu.view.conversation') },
         ]}
         onSelect={(id) => { select(id as AppMenuCommand) }}
         onClose={close}
@@ -228,6 +236,7 @@ function TopMenu(props: {
       onSelect={props.onSelect}
       align="start"
       compact
+      portal
       anchor={(
         <button
           type="button"

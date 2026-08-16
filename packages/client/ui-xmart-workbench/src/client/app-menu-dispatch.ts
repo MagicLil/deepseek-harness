@@ -22,9 +22,9 @@ export type AppMenuCommand =
   | 'settings-open'
   | 'activity-explorer'
   | 'activity-git'
-  | 'activity-tasks'
   | 'sidebar-primary'
   | 'sidebar-sessions'
+  | 'sidebar-conversation'
   | 'terminal-new'
   | 'terminal-toggle'
 
@@ -61,9 +61,10 @@ export type AppMenuDispatchDeps = {
   newSession: () => void
   openWorkspace: () => void
   closeActiveEditor: (sessionId: string) => void
-  showActivity: (sessionId: string, id: 'explorer' | 'git' | 'tasks') => void
+  showActivity: (sessionId: string, id: 'explorer' | 'git') => void
   togglePrimary: () => void
   toggleSessions: () => void
+  toggleConversation: () => void
   newTerminal: (sessionId: string) => void
   toggleTerminal: (sessionId: string) => void
   dispatch: (name: string, detail?: string) => void
@@ -125,6 +126,10 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
     deps.toggleSessions()
     return
   }
+  if (command === 'sidebar-conversation') {
+    deps.toggleConversation()
+    return
+  }
   const sessionId = deps.sessionId
   if (sessionId === undefined) return
   if (command === 'file-close') {
@@ -137,10 +142,6 @@ export function dispatchAppMenu(command: AppMenuCommand, deps: AppMenuDispatchDe
   }
   if (command === 'activity-git') {
     deps.showActivity(sessionId, 'git')
-    return
-  }
-  if (command === 'activity-tasks') {
-    deps.showActivity(sessionId, 'tasks')
     return
   }
   if (command === 'terminal-new') {
