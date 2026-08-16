@@ -306,28 +306,6 @@ export function apply(ctx: ClientContext): void {
       gitCheckout: (path, name, create) => ctx.workspaces.gitCheckout(path, name, create),
       gitCheckoutCommit: (path, hash) => ctx.workspaces.gitCheckoutCommit(path, hash),
       gitSuggestCommit: (path, sid) => ctx.workspaces.gitSuggestCommit(path, sid),
-      checks: checksStore,
-      checksRemote: { workspaceChecks: workspaceChecksFace() },
-      listCheckEntries: async (dir) => {
-        try {
-          const listing = await ctx.workspaces.listEntries(dir)
-          return listing.entries.map(e => ({
-            name: e.name,
-            kind: e.kind === 'directory' ? 'directory' as const : 'file' as const,
-          }))
-        } catch {
-          return []
-        }
-      },
-      readCheckFile: async (path) => {
-        try {
-          return await ctx.workspaces.readFile(path)
-        } catch {
-          return undefined
-        }
-      },
-      askAgent: text => askAgentFix(ctx, props.sessionId, text),
-      openChecks: () => { openBottomTab(props.sessionId as SessionId, 'checks') },
       openFile: (path) => { workbench.openFile(path, { sessionId: props.sessionId }) },
       openDiff: (side, file, root) => {
         workbench.openTab({

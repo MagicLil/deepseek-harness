@@ -42,16 +42,8 @@ import {
 } from './git-scm.ts'
 import { stagedFingerprint } from './change-summary.ts'
 import { draftCommitMessage } from './commit-message.ts'
-import { recommendGates } from './recommend-gates.ts'
 import { canCreateCommit, precommitBlockReason } from './precommit-gate.ts'
-import { refreshChecksDiscovery } from './checks-discover.ts'
-import { peekWorkspaceChecks } from './checks-client.ts'
-import { runChecksBatch } from './checks-runner.ts'
-import { buildAgentFixPrompt } from './agent-fix-prompt.ts'
 import { PrecommitSection } from './PrecommitSection.tsx'
-import type { ChecksStore } from './checks-store.ts'
-import type { CheckFsEntry } from './resolve-check-package.ts'
-import type { CheckKind } from './discover-scripts.ts'
 import css from './GitTab.module.css'
 
 type Translate = (key: WorkbenchKey) => string
@@ -168,13 +160,6 @@ export type GitTabProps = TabBodyProps & {
   openCommit: (hash: string, subject: string, root: string) => void
   files: WorkbenchFilesStore
   gitBadge: GitBadgeStore
-  /** Shared Checks store (optional in unit tests). */
-  checks?: ChecksStore
-  checksRemote?: unknown
-  listCheckEntries?: (dir: string) => Promise<readonly CheckFsEntry[]>
-  readCheckFile?: (path: string) => Promise<string | undefined>
-  askAgent?: (text: string) => Promise<void>
-  openChecks?: () => void
 }
 
 /** Git SCM tab body. */
@@ -182,7 +167,6 @@ export function GitTab({
   sessionId, t, getCwd, getWorkspacePaths, watchSessions, listEntries, gitStatus, gitStage, gitUnstage,
   gitDiscard, gitCommit, gitLog, gitSync, gitBranches, gitCheckout, gitCheckoutCommit,
   gitSuggestCommit, openFile, openDiff, openCommit, files, gitBadge,
-  checks, checksRemote, listCheckEntries, readCheckFile, askAgent, openChecks,
 }: GitTabProps) {
   const [cwd, setCwd] = useState(() => getCwd(sessionId))
   const [workspacePaths, setWorkspacePaths] = useState(() => [...getWorkspacePaths()])
@@ -201,8 +185,6 @@ export function GitTab({
   const [busy, setBusy] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
-  const [asking, setAsking] = useState(false)
-  const [checkTick, setCheckTick] = useState(0)
   const messageTouched = useRef(false)
   const stagedFp = useRef('')
   const [activeHash, setActiveHash] = useState<string>()
@@ -230,23 +212,9 @@ export function GitTab({
   }), [getCwd, getWorkspacePaths, sessionId, watchSessions])
   useEffect(() => files.subscribe(() => { setNonce(files.getSnapshot().refreshNonce) }), [files])
   useEffect(() => {
-    if (checks === undefined) return
-    return checks.subscribe(() => { setCheckTick(n => n + 1) })
-  }, [checks])
-  useEffect(() => {
     setSelected(undefined)
     setRepos([])
   }, [cwd])
-  useEffect(() => {
-    if (checks === undefined || status === undefined) return
-    if (listCheckEntries === undefined || readCheckFile === undefined) return
-    void refreshChecksDiscovery({
-      store: checks,
-      workspaceRoot: status.root,
-      listEntries: listCheckEntries,
-      readFile: readCheckFile,
-    }).catch(() => undefined)
-  }, [checks, listCheckEntries, readCheckFile, status?.root])
   useEffect(() => {
     if (status === undefined) return
     const next = stagedFingerprint(status.changes)
@@ -402,46 +370,15 @@ export function GitTab({
       },
     )
   }
-  const checkSnap = checks?.getSnapshot()
-  void checkTick
-  const dirtyPaths = status.changes.map(change => change.path)
-  const startRecommended = (onlyKind?: CheckKind) => {
-    if (checks === undefined) return
-    if (peekWorkspaceChecks(checksRemote) === undefined) {
-      setActionError(t('precommit.remoteMissing'))
-      return
-    }
-    const snap = checks.getSnapshot()
-    run(() => runChecksBatch({
-      store: checks,
-      remote: checksRemote,
-      workspaceRoot: snap.packageRoot ?? root,
-      packageManager: snap.packageManager,
-      discovered: snap.discovered,
-      relatedPaths: dirtyPaths,
-      relatedMode: onlyKind === undefined,
-      ...(onlyKind === undefined ? {} : { onlyKinds: [onlyKind] }),
-    }))
-    openChecks?.()
-  }
-  const gates = checkSnap === undefined
-    ? []
-    : recommendGates(checkSnap.discovered, dirtyPaths, checkSnap.packageManager)
-  const gateRows = gates.map(gate => ({
-    recommended: gate.recommended,
-    status: checkSnap?.rows.find(row => row.kind === gate.kind)?.status ?? 'idle',
-  }))
   const canCommit = canCreateCommit({
     message,
     stagedCount: staged.length,
     confirmed,
-    gates: gateRows,
   })
   const blockReason = precommitBlockReason({
     message,
     stagedCount: staged.length,
     confirmed,
-    gates: gateRows,
   })
   const canSuggest = staged.length > 0 && !busy && !suggesting
   const graph = layoutGitGraph(log)
@@ -566,36 +503,9 @@ export function GitTab({
       <PrecommitSection
         t={t}
         changes={status.changes}
-        gates={gates}
-        rows={checkSnap?.rows ?? []}
-        busy={busy || checkSnap?.busy === true}
-        asking={asking}
         confirmed={confirmed}
         blockReason={blockReason}
         onConfirm={setConfirmed}
-        onRunRecommended={() => { startRecommended() }}
-        onRunGate={(kind) => { startRecommended(kind) }}
-        onAskAgent={askAgent === undefined
-          ? undefined
-          : () => {
-            /* v8 ignore next -- the Agent button only renders when checks exist */
-            if (checkSnap === undefined) return
-            const failed = checkSnap.rows.filter(row => row.status === 'failed')
-            setAsking(true)
-            void askAgent(buildAgentFixPrompt({
-              failed: failed.map(row => ({
-                kind: row.kind,
-                script: row.script,
-                command: row.command,
-                exitCode: row.exitCode,
-              })),
-              log: checkSnap.log,
-              dirtyPaths,
-            })).then(() => { setAsking(false); openChecks?.() }, (error: unknown) => {
-              setAsking(false)
-              setActionError(gitActionMessage(error))
-            })
-          }}
       />
       <form
         className={css.form}

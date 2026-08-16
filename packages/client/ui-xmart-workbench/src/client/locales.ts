@@ -188,18 +188,11 @@ export type WorkbenchKey =
   | 'checks.status.stopped'
   | 'checks.askAgent'
   | 'precommit.summary'
-  | 'precommit.gates'
-  | 'precommit.runRecommended'
-  | 'precommit.runGate'
-  | 'precommit.remoteMissing'
   | 'precommit.confirm'
   | 'precommit.noPush'
   | 'precommit.summaryHint'
-  | 'precommit.notNeeded'
   | 'precommit.needStaged'
   | 'precommit.needMessage'
-  | 'precommit.needGates'
-  | 'precommit.needFix'
   | 'precommit.needConfirm'
   | 'menu.file'
   | 'menu.file.newSession'
@@ -482,18 +475,11 @@ export const zh: Record<WorkbenchKey, string> = {
   'checks.status.stopped': '已停止',
   'checks.askAgent': '交给 Agent 修复',
   'precommit.summary': '本轮改动',
-  'precommit.gates': '推荐门禁',
-  'precommit.runRecommended': '运行推荐门禁',
-  'precommit.runGate': '运行这项检查',
-  'precommit.remoteMissing': '检查通道还没挂上，稍后再试，或打开底栏「检查」。',
   'precommit.confirm': '我已确认这些改动可以提交',
   'precommit.noPush': '不会自动 push，也不会改 Git 身份或配置。',
   'precommit.summaryHint': '只计加减改，文件请到下方「更改」里打开或暂存。',
-  'precommit.notNeeded': '与本次改动无关',
   'precommit.needStaged': '先暂存要提交的文件。',
   'precommit.needMessage': '先填写提交说明。',
-  'precommit.needGates': '先运行推荐门禁。',
-  'precommit.needFix': '推荐门禁失败。交给 Agent 修复后再提交。',
   'precommit.needConfirm': '勾选确认后才能创建提交。',
   'menu.file': '文件',
   'menu.file.newSession': '新会话',
@@ -744,18 +730,11 @@ export const en: Record<WorkbenchKey, string> = {
   'checks.status.stopped': 'Stopped',
   'checks.askAgent': 'Ask Agent to fix',
   'precommit.summary': 'This change set',
-  'precommit.gates': 'Recommended gates',
-  'precommit.runRecommended': 'Run recommended gates',
-  'precommit.runGate': 'Run this check',
-  'precommit.remoteMissing': 'The checks channel is not mounted yet. Try again, or open the Checks panel.',
   'precommit.confirm': 'I confirm these changes are ready to commit',
   'precommit.noPush': 'This will not push, and it will not change Git identity or config.',
   'precommit.summaryHint': 'Counts only. Open or stage files in Changes below.',
-  'precommit.notNeeded': 'Not needed for this change set',
   'precommit.needStaged': 'Stage the files you want to commit first.',
   'precommit.needMessage': 'Write a commit message first.',
-  'precommit.needGates': 'Run the recommended gates first.',
-  'precommit.needFix': 'A recommended gate failed. Ask the Agent to fix it before committing.',
   'precommit.needConfirm': 'Confirm the change set before creating the commit.',
   'menu.file': 'File',
   'menu.file.newSession': 'New Session',
