@@ -4,7 +4,7 @@
  * settings gating, persist restore, and the + menu derivation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EMPTY_WORKBENCH_VIEW, XmartWorkbenchController } from '../src/client/service.ts'
+import { EMPTY_SESSION_SOURCE, EMPTY_WORKBENCH_VIEW, XmartWorkbenchController } from '../src/client/service.ts'
 import { matchFileViewer } from '../src/client/match-viewer.ts'
 import {
   PREFS_PERSIST, TABS_PERSIST, XMART_WORKBENCH_FEATURES, XMART_WORKBENCH_VERSION,
@@ -553,6 +553,8 @@ describe('openFile, persist, and observers', () => {
   it('returns the frozen empty view when no session is bound', () => {
     const service = new XmartWorkbenchController()
     expect(service.getSnapshot()).toBe(EMPTY_WORKBENCH_VIEW)
+    expect(EMPTY_SESSION_SOURCE.getSnapshot()).toBe(EMPTY_WORKBENCH_VIEW)
+    expect(EMPTY_SESSION_SOURCE.subscribe(() => {})()).toBeUndefined()
   })
 
   it('returns a stable observeSession source and a stable observeRegistry source', () => {

@@ -6,7 +6,7 @@ import { Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
+import type { WebGuardVerdict, WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import XmartLanService, { tokensEqual } from '../src/index.ts'
 import { savePersist } from '../src/store.ts'
 
@@ -15,7 +15,7 @@ function fakeResponse(): { response: ServerResponse; state: { status?: number; b
   const response = Object.assign(new EventEmitter(), {
     writeHead(status: number, headers?: Record<string, string>) {
       state.status = status
-      state.headers = headers
+      if (headers !== undefined) state.headers = headers
       return this
     },
     end(value?: string) {
@@ -45,16 +45,16 @@ async function mounted(home: string, rebind: WebServer['rebind'] = vi.fn(async (
   let unauthorized: ((req: IncomingMessage, res: ServerResponse) => void) | undefined
   let login: ((req: IncomingMessage, res: ServerResponse) => void | Promise<void>) | undefined
   ctx.provide('webServer', {
-    registerGuard(next) { guard = next; return () => {} },
-    setUnauthorizedHandler(next) { unauthorized = next; return () => {} },
-    register(route) { login = route.handler; return () => {} },
+    registerGuard(next: (req: IncomingMessage) => WebGuardVerdict) { guard = next; return () => {} },
+    setUnauthorizedHandler(next: WebRoute['handler']) { unauthorized = next; return () => {} },
+    register(route: WebRoute) { login = route.handler; return () => {} },
     rebind,
     port: 3080,
   } as unknown as WebServer)
   const fiber = ctx.plugin(XmartLanService, {
     dshHome: home,
     interfaces: () => ({
-      eth0: [{ address: '192.168.1.5', family: 'IPv4', internal: false }],
+      eth0: [{ address: '192.168.1.5', family: 'IPv4', internal: false } as never],
     }),
   })
   await fiber.await()
