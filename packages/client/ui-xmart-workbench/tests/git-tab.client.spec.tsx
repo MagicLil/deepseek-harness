@@ -621,6 +621,74 @@ describe('GitTab', () => {
     expect(screen.queryByRole('menuitem', { name: 'jianghuawei' })).toBeNull()
   })
 
+  it('sums every project repo onto the activity-bar badge', async () => {
+    const gitStatus = vi.fn(async (path: string) => {
+      if (path === '/work/sanmu') {
+        throw new GitAccessError({ code: 'git-unavailable', message: 'not a git repository' } as never)
+      }
+      if (path.endsWith('sanmu_qd')) {
+        return {
+          ...status,
+          root: '/work/sanmu/sanmu_qd',
+          changes: [
+            { path: 'a.ts', status: 'modified', area: 'worktree' },
+            { path: 'b.ts', status: 'modified', area: 'worktree' },
+          ],
+        }
+      }
+      return {
+        ...status,
+        root: '/work/sanmu/sanmu_hd',
+        changes: [{ path: 'c.ts', status: 'modified', area: 'index' }],
+      }
+    })
+    const { gitBadge } = mount({
+      cwd: '/work/sanmu',
+      getWorkspacePaths: () => ['/work/sanmu'],
+      gitStatus,
+      listEntries: async () => ({
+        path: '/work/sanmu',
+        truncated: false,
+        entries: [
+          { name: 'sanmu_hd', path: '/work/sanmu/sanmu_hd', kind: 'directory', hidden: false },
+          { name: 'sanmu_qd', path: '/work/sanmu/sanmu_qd', kind: 'directory', hidden: false },
+        ],
+      }),
+    })
+    await vi.waitFor(() => {
+      expect(gitBadge.getSnapshot('s1')).toEqual({
+        staged: 1, unstaged: 2, root: '/work/sanmu/sanmu_hd',
+      })
+    })
+  })
+
+  it('drops a late badge recount after the Git tab unmounts', async () => {
+    let n = 0
+    let settle: (value: GitStatus) => void = () => {}
+    const { gitBadge, view } = mount({
+      gitStatus: () => {
+        n += 1
+        if (n === 1) return Promise.resolve(status)
+        if (n === 2) return new Promise((resolve) => { settle = resolve })
+        return Promise.resolve({
+          ...status,
+          changes: [{ path: 'late.ts', status: 'modified', area: 'index' }],
+        })
+      },
+    })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(gitBadge.getSnapshot('s1')).toEqual({ staged: 0, unstaged: 1, root: '/ws' })
+    view.unmount()
+    await act(async () => {
+      settle({
+        ...status,
+        changes: [{ path: 'late.ts', status: 'modified', area: 'index' }],
+      })
+      await Promise.resolve()
+    })
+    expect(gitBadge.getSnapshot('s1')).toEqual({ staged: 0, unstaged: 1, root: '/ws' })
+  })
+
   it('ignores a registered repository probe that settles after unmount', async () => {
     let settle: (value: GitStatus) => void = () => {}
     const { view } = mount({

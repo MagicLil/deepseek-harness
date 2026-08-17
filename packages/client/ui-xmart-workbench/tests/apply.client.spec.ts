@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { GitAccessError, SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject, XmartWorkbenchController } from '@deepseek-ai/dsh-client-ui-xmart-workbench/client'
@@ -678,15 +678,22 @@ describe('ui-xmart-workbench apply', () => {
   it('loads the git icon badge from a child repo when cwd is not a work tree', async () => {
     const b = await bench()
     b.workspaces.gitStatus.mockImplementation(async (path: string) => {
-      if (path === '/ws') throw new Error('not a repo')
+      if (path === '/ws') {
+        throw new GitAccessError({ code: 'git-unavailable', message: 'not a repo' } as never)
+      }
       return {
         root: path, branch: 'main', ahead: 0, behind: 0, detached: false,
-        changes: [{ path: 'a.ts', status: 'modified', area: 'worktree' }],
+        changes: path.endsWith('lib')
+          ? [{ path: 'b.ts', status: 'modified', area: 'index' }]
+          : [{ path: 'a.ts', status: 'modified', area: 'worktree' }],
       }
     })
     b.workspaces.listEntries.mockResolvedValue({
       path: '/ws',
-      entries: [{ name: 'app', path: '/ws/app', kind: 'directory', hidden: false }],
+      entries: [
+        { name: 'app', path: '/ws/app', kind: 'directory', hidden: false },
+        { name: 'lib', path: '/ws/lib', kind: 'directory', hidden: false },
+      ],
       truncated: false,
     })
     declare(b.slots)
@@ -696,7 +703,7 @@ describe('ui-xmart-workbench apply', () => {
     )('s1')
     await vi.waitFor(() => {
       expect(activity.hooks.gitBadge.getSnapshot()).toEqual({
-        staged: 0, unstaged: 1, root: '/ws/app',
+        staged: 1, unstaged: 1, root: '/ws/app',
       })
     })
   })

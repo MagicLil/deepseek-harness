@@ -10,7 +10,7 @@ SCM section counts used `--dsw-alias-brand-primary` (not remapped to 万物智�
 
 ## Decision
 
-Count staged vs unstaged the same way Cursor does (a path in both areas counts twice). Put a green pill (`--dsw-alias-button-info-fill` / `#5BB73B`) on the right of each section header, and the same green bubble on the Git icon with staged + unstaged (cap `99+`). The activity bar loads status on its own so the icon stays current when Explorer is showing.
+Count staged vs unstaged the same way Cursor does (a path in both areas counts twice). Put a green pill (`--dsw-alias-button-info-fill` / `#5BB73B`) on the right of each section header, and the same green bubble on the Git icon with staged + unstaged (exact through 1000, then `1k+`). The activity bar loads status on its own so the icon stays current when Explorer is showing.
 
 ## Alternatives considered
 
@@ -20,4 +20,4 @@ Count staged vs unstaged the same way Cursor does (a path in both areas counts t
 
 ## Consequences
 
-Opening a workspace starts one extra `gitStatus` from the activity bar. Multi-project folders probe the first child repo until the Git tab publishes a selected root.
+Opening a workspace starts activity-bar `gitStatus` reads without mounting SCM. The bubble now sums every repo the Git picker lists; see [the all-repos badge note](2026-08-17-git-badge-all-repos.md).

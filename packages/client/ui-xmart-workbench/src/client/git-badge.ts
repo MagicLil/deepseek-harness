@@ -3,7 +3,7 @@
  * Staged + unstaged is the Cursor-style icon summary.
  */
 import type { FileListing, GitChange, GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
-import { probeGitRoots, visibleChildDirectories } from './git-root.ts'
+import { discoverGitRoots, gitRootKey, gitWorkspaceSeeds } from './git-root.ts'
 
 /** Per-session counts plus the repo the numbers came from. */
 export type GitBadgeSnapshot = {
@@ -19,7 +19,8 @@ export const EMPTY_GIT_BADGE: GitBadgeSnapshot = {
   root: undefined,
 }
 
-const BADGE_CAP = 99
+const BADGE_CAP = 1000
+const BADGE_CAP_LABEL = '1k+'
 
 /**
  * Count index vs worktree rows. A path in both areas counts twice, like Cursor.
@@ -41,19 +42,21 @@ export function gitBadgeTotal(counts: Pick<GitBadgeSnapshot, 'staged' | 'unstage
 }
 
 /**
- * Visible bubble text. Hidden when there is nothing to show; caps at 99+.
+ * Visible bubble text. Hidden when there is nothing to show; exact below
+ * 1000, then 1k+.
  * @param total - staged + unstaged.
  */
 export function gitBadgeLabel(total: number): string | undefined {
   if (total <= 0) return undefined
-  return total > BADGE_CAP ? `${BADGE_CAP}+` : String(total)
+  return total > BADGE_CAP ? BADGE_CAP_LABEL : String(total)
 }
 
 /**
- * Read counts for the activity-bar bubble. Prefer the last selected repo,
- * then the session cwd, then the first child work tree.
+ * Read counts for the activity-bar bubble. Uses the same project repo set as
+ * the Git picker and sums staged + unstaged across every work tree.
  * @param cwd - session folder.
- * @param preferredRoot - repo last shown in the Git tab, when any.
+ * @param preferredRoot - repo last shown in the Git tab, when it is still in the set.
+ * @param workspacePaths - live Workspace registry paths (same seeds as the Git tab).
  * @param gitStatus - host status RPC.
  * @param listEntries - one directory listing (child-repo probe).
  * @param signal - abort when the session or folder changes.
@@ -61,37 +64,45 @@ export function gitBadgeLabel(total: number): string | undefined {
 export async function readGitBadgeSnapshot(
   cwd: string | undefined,
   preferredRoot: string | undefined,
+  workspacePaths: readonly string[],
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>,
   listEntries: (path: string, signal?: AbortSignal) => Promise<FileListing>,
   signal?: AbortSignal,
 ): Promise<GitBadgeSnapshot> {
-  const tryRoot = async (path: string): Promise<GitBadgeSnapshot | undefined> => {
+  if (cwd === undefined || cwd === '') return { ...EMPTY_GIT_BADGE }
+  const roots = await discoverGitRoots(
+    cwd,
+    gitWorkspaceSeeds(cwd, workspacePaths),
+    gitStatus,
+    listEntries,
+    signal,
+  )
+  if (roots.length === 0) return { ...EMPTY_GIT_BADGE }
+  const hits: GitStatus[] = []
+  await Promise.all(roots.map(async (path) => {
     try {
-      const status = await gitStatus(path, signal)
-      return { ...gitChangeCounts(status.changes), root: status.root }
+      hits.push(await gitStatus(path, signal))
     }
     catch {
-      return undefined
+      // Repo vanished between discover and recount.
     }
+  }))
+  const first = hits[0]
+  if (first === undefined) return { ...EMPTY_GIT_BADGE }
+  let staged = 0
+  let unstaged = 0
+  for (const row of hits) {
+    const counts = gitChangeCounts(row.changes)
+    staged += counts.staged
+    unstaged += counts.unstaged
   }
-  const seen = new Set<string>()
-  for (const path of [preferredRoot, cwd]) {
-    if (path === undefined || path === '' || seen.has(path)) continue
-    seen.add(path)
-    const hit = await tryRoot(path)
-    if (hit !== undefined) return hit
-  }
-  if (cwd === undefined || cwd === '') return { ...EMPTY_GIT_BADGE }
-  try {
-    const children = visibleChildDirectories(await listEntries(cwd, signal))
-    const found = await probeGitRoots(children, gitStatus, signal)
-    const pick = found[0]
-    if (pick === undefined) return { ...EMPTY_GIT_BADGE }
-    return await tryRoot(pick) ?? { ...EMPTY_GIT_BADGE }
-  }
-  catch {
-    return { ...EMPTY_GIT_BADGE }
-  }
+  const preferredKey = typeof preferredRoot === 'string' && preferredRoot !== ''
+    ? gitRootKey(preferredRoot)
+    : undefined
+  const preferred = preferredKey === undefined
+    ? undefined
+    : hits.find(row => gitRootKey(row.root) === preferredKey)
+  return { staged, unstaged, root: preferred?.root ?? first.root }
 }
 
 /** In-memory per-session badge store (one per plugin apply). */
@@ -113,6 +124,7 @@ export type GitBadgeStore = {
 export function startGitBadgeWatch(opts: {
   getSessionId: () => string | undefined
   getCwd: (sessionId: string) => string | undefined
+  getWorkspacePaths: (sessionId: string) => readonly string[]
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>
   listEntries: (path: string, signal?: AbortSignal) => Promise<FileListing>
   store: GitBadgeStore
@@ -128,6 +140,7 @@ export function startGitBadgeWatch(opts: {
     void readGitBadgeSnapshot(
       opts.getCwd(sessionId),
       opts.store.getSnapshot(sessionId).root,
+      opts.getWorkspacePaths(sessionId),
       opts.gitStatus,
       opts.listEntries,
       signal,

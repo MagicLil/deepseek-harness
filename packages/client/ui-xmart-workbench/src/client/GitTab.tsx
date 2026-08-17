@@ -33,7 +33,7 @@ import {
   mergeGitLogPage, observeGitHistorySentinel, shouldLoadMoreFromScroll,
 } from './git-log-page.ts'
 import {
-  EMPTY_GIT_BADGE, gitChangeCounts, type GitBadgeStore,
+  EMPTY_GIT_BADGE, gitChangeCounts, readGitBadgeSnapshot, type GitBadgeStore,
 } from './git-badge.ts'
 import {
   gitActionMessage, gitBranchPickerItems, gitChangeKey, gitCheckoutNameForPicker,
@@ -236,6 +236,13 @@ export function GitTab({
     }
     const controller = new AbortController()
     setPhase(current => (current === 'ready' ? 'ready' : 'loading'))
+    const publishBadge = (preferred: string | undefined) => {
+      void readGitBadgeSnapshot(
+        cwd, preferred, workspacePaths, gitStatus, listEntries, controller.signal,
+      ).then((snap) => {
+        if (!controller.signal.aborted) gitBadge.set(sessionId, snap)
+      })
+    }
     const apply = async (next: GitStatus, rows: GitLogEntry[], roots?: string[]) => {
       setStatus(next)
       setLog(rows)
@@ -249,6 +256,7 @@ export function GitTab({
       setDetail(undefined)
       setPhase('ready')
       gitBadge.set(sessionId, { ...gitChangeCounts(next.changes), root: next.root })
+      publishBadge(next.root)
       let listed: GitBranch[] = []
       try {
         listed = await gitBranches(next.root, controller.signal)
@@ -263,6 +271,7 @@ export function GitTab({
       setDetail(text)
       setPhase(unavailable ? 'missing' : 'error')
       gitBadge.set(sessionId, EMPTY_GIT_BADGE)
+      publishBadge(selected)
     }
     void (async () => {
       const primaryPath = selected ?? cwd

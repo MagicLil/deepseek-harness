@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { FileListing, GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
+import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   createGitBadgeStore, EMPTY_GIT_BADGE, gitBadgeLabel, gitBadgeTotal, gitChangeCounts,
   readGitBadgeSnapshot, startGitBadgeWatch,
 } from '../src/client/git-badge.ts'
+
+const unavailable = new GitAccessError({
+  code: 'git-unavailable', message: 'not a git repository',
+} as never)
 
 const listing = (paths: string[]): FileListing => ({
   path: '/ws',
@@ -38,12 +42,14 @@ describe('gitChangeCounts / gitBadgeLabel', () => {
     expect(gitBadgeTotal(counts)).toBe(3)
   })
 
-  it('hides a zero bubble and caps at 99+', () => {
+  it('hides a zero bubble and caps at 1k+', () => {
     expect(gitBadgeLabel(0)).toBeUndefined()
     expect(gitBadgeLabel(-1)).toBeUndefined()
     expect(gitBadgeLabel(1)).toBe('1')
-    expect(gitBadgeLabel(99)).toBe('99')
-    expect(gitBadgeLabel(100)).toBe('99+')
+    expect(gitBadgeLabel(220)).toBe('220')
+    expect(gitBadgeLabel(999)).toBe('999')
+    expect(gitBadgeLabel(1000)).toBe('1000')
+    expect(gitBadgeLabel(1001)).toBe('1k+')
   })
 })
 
@@ -66,64 +72,87 @@ describe('createGitBadgeStore', () => {
 })
 
 describe('readGitBadgeSnapshot', () => {
-  it('uses the preferred root when that status succeeds', async () => {
-    const gitStatus = vi.fn(async (path: string) => status(path, 1, 0))
-    const snap = await readGitBadgeSnapshot('/ws', '/ws/child', gitStatus, async () => listing([]))
+  it('keeps the preferred root when that repo is still in the project set', async () => {
+    const gitStatus = vi.fn(async (path: string) => {
+      if (path === '/ws') throw unavailable
+      return status(path, path.endsWith('child') ? 1 : 0, 0)
+    })
+    const snap = await readGitBadgeSnapshot(
+      '/ws',
+      '/ws/child',
+      [],
+      gitStatus,
+      async () => listing(['/ws/app', '/ws/child']),
+    )
     expect(snap).toEqual({ staged: 1, unstaged: 0, root: '/ws/child' })
-    expect(gitStatus).toHaveBeenCalledWith('/ws/child', undefined)
   })
 
-  it('falls back to cwd when the preferred root fails', async () => {
+  it('falls back to the first discovered root when the preferred root is gone', async () => {
     const gitStatus = vi.fn(async (path: string) => {
       if (path === '/gone') throw new Error('missing')
       return status(path, 0, 2)
     })
-    const snap = await readGitBadgeSnapshot('/ws', '/gone', gitStatus, async () => listing([]))
+    const snap = await readGitBadgeSnapshot('/ws', '/gone', [], gitStatus, async () => listing([]))
     expect(snap).toEqual({ staged: 0, unstaged: 2, root: '/ws' })
+    expect(await readGitBadgeSnapshot('/ws', '', [], gitStatus, async () => listing([])))
+      .toEqual({ staged: 0, unstaged: 2, root: '/ws' })
   })
 
-  it('probes a child repo when cwd is not a work tree', async () => {
+  it('sums every child repo when cwd is not a work tree', async () => {
     const gitStatus = vi.fn(async (path: string) => {
-      if (path === '/ws') throw new Error('not a repo')
-      return status(path, 2, 1)
+      if (path === '/ws') throw unavailable
+      if (path.endsWith('app')) return status(path, 2, 1)
+      return status(path, 0, 3)
     })
     const snap = await readGitBadgeSnapshot(
       '/ws',
       undefined,
+      [],
       gitStatus,
-      async () => listing(['/ws/app']),
+      async () => listing(['/ws/app', '/ws/lib']),
     )
-    expect(snap).toEqual({ staged: 2, unstaged: 1, root: '/ws/app' })
+    expect(snap).toEqual({ staged: 2, unstaged: 4, root: '/ws/app' })
+  })
+
+  it('includes a nested workspace seed under the current project', async () => {
+    const gitStatus = vi.fn(async (path: string) => status(path, path.endsWith('child') ? 4 : 1, 0))
+    const snap = await readGitBadgeSnapshot(
+      '/ws',
+      undefined,
+      ['/ws', '/ws/child'],
+      gitStatus,
+      async () => listing([]),
+    )
+    expect(snap).toEqual({ staged: 5, unstaged: 0, root: '/ws' })
   })
 
   it('returns empty when there is no folder or no repo', async () => {
-    expect(await readGitBadgeSnapshot(undefined, undefined, async () => status('/x', 1, 0), async () => listing([])))
+    expect(await readGitBadgeSnapshot(undefined, undefined, [], async () => status('/x', 1, 0), async () => listing([])))
       .toEqual(EMPTY_GIT_BADGE)
-    expect(await readGitBadgeSnapshot('', '', async () => status('/x', 1, 0), async () => listing([])))
+    expect(await readGitBadgeSnapshot('', '', [], async () => status('/x', 1, 0), async () => listing([])))
       .toEqual(EMPTY_GIT_BADGE)
     const gitStatus = vi.fn(async () => {
       throw new Error('no')
     })
-    expect(await readGitBadgeSnapshot('/ws', undefined, gitStatus, async () => listing(['/ws/app'])))
+    expect(await readGitBadgeSnapshot('/ws', undefined, [], gitStatus, async () => listing(['/ws/app'])))
       .toEqual(EMPTY_GIT_BADGE)
-    expect(await readGitBadgeSnapshot('/ws', undefined, gitStatus, async () => {
+    expect(await readGitBadgeSnapshot('/ws', undefined, [], gitStatus, async () => {
       throw new Error('list failed')
     })).toEqual(EMPTY_GIT_BADGE)
   })
 
   it('skips a duplicate preferred root and survives a vanished child probe', async () => {
     const gitStatus = vi.fn(async (path: string) => status(path, 0, 1))
-    expect(await readGitBadgeSnapshot('/ws', '/ws', gitStatus, async () => listing([])))
+    expect(await readGitBadgeSnapshot('/ws', '/ws', [], gitStatus, async () => listing([])))
       .toEqual({ staged: 0, unstaged: 1, root: '/ws' })
-    expect(gitStatus).toHaveBeenCalledTimes(1)
     let hits = 0
     const vanishing = vi.fn(async (path: string) => {
-      if (path === '/ws') throw new Error('not a repo')
+      if (path === '/ws') throw unavailable
       hits += 1
       if (hits === 1) return status(path, 1, 0)
       throw new Error('gone')
     })
-    expect(await readGitBadgeSnapshot('/ws', undefined, vanishing, async () => listing(['/ws/app'])))
+    expect(await readGitBadgeSnapshot('/ws', undefined, [], vanishing, async () => listing(['/ws/app'])))
       .toEqual(EMPTY_GIT_BADGE)
   })
 })
@@ -136,6 +165,7 @@ describe('startGitBadgeWatch', () => {
     const stop = startGitBadgeWatch({
       getSessionId: () => 's1',
       getCwd: () => '/ws',
+      getWorkspacePaths: () => [],
       gitStatus,
       listEntries: async () => listing([]),
       store,
@@ -147,7 +177,7 @@ describe('startGitBadgeWatch', () => {
     await vi.waitFor(() => {
       expect(store.getSnapshot('s1')).toEqual({ staged: 1, unstaged: 74, root: '/ws' })
     })
-    gitStatus.mockResolvedValueOnce(status('/ws', 0, 1))
+    gitStatus.mockResolvedValue(status('/ws', 0, 1))
     notify()
     await vi.waitFor(() => {
       expect(store.getSnapshot('s1')).toEqual({ staged: 0, unstaged: 1, root: '/ws' })
@@ -161,6 +191,7 @@ describe('startGitBadgeWatch', () => {
     const stop = startGitBadgeWatch({
       getSessionId: () => undefined,
       getCwd: () => '/ws',
+      getWorkspacePaths: () => [],
       gitStatus: async () => status('/ws', 1, 0),
       listEntries: async () => listing([]),
       store,
@@ -172,6 +203,7 @@ describe('startGitBadgeWatch', () => {
     const late = startGitBadgeWatch({
       getSessionId: () => 's1',
       getCwd: () => '/ws',
+      getWorkspacePaths: () => [],
       gitStatus: () => new Promise((resolve) => { settle = resolve }),
       listEntries: async () => listing([]),
       store,

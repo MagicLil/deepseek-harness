@@ -243,6 +243,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => startGitBadgeWatch({
     getSessionId: () => ctx.sessions.list.getSnapshot().current,
     getCwd,
+    getWorkspacePaths,
     gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
     listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
     store: scopedGitBadge,

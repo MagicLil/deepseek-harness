@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-16-git-count-badges.md
-2026-08-16-git-count-badges.md: c13dacc9128a6d16a8551c0abb9cf36b3215d51b
-2026-08-16-git-count-badges.zh.md: cc80e04b63ed39aaee3abc4786975e9ad6fde575
+2026-08-16-git-count-badges.md: c33cebf1fd92041057888161f39595707ab10993
+2026-08-16-git-count-badges.zh.md: 033c04df94f82f72105e34396d7dc84283d7af31
