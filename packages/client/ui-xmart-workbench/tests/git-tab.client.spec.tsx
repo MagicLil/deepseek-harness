@@ -1170,6 +1170,18 @@ describe('GitTab', () => {
 describe('GitTab hover card', () => {
   const now = 1_777_000_000_000
 
+  it('paints the hover plate with theme tokens, not a dark VS Code surface', () => {
+    const text = readFileSync(join(process.cwd(), 'packages/client/ui-xmart-workbench/src/client/GitTab.module.css'), 'utf8')
+    const hoverCss = text.slice(text.indexOf('.hoverPlate'))
+    expect(hoverCss).toContain('--dsw-hovercard-bg: var(--dsw-specific-menu)')
+    expect(hoverCss).toContain('background: var(--dsw-specific-menu)')
+    expect(hoverCss).toContain('border: 1px solid var(--dsw-alias-border-l2)')
+    expect(hoverCss).toContain('box-shadow: var(--dsw-shadow-lv3)')
+    expect(hoverCss).toContain('color: var(--dsw-alias-label-primary)')
+    expect(hoverCss).toContain('color: var(--dsw-alias-state-business-primary)')
+    expect(hoverCss).not.toMatch(/#[0-9a-fA-F]{3,8}/)
+  })
+
   it('shows Cursor-style commit details and copies the hash', async () => {
     const writeText = vi.fn(async () => {})
     Object.assign(navigator, { clipboard: { writeText } })

@@ -583,19 +583,19 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-/* Own plate (not HoverCard): desktop web dist ships a stale HoverCard that
- * ignores consumer classes. Colors are local — theme tokens miss this layer. */
-.hoverPlate {
+/* Beat HoverCard.card (dark in both themes). Same element; tokens follow light/dark. */
+.hoverPlate.hoverPlate {
+  --dsw-hovercard-bg: var(--dsw-specific-menu);
   position: fixed;
   z-index: 100;
   box-sizing: border-box;
   width: 360px;
   max-width: calc(100vw - 24px);
   padding: 12px 14px 14px;
-  border: 1px solid #3e3e42;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  background: #252526;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
 }
 
 .hoverPlate::before,
@@ -610,18 +610,18 @@
 .hoverPlate::before {
   left: -7px;
   border-width: 7px 7px 7px 0;
-  border-right-color: #3e3e42;
+  border-right-color: var(--dsw-alias-border-l2);
 }
 
 .hoverPlate::after {
   left: -6px;
   border-width: 6px 6px 6px 0;
-  border-right-color: #252526;
+  border-right-color: var(--dsw-specific-menu);
 }
 
 .hover {
   box-sizing: border-box;
-  color: #c8c8c8;
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
 }
@@ -631,7 +631,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  color: #9d9d9d;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .hoverAuthor,
@@ -643,7 +643,7 @@
 }
 
 .hoverExact {
-  color: #858585;
+  color: var(--dsw-alias-label-caption);
 }
 
 .hoverSubject {
@@ -651,7 +651,7 @@
   font-size: 13px;
   line-height: 20px;
   font-weight: 600;
-  color: #f3f3f3;
+  color: var(--dsw-alias-label-primary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -659,33 +659,33 @@
 .hoverBody,
 .hoverCoauthor {
   margin-top: 4px;
-  color: #b0b0b0;
+  color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
 }
 
 .hoverCoauthor {
-  color: #8b949e;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .hoverRule {
   height: 0;
   margin: 10px 0 8px;
   border: none;
-  border-top: 1px solid #3e3e42;
+  border-top: 1px solid var(--dsw-alias-border-l2);
 }
 
 .hoverStats {
   margin: 0 0 8px;
-  color: #c8c8c8;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .hoverIns {
-  color: #3fb950;
+  color: var(--dsw-alias-state-success-primary);
   font-weight: 500;
 }
 
 .hoverDel {
-  color: #f85149;
+  color: var(--dsw-alias-state-error-primary);
   font-weight: 500;
 }
 
@@ -715,17 +715,17 @@
   border: none;
   background: none;
   padding: 0;
-  color: #9d9d9d;
+  color: var(--dsw-alias-label-tertiary);
   font: inherit;
   text-decoration: none;
   cursor: pointer;
 }
 
 .hoverLink {
-  color: #58a6ff;
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .hoverHash:hover,
 .hoverLink:hover {
-  color: #f3f3f3;
+  color: var(--dsw-alias-label-primary);
 }
