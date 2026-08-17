@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`discoverGitRoots` 从会话 cwd 和每一个已登记工作区路径出发。种子本身是工作树就留下；种子是 `git-unavailable` 时，贡献它的一层可见子目录（和 cwd 不是仓库时的旧回退一样）。`git-failed` 的种子不当成父目录。根路径用斜杠和盘符大小写归一后去重，所以 `D:\repo` 和 `D:/repo` 算同一个。仓库多于一个时，Git 页顶栏画出下拉。
+`discoverGitRoots` 从会话 cwd 和调用方传入的工作区路径出发。种子本身是工作树就留下；种子是 `git-unavailable` 时，贡献它的一层可见子目录（和 cwd 不是仓库时的旧回退一样）。`git-failed` 的种子不当成父目录。根路径用斜杠和盘符大小写归一后去重，所以 `D:\repo` 和 `D:/repo` 算同一个。仓库多于一个时，Git 页顶栏画出下拉。哪些路径算种子，由[按当前工作区收窄选择器](2026-08-17-git-repo-picker-current-workspace.md)负责。
 
 ## 考虑过的其他做法
 
@@ -20,4 +20,4 @@ Status: implemented
 
 ## 后果
 
-加了兄弟仓库或「多项目父目录」之后打开 Git，会出现仓库下拉。每个本身不是仓库的已登记文件夹会多打一次 `listEntries`。
+加了兄弟仓库或「多项目父目录」之后打开 Git，仍会发现**当前项目**下的子仓。右侧栏其它项目不再进同一个下拉，见[按当前工作区收窄选择器](2026-08-17-git-repo-picker-current-workspace.md)。每个本身不是仓库的种子文件夹会多打一次 `listEntries`。

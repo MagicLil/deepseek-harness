@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-xmart-workbench/README.md
-README.md: a091daf836cfdc4e4aa7a3d39a0d140b9a73e156
-README.zh.md: 111fa1f1504ec71580abb4631316dd6b7ab30f5a
+README.md: e24f662cad40dd2b17ab2c0a58b450ba8998555c
+README.zh.md: cc3e2dc143f2e343f21f825435777df906642199

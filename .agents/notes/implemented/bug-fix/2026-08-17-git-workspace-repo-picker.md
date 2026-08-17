@@ -10,7 +10,7 @@ The Source Control toolbar showed only the session's original repository. After 
 
 ## Decision
 
-`discoverGitRoots` walks the session cwd plus every registered Workspace path. A seed that is a work tree is kept. A seed that is `git-unavailable` contributes its immediate visible children, the same one-level fallback the empty-cwd path already used. Git-failed seeds are not treated as parents. Roots are keyed with a slash- and case-normalized folder key so `D:\repo` and `D:/repo` collapse. The Git tab uses that list for the toolbar picker whenever more than one root remains.
+`discoverGitRoots` walks the session cwd plus the Workspace paths the caller supplies. A seed that is a work tree is kept. A seed that is `git-unavailable` contributes its immediate visible children, the same one-level fallback the empty-cwd path already used. Git-failed seeds are not treated as parents. Roots are keyed with a slash- and case-normalized folder key so `D:\repo` and `D:/repo` collapse. The Git tab uses that list for the toolbar picker whenever more than one root remains. Which paths count as seeds is owned by [current-workspace picker scoping](2026-08-17-git-repo-picker-current-workspace.md).
 
 ## Alternatives considered
 
@@ -20,4 +20,4 @@ The Source Control toolbar showed only the session's original repository. After 
 
 ## Consequences
 
-Opening Git after adding a sibling repo or a multi-project parent shows a repository dropdown. One extra `listEntries` runs for each registered folder that is not itself a work tree.
+Opening Git after adding a sibling repo or a multi-project parent still discovers child work trees **of the current project**. Unrelated rail folders no longer enter the same picker; see [current-workspace picker scoping](2026-08-17-git-repo-picker-current-workspace.md). One extra `listEntries` runs for each seed folder that is not itself a work tree.

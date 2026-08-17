@@ -597,7 +597,7 @@ describe('ui-xmart-workbench apply', () => {
       { workspaceId: 'w1', path: '/ws', title: 'ws', sessionIds: ['s1'] },
       { workspaceId: 'w2', path: '/other', title: 'other', sessionIds: [] },
     ]
-    expect(gitEl.props.getWorkspacePaths()).toEqual(['/ws', '/other'])
+    expect(gitEl.props.getWorkspacePaths()).toEqual(['/ws'])
     expect(service.getSnapshot('s1').tabs.some(row => row.type === 'diff')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.path === 'commit:abcdef1')).toBe(true)
     expect(service.getSnapshot('s1').tabs.some(row => row.path === 'worktree:a.ts\x1e/child')).toBe(true)

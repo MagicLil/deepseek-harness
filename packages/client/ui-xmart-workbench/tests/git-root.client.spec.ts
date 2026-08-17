@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  discoverGitRoots, gitErrorCode, gitErrorMessage, gitRootKey, isGitUnavailable,
-  probeGitRoots, readGitSnapshot, uniqueGitPaths, visibleChildDirectories,
+  discoverGitRoots, gitErrorCode, gitErrorMessage, gitRootKey, gitWorkspaceSeeds,
+  isGitUnavailable, probeGitRoots, readGitSnapshot, uniqueGitPaths, visibleChildDirectories,
 } from '../src/client/git-root.ts'
 
 const status = (root: string): GitStatus => ({
@@ -98,6 +98,22 @@ describe('git-root helpers', () => {
       '',
       undefined,
     ])).toEqual(['D:\\code\\deepseek-harness', 'D:\\code\\dsh-cursor-acp'])
+  })
+
+  it('keeps only the current workspace and folders under it', () => {
+    expect(gitWorkspaceSeeds('D:\\work\\sanmu', [
+      'D:\\work\\sanmu',
+      'D:/work/sanmu/sanmu_qd',
+      'D:\\work\\jianghuawei',
+      'D:\\work\\worldCoffee',
+    ])).toEqual(['D:\\work\\sanmu', 'D:/work/sanmu/sanmu_qd'])
+    expect(gitWorkspaceSeeds('/code/deepseek-harness', [
+      '/code/deepseek-harness',
+      '/code',
+      '/code/dsh-cursor-acp',
+    ])).toEqual(['/code/deepseek-harness'])
+    expect(gitWorkspaceSeeds(undefined, ['/ws', '/other'])).toEqual(['/ws', '/other'])
+    expect(gitWorkspaceSeeds('', ['/ws'])).toEqual(['/ws'])
   })
 
   it('discovers a sibling repo under a registered parent that is not a work tree', async () => {

@@ -19,7 +19,7 @@ import { letter, markKind } from './git-marks.ts'
 import { absPath, basename } from './route-file.ts'
 import { FileIcon } from './FileIcon.tsx'
 import {
-  discoverGitRoots, gitRootKey, readGitSnapshot, uniqueGitPaths,
+  discoverGitRoots, gitRootKey, gitWorkspaceSeeds, readGitSnapshot, uniqueGitPaths,
 } from './git-root.ts'
 import { gitPathParts } from './git-display.ts'
 import {
@@ -266,10 +266,10 @@ export function GitTab({
     }
     void (async () => {
       const primaryPath = selected ?? cwd
+      const seeds = gitWorkspaceSeeds(cwd, workspacePaths)
       const first = await readGitSnapshot(primaryPath, gitStatus, gitLog, controller.signal)
       if (first.ok) {
-        const extra = uniqueGitPaths(workspacePaths)
-          .filter(path => gitRootKey(path) !== gitRootKey(primaryPath))
+        const extra = seeds.filter(path => gitRootKey(path) !== gitRootKey(primaryPath))
         const registered = await discoverGitRoots(
           undefined, extra, gitStatus, listEntries, controller.signal,
         )
@@ -285,7 +285,7 @@ export function GitTab({
         return
       }
       const found = await discoverGitRoots(
-        cwd, workspacePaths, gitStatus, listEntries, controller.signal,
+        cwd, seeds, gitStatus, listEntries, controller.signal,
       )
       const pick = found[0]
       if (pick === undefined) {

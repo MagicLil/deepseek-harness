@@ -123,7 +123,28 @@ export function uniqueGitPaths(paths: readonly (string | undefined)[]): string[]
 }
 
 /**
- * Find git work trees from the session cwd and every registered Workspace.
+ * Workspace folders the Git picker may probe: the current project and
+ * registered folders under it. Sibling / parent / other-rail projects stay out.
+ * @param cwd - session / explorer folder, when any.
+ * @param workspacePaths - live Workspace registry paths.
+ */
+export function gitWorkspaceSeeds(
+  cwd: string | undefined,
+  workspacePaths: readonly string[],
+): string[] {
+  const seeds = uniqueGitPaths(
+    typeof cwd === 'string' && cwd !== '' ? [cwd, ...workspacePaths] : workspacePaths,
+  )
+  if (typeof cwd !== 'string' || cwd === '') return seeds
+  const cwdKey = gitRootKey(cwd)
+  return seeds.filter((path) => {
+    const key = gitRootKey(path)
+    return key === cwdKey || key.startsWith(`${cwdKey}/`)
+  })
+}
+
+/**
+ * Find git work trees from the session cwd and the supplied Workspace seeds.
  * A seed that is not itself a work tree contributes its immediate visible
  * children (a VS Code multi-root parent sitting beside an already-open repo).
  * @param cwd - session folder, when any.

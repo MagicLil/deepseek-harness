@@ -491,7 +491,7 @@ describe('GitTab', () => {
     expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
   })
 
-  it('adds a newly registered workspace repository without changing the session cwd', async () => {
+  it('does not add an unrelated workspace repository to the current project picker', async () => {
     let workspacePaths: readonly string[] = ['/code/deepseek-harness']
     let notifyWorkspaceChange = () => {}
     mount({
@@ -511,26 +511,27 @@ describe('GitTab', () => {
 
     workspacePaths = ['/code/deepseek-harness', '/code/dsh-cursor-acp']
     act(() => { notifyWorkspaceChange() })
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
 
-    const picker = await screen.findByTestId('xmart-workbench-git-repo')
-    fireEvent.click(picker)
-    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
-    expect(await screen.findByText('plugin')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
+    expect(screen.getByTestId('xmart-workbench-git-repo-name').textContent).toBe('deepseek-harness')
+    expect(screen.queryByText('plugin')).toBeNull()
   })
 
-  it('discovers sibling repos when a parent workspace is registered beside the current git root', async () => {
+  it('does not pull sibling repos from a parent folder registered beside the current project', async () => {
+    const gitStatus = vi.fn(async (path: string) => {
+      if (path === '/code') {
+        throw new GitAccessError({ code: 'git-unavailable', message: 'not a git repository' } as never)
+      }
+      if (path.endsWith('dsh-cursor-acp')) {
+        return { ...status, root: '/code/dsh-cursor-acp', branch: 'plugin' }
+      }
+      return { ...status, root: '/code/deepseek-harness', branch: 'harness' }
+    })
     mount({
       cwd: '/code/deepseek-harness',
       getWorkspacePaths: () => ['/code/deepseek-harness', '/code'],
-      gitStatus: async (path) => {
-        if (path === '/code') {
-          throw new GitAccessError({ code: 'git-unavailable', message: 'not a git repository' } as never)
-        }
-        if (path.endsWith('dsh-cursor-acp')) {
-          return { ...status, root: '/code/dsh-cursor-acp', branch: 'plugin' }
-        }
-        return { ...status, root: '/code/deepseek-harness', branch: 'harness' }
-      },
+      gitStatus,
       listEntries: async path => path === '/code'
         ? {
           path: '/code',
@@ -543,27 +544,81 @@ describe('GitTab', () => {
         : emptyListing,
     })
     expect(await screen.findByText('harness')).toBeTruthy()
-    fireEvent.click(await screen.findByTestId('xmart-workbench-git-repo'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
-    expect(await screen.findByText('plugin')).toBeTruthy()
+    expect(screen.queryByTestId('xmart-workbench-git-repo')).toBeNull()
+    expect(gitStatus).not.toHaveBeenCalledWith('/code')
+    expect(gitStatus).not.toHaveBeenCalledWith('/code/dsh-cursor-acp')
   })
 
-  it('treats slash-spelled workspace paths as extra seeds', async () => {
+  it('lists only child repos of the current workspace when other projects are registered', async () => {
+    const gitStatus = vi.fn(async (path: string) => {
+      if (path === '/work/sanmu' || path === '/work/jianghuawei') {
+        throw new GitAccessError({ code: 'git-unavailable', message: 'not a git repository' } as never)
+      }
+      if (path.endsWith('sanmu_qd')) {
+        return { ...status, root: '/work/sanmu/sanmu_qd', branch: 'qd' }
+      }
+      if (path.endsWith('sanmu_hd')) {
+        return { ...status, root: '/work/sanmu/sanmu_hd', branch: 'hd' }
+      }
+      if (path.endsWith('pms_qd')) {
+        return { ...status, root: '/work/jianghuawei/pms_qd', branch: 'pms' }
+      }
+      return { ...status, root: path, branch: 'other' }
+    })
     mount({
-      cwd: 'D:\\code\\deepseek-harness',
-      getWorkspacePaths: () => ['D:/code/deepseek-harness', 'D:/code/dsh-cursor-acp'],
-      gitStatus: async (path) => {
-        const key = path.replace(/\\/g, '/').toLowerCase()
-        if (key.endsWith('dsh-cursor-acp')) {
-          return { ...status, root: 'D:/code/dsh-cursor-acp', branch: 'plugin' }
+      cwd: '/work/sanmu',
+      getWorkspacePaths: () => ['/work/sanmu', '/work/jianghuawei', '/work/worldCoffee'],
+      gitStatus,
+      listEntries: async (path) => {
+        if (path === '/work/sanmu') {
+          return {
+            path,
+            truncated: false,
+            entries: [
+              { name: 'sanmu_hd', path: '/work/sanmu/sanmu_hd', kind: 'directory', hidden: false },
+              { name: 'sanmu_qd', path: '/work/sanmu/sanmu_qd', kind: 'directory', hidden: false },
+            ],
+          }
         }
-        return { ...status, root: 'D:/code/deepseek-harness', branch: 'harness' }
+        if (path === '/work/jianghuawei') {
+          return {
+            path,
+            truncated: false,
+            entries: [
+              { name: 'pms_qd', path: '/work/jianghuawei/pms_qd', kind: 'directory', hidden: false },
+            ],
+          }
+        }
+        return emptyListing
       },
     })
-    expect(await screen.findByText('harness')).toBeTruthy()
+    expect(await screen.findByText('hd')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('xmart-workbench-git-repo'))
+    const names = screen.getAllByRole('menuitem').map(item => item.textContent)
+    expect(names).toEqual(['sanmu_hd', 'sanmu_qd'])
+    expect(gitStatus).not.toHaveBeenCalledWith('/work/jianghuawei')
+    expect(gitStatus).not.toHaveBeenCalledWith('/work/worldCoffee')
+  })
+
+  it('treats slash-spelled nested workspace paths as extra seeds of the current project', async () => {
+    mount({
+      cwd: 'D:\\work\\sanmu',
+      getWorkspacePaths: () => ['D:/work/sanmu', 'D:/work/sanmu/sanmu_qd', 'D:/work/jianghuawei'],
+      gitStatus: async (path) => {
+        const key = path.replace(/\\/g, '/').toLowerCase()
+        if (key.endsWith('sanmu_qd')) {
+          return { ...status, root: 'D:/work/sanmu/sanmu_qd', branch: 'qd' }
+        }
+        if (key === 'd:/work/sanmu') {
+          return { ...status, root: 'D:\\work\\sanmu', branch: 'parent' }
+        }
+        return { ...status, root: path, branch: 'other' }
+      },
+    })
+    expect(await screen.findByText('parent')).toBeTruthy()
     fireEvent.click(await screen.findByTestId('xmart-workbench-git-repo'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'dsh-cursor-acp' }))
-    expect(await screen.findByText('plugin')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'sanmu_qd' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'jianghuawei' })).toBeNull()
   })
 
   it('ignores a registered repository probe that settles after unmount', async () => {

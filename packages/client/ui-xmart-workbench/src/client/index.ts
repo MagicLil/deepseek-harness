@@ -190,8 +190,8 @@ export function apply(ctx: ClientContext): void {
       snap.recentWorkspaceId,
     )
   }
-  const getWorkspacePaths = () => workspaceSnap().items
-    .map(workspace => workspace.path)
+  const getWorkspacePaths = (sessionId: string) => getRoots(sessionId)
+    .map(root => root.path)
     .filter(path => path !== '')
   const getTerminalCwd = (sessionId: string) => resolveTerminalCwd(getRoots(sessionId), getCwd(sessionId))
   const watchWorkspaceFacts = (fn: () => void) => {
@@ -300,7 +300,7 @@ export function apply(ctx: ClientContext): void {
       ...props,
       t,
       getCwd,
-      getWorkspacePaths,
+      getWorkspacePaths: () => getWorkspacePaths(props.sessionId),
       watchSessions: watchWorkspaceFacts,
       listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
       gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-17-git-workspace-repo-picker.md
-2026-08-17-git-workspace-repo-picker.md: b80fbfba403c541a5b7e68d10086d57e668c615f
-2026-08-17-git-workspace-repo-picker.zh.md: ad78ced24a847e90504f74e3f0bd33ab537eddb7
+2026-08-17-git-workspace-repo-picker.md: a64588944230cab7849530d37d914129a5a1e74d
+2026-08-17-git-workspace-repo-picker.zh.md: f03a43973e9c6b237909ff0f45739c262d5731c6
