@@ -180,7 +180,7 @@ describe('GitTab', () => {
     })
     await act(async () => { await Promise.resolve() })
     expect(screen.getByText('main')).toBeTruthy()
-    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↑1/)
+    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↓0\s*↑1/)
     expect(screen.getByTestId('xmart-git-history')).toBeTruthy()
     expect(screen.getByText('图表')).toBeTruthy()
     expect(screen.getByText('init')).toBeTruthy()
@@ -468,7 +468,7 @@ describe('GitTab', () => {
     mount({ gitLog: async () => undefined as never })
     await act(async () => { await Promise.resolve() })
     expect(screen.getByText('main')).toBeTruthy()
-    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↑1/)
+    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↓0\s*↑1/)
     expect(screen.queryByText(/abcdef1/)).toBeNull()
   })
 
@@ -479,7 +479,7 @@ describe('GitTab', () => {
       },
     })
     expect(await screen.findByText('main')).toBeTruthy()
-    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↑1/)
+    expect(screen.getByTestId('xmart-workbench-git-sync').textContent).toMatch(/↓0\s*↑1/)
   })
 
   it('shows the repo folder name when there is only one root', async () => {

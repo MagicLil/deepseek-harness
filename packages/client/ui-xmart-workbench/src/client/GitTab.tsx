@@ -454,9 +454,9 @@ export function GitTab({
           <span className={css.counts}>
             {busy ? t('git.syncing') : null}
             {' '}
-            ↑{status.ahead}
-            {' '}
             ↓{status.behind}
+            {' '}
+            ↑{status.ahead}
           </span>
         </button>
         <button
