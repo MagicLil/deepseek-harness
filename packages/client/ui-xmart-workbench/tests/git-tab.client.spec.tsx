@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { GitTab, gitMenuAnchor, handleGitMenuSelect } from '../src/client/GitTab.tsx'
+import { confirmGitDiscard, GitTab, gitMenuAnchor, handleGitMenuSelect } from '../src/client/GitTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { createGitBadgeStore } from '../src/client/git-badge.ts'
 import { zh } from '../src/client/locales.ts'
@@ -886,8 +886,10 @@ describe('GitTab', () => {
     fireEvent.click(gitRowAction('index:staged.ts', '取消暂存'))
     await act(async () => { await Promise.resolve() })
     expect(gitUnstage).toHaveBeenCalledWith('/ws', ['staged.ts'])
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(gitRowAction('worktree:dirty.ts', '还原'))
     await act(async () => { await Promise.resolve() })
+    expect(confirm).toHaveBeenCalled()
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['dirty.ts'])
     fireEvent.contextMenu(gitPathButton('index:staged.ts'))
     fireEvent.click(screen.getByText('查看暂存差异'))
@@ -904,6 +906,28 @@ describe('GitTab', () => {
     fireEvent.click(screen.getByText('全部还原'))
     await act(async () => { await Promise.resolve() })
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['both.ts', 'dirty.ts'])
+    confirm.mockRestore()
+  })
+
+  it('does not discard when the restore confirm is cancelled', async () => {
+    const { gitDiscard } = mount({
+      gitStatus: async () => ({
+        ...status,
+        changes: [
+          { path: 'dirty.ts', status: 'modified', area: 'worktree' },
+          { path: 'extra.ts', status: 'modified', area: 'worktree' },
+        ],
+      }),
+    })
+    await act(async () => { await Promise.resolve() })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    fireEvent.click(gitRowAction('worktree:dirty.ts', '还原'))
+    fireEvent.click(screen.getByText('全部还原'))
+    fireEvent.contextMenu(gitPathButton('worktree:dirty.ts'))
+    fireEvent.click(screen.getByText('还原'))
+    await act(async () => { await Promise.resolve() })
+    expect(gitDiscard).not.toHaveBeenCalled()
+    confirm.mockRestore()
   })
 
   it('collapses and expands staged and changes without hiding the other list', async () => {
@@ -1391,6 +1415,19 @@ describe('gitMenuAnchor', () => {
   })
 })
 
+describe('confirmGitDiscard', () => {
+  it('asks about one path or a file count', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    expect(confirmGitDiscard(['dirty.ts'], t)).toBe(true)
+    expect(confirm).toHaveBeenCalledWith('还原后无法撤销。确定还原 dirty.ts？')
+    expect(confirmGitDiscard(['a.ts', 'b.ts'], t)).toBe(true)
+    expect(confirm).toHaveBeenCalledWith('还原后无法撤销。确定还原这 2 个文件？')
+    expect(confirmGitDiscard([], t)).toBe(true)
+    expect(confirm).toHaveBeenCalledWith('还原后无法撤销。确定还原这 0 个文件？')
+    confirm.mockRestore()
+  })
+})
+
 describe('handleGitMenuSelect', () => {
   it('no-ops without a change and dispatches every verb', () => {
     const run = vi.fn((op: () => Promise<unknown>) => { void op() })
@@ -1399,12 +1436,15 @@ describe('handleGitMenuSelect', () => {
     const gitDiscard = vi.fn(async () => {})
     const openDiff = vi.fn()
     const openFile = vi.fn()
-    const ops = { run, gitStage, gitUnstage, gitDiscard, openDiff, openFile }
+    const ops = { run, gitStage, gitUnstage, gitDiscard, openDiff, openFile, t }
     handleGitMenuSelect('stage', undefined, '/ws', '/ws', ops)
     expect(run).not.toHaveBeenCalled()
     const change = { path: 'a.ts', status: 'modified' as const, area: 'worktree' as const }
     handleGitMenuSelect('stage', change, '/ws', '/ws', ops)
     handleGitMenuSelect('unstage', change, '/ws', '/ws', ops)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    handleGitMenuSelect('discard', change, '/ws', '/ws', ops)
+    confirm.mockReturnValue(false)
     handleGitMenuSelect('discard', change, '/ws', '/ws', ops)
     handleGitMenuSelect('diff-work', change, '/ws', '/ws', ops)
     handleGitMenuSelect('diff-staged', change, '/ws', '/ws', ops)
@@ -1412,9 +1452,11 @@ describe('handleGitMenuSelect', () => {
     handleGitMenuSelect('other', change, '/ws', '/ws', ops)
     expect(gitStage).toHaveBeenCalledWith('/ws', ['a.ts'])
     expect(gitUnstage).toHaveBeenCalledWith('/ws', ['a.ts'])
+    expect(gitDiscard).toHaveBeenCalledTimes(1)
     expect(gitDiscard).toHaveBeenCalledWith('/ws', ['a.ts'])
     expect(openDiff).toHaveBeenCalledWith('worktree', 'a.ts', '/ws')
     expect(openDiff).toHaveBeenCalledWith('staged', 'a.ts', '/ws')
     expect(openFile).toHaveBeenCalledWith('/ws/a.ts')
+    confirm.mockRestore()
   })
 })

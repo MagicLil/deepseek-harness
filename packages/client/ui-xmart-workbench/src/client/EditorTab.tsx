@@ -1,6 +1,6 @@
 /**
- * Hidden editor tab: Monaco + save + drafts + optional Markdown preview +
- * reload banner when an agent mutation touches the open path.
+ * Hidden editor tab: Monaco + serialized save + drafts + optional Markdown
+ * preview + reload banner when an agent mutation touches the open path.
  */
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FileAccessError } from '@deepseek-ai/dsh-client-runtime/client'
@@ -79,6 +79,8 @@ export function EditorTab({
   const baselineRef = useRef('')
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const liveRef = useRef<{ path: string; dirty: boolean } | null>(null)
+  const saveBusyRef = useRef(false)
+  const saveQueuedRef = useRef(false)
 
   useEffect(() => files.subscribe(() => {
     if (path === undefined) return
@@ -178,26 +180,52 @@ export function EditorTab({
   const handleSave = useCallback(() => {
     const live = liveRef.current
     if (live === null || !live.dirty) return
-    const target = live.path
-    const content = contentRef.current
-    if (draftTimer.current !== null) {
-      clearTimeout(draftTimer.current)
-      draftTimer.current = null
+    if (saveBusyRef.current) {
+      saveQueuedRef.current = true
+      return
     }
+    saveBusyRef.current = true
     setSaveState('saving')
-    writeFile(target, content).then(
-      () => {
-        baselineRef.current = content
-        /* v8 ignore next -- a remount replaces liveRef before this save settles. */
-        if (liveRef.current?.path === target) {
-          liveRef.current.dirty = contentRef.current !== content
-          setDirty(liveRef.current.dirty)
-        }
-        files.setDraft(target, undefined)
-        setSaveState('saved')
-      },
-      () => { setSaveState('error') },
-    )
+    const flush = (): void => {
+      const current = liveRef.current
+      /* v8 ignore next -- a remount clears liveRef before this save settles. */
+      if (current === null) {
+        saveBusyRef.current = false
+        saveQueuedRef.current = false
+        return
+      }
+      const target = current.path
+      const content = contentRef.current
+      if (draftTimer.current !== null) {
+        clearTimeout(draftTimer.current)
+        draftTimer.current = null
+      }
+      writeFile(target, content).then(
+        () => {
+          baselineRef.current = content
+          /* v8 ignore next -- a remount replaces liveRef before this save settles. */
+          if (liveRef.current?.path === target) {
+            liveRef.current.dirty = contentRef.current !== content
+            setDirty(liveRef.current.dirty)
+          }
+          files.setDraft(target, undefined)
+          if (saveQueuedRef.current && liveRef.current?.path === target) {
+            saveQueuedRef.current = false
+            flush()
+            return
+          }
+          saveBusyRef.current = false
+          saveQueuedRef.current = false
+          setSaveState(liveRef.current?.dirty === true ? 'idle' : 'saved')
+        },
+        () => {
+          saveBusyRef.current = false
+          saveQueuedRef.current = false
+          setSaveState('error')
+        },
+      )
+    }
+    flush()
   }, [files, writeFile])
 
   useEffect(() => {

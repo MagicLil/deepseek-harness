@@ -117,6 +117,80 @@ describe('EditorTab', () => {
     expect(live.draftOf('/a.ts')).toBeUndefined()
   })
 
+  it('serializes overlapping saves and writes the latest buffer after the in-flight write', async () => {
+    const writes: string[] = []
+    let releaseFirst: () => void = () => {}
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve })
+    let started = 0
+    const writeFile = vi.fn((_path: string, content: string) => {
+      writes.push(content)
+      started += 1
+      if (started === 1) return firstGate
+      return Promise.resolve()
+    })
+    mount({ path: '/a.ts', writeFile, readFile: async () => 'hello' })
+    await act(async () => { await Promise.resolve() })
+    const plain = screen.getByTestId('xmart-workbench-plain')
+    fireEvent.change(plain, { target: { value: 'first' } })
+    fireEvent.click(screen.getByText('保存'))
+    expect(writes).toEqual(['first'])
+    fireEvent.change(plain, { target: { value: 'mid' } })
+    fireEvent.click(screen.getByText('保存'))
+    fireEvent.change(plain, { target: { value: 'last' } })
+    fireEvent.click(screen.getByText('保存'))
+    expect(writes).toEqual(['first'])
+    await act(async () => {
+      releaseFirst()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(writes).toEqual(['first', 'last'])
+    expect(screen.getByText('已保存')).toBeTruthy()
+  })
+
+  it('stays dirty when the buffer changes during an in-flight save', async () => {
+    let releaseFirst: () => void = () => {}
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve })
+    const writeFile = vi.fn(() => firstGate)
+    mount({ path: '/a.ts', writeFile, readFile: async () => 'hello' })
+    await act(async () => { await Promise.resolve() })
+    const plain = screen.getByTestId('xmart-workbench-plain')
+    fireEvent.change(plain, { target: { value: 'first' } })
+    fireEvent.click(screen.getByText('保存'))
+    fireEvent.change(plain, { target: { value: 'after' } })
+    await act(async () => {
+      releaseFirst()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(writeFile).toHaveBeenCalledTimes(1)
+    expect(writeFile).toHaveBeenCalledWith('/a.ts', 'first')
+    expect(screen.getByText('未保存')).toBeTruthy()
+  })
+
+  it('drops a queued save when the in-flight write fails', async () => {
+    let rejectFirst: (reason: unknown) => void = () => {}
+    const firstGate = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
+    const writeFile = vi.fn((_path: string, content: string) => {
+      if (content === 'first') return firstGate
+      return Promise.resolve()
+    })
+    mount({ path: '/a.ts', writeFile, readFile: async () => 'hello' })
+    await act(async () => { await Promise.resolve() })
+    const plain = screen.getByTestId('xmart-workbench-plain')
+    fireEvent.change(plain, { target: { value: 'first' } })
+    fireEvent.click(screen.getByText('保存'))
+    fireEvent.change(plain, { target: { value: 'second' } })
+    fireEvent.click(screen.getByText('保存'))
+    await act(async () => {
+      rejectFirst(new Error('disk'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(writeFile).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('保存失败')).toBeTruthy()
+  })
+
   it('saves from the application-menu event', async () => {
     const writeFile = vi.fn(async () => {})
     mount({ path: '/a.ts', writeFile })

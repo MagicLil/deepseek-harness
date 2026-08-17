@@ -146,6 +146,8 @@ export type WorkbenchKey =
   | 'git.graph'
   | 'git.loadingMore'
   | 'git.discard'
+  | 'git.discardConfirm'
+  | 'git.discardAllConfirm'
   | 'git.diffWorktree'
   | 'git.diffStaged'
   | 'git.open'
@@ -433,6 +435,8 @@ export const zh: Record<WorkbenchKey, string> = {
   'git.graph': '图表',
   'git.loadingMore': '正在加载更早的提交…',
   'git.discard': '还原',
+  'git.discardConfirm': '还原后无法撤销。确定还原 {path}？',
+  'git.discardAllConfirm': '还原后无法撤销。确定还原这 {n} 个文件？',
   'git.diffWorktree': '查看工作区差异',
   'git.diffStaged': '查看暂存差异',
   'git.open': '打开文件',
@@ -688,6 +692,8 @@ export const en: Record<WorkbenchKey, string> = {
   'git.graph': 'Graph',
   'git.loadingMore': 'Loading earlier commits…',
   'git.discard': 'Discard',
+  'git.discardConfirm': 'This cannot be undone. Discard changes in {path}?',
+  'git.discardAllConfirm': 'This cannot be undone. Discard changes in {n} files?',
   'git.diffWorktree': 'Diff worktree',
   'git.diffStaged': 'Diff staged',
   'git.open': 'Open file',

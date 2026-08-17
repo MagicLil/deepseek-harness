@@ -624,7 +624,11 @@ export function GitTab({
                         <button
                           type="button"
                           className={css.tool}
-                          onClick={() => { run(() => gitDiscard(root, gitSectionPaths(unstaged))) }}
+                          onClick={() => {
+                            const paths = gitSectionPaths(unstaged)
+                            if (!confirmGitDiscard(paths, t)) return
+                            run(() => gitDiscard(root, paths))
+                          }}
                         >
                           {t('git.discardAll')}
                         </button>
@@ -639,7 +643,10 @@ export function GitTab({
                         onOpen={() => { openDiff(gitDiffSideOf(change), change.path, root) }}
                         onMenu={(x, y) => { setMenu({ change, x, y }) }}
                         onStage={() => { run(() => gitStage(root, [change.path])) }}
-                        onDiscard={() => { run(() => gitDiscard(root, [change.path])) }}
+                        onDiscard={() => {
+                          if (!confirmGitDiscard([change.path], t)) return
+                          run(() => gitDiscard(root, [change.path]))
+                        }}
                       />
                     ))}
                   </GitChangeSection>
@@ -786,7 +793,7 @@ export function GitTab({
           const change = menu?.change
           setMenu(null)
           handleGitMenuSelect(id, change, root, root, {
-            run, gitStage, gitUnstage, gitDiscard, openDiff, openFile,
+            run, gitStage, gitUnstage, gitDiscard, openDiff, openFile, t,
           })
         }}
         anchor={<span />}
@@ -911,6 +918,15 @@ export function gitMenuAnchor(menu: { x: number; y: number } | null) {
   }
 }
 
+/** Ask before `git restore` / `clean -f`; cancel is a no-op. */
+export function confirmGitDiscard(files: readonly string[], t: Translate): boolean {
+  const path = files.length === 1 ? files[0] : undefined
+  const message = path !== undefined
+    ? t('git.discardConfirm').replace('{path}', path)
+    : t('git.discardAllConfirm').replace('{n}', String(files.length))
+  return window.confirm(message)
+}
+
 /** Dispatch one Git context-menu verb. */
 export function handleGitMenuSelect(
   id: string,
@@ -924,12 +940,16 @@ export function handleGitMenuSelect(
     gitDiscard: GitTabProps['gitDiscard']
     openDiff: GitTabProps['openDiff']
     openFile: GitTabProps['openFile']
+    t: Translate
   },
 ): void {
   if (change === undefined) return
   if (id === 'stage') ops.run(() => ops.gitStage(cwd, [change.path]))
   if (id === 'unstage') ops.run(() => ops.gitUnstage(cwd, [change.path]))
-  if (id === 'discard') ops.run(() => ops.gitDiscard(cwd, [change.path]))
+  if (id === 'discard') {
+    if (!confirmGitDiscard([change.path], ops.t)) return
+    ops.run(() => ops.gitDiscard(cwd, [change.path]))
+  }
   if (id === 'diff-work') ops.openDiff('worktree', change.path, root)
   if (id === 'diff-staged') ops.openDiff('staged', change.path, root)
   if (id === 'open') ops.openFile(absPath(root, change.path))
