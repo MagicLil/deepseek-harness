@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-17-light-terminal-theme.md
+2026-08-17-light-terminal-theme.md: 8e0355914f21167a60f9614ed61d5438db2288ff
+2026-08-17-light-terminal-theme.zh.md: 3af2bcd202ca8a09c6f62a1ca4911b5eba6f9f53

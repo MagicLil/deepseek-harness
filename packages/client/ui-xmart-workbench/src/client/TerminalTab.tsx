@@ -16,6 +16,8 @@ import {
   resizeTerminal, subscribeTerminalOutput, type HostTerminalMethods,
 } from './terminal-client.ts'
 import { getTerminalSeat, getTerminalSeatOwner, setTerminalSeat } from './terminal-seats.ts'
+import { xtermTheme } from './terminal-theme.ts'
+import { darkTheme } from './MonacoHost.tsx'
 import { ensureXtermCss } from './ensure-xterm-css.ts'
 import css from './TerminalTab.module.css'
 
@@ -88,6 +90,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
     let cancelled = false
     let offOutput = (): void => {}
     let resizeObserver: ResizeObserver | undefined
+    let themeObserver: MutationObserver | undefined
     let dataDisposable: { dispose: () => void } | undefined
     let openDisposable: { dispose: () => void } | undefined
 
@@ -101,17 +104,20 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
           cursorBlink: true,
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
           fontSize: 13,
-          theme: {
-            background: '#1e1e1e',
-            foreground: '#d4d4d4',
-            cursor: '#d4d4d4',
-          },
+          theme: xtermTheme(darkTheme()),
         })
         const fit = new FitAddon()
         term.loadAddon(fit)
         term.open(mountRef.current)
         fit.fit()
         termRef.current = term
+        themeObserver = new MutationObserver(() => {
+          term.options.theme = xtermTheme(darkTheme())
+        })
+        themeObserver.observe(document.body, {
+          attributes: true,
+          attributeFilter: ['data-ds-dark-theme'],
+        })
 
         offOutput = subscribeTerminalOutput(remote, (payload) => {
           if (payload.sessionId !== owner || payload.ptyId !== hostRef.current) return
@@ -237,6 +243,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
     return () => {
       cancelled = true
       offOutput()
+      themeObserver?.disconnect()
       resizeObserver?.disconnect()
       dataDisposable?.dispose()
       openDisposable?.dispose()

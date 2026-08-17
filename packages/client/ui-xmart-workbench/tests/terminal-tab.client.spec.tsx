@@ -8,6 +8,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TerminalTab } from '../src/client/TerminalTab.tsx'
+import { XTERM_THEME_DARK, XTERM_THEME_LIGHT } from '../src/client/terminal-theme.ts'
 import { resetInflightTerminalOpens } from '../src/client/terminal-client.ts'
 import { resetTerminalSeats, setTerminalSeat } from '../src/client/terminal-seats.ts'
 import type { HostTerminalMethods, TerminalOutputPayload } from '../src/client/terminal-client.ts'
@@ -23,12 +24,20 @@ const termState = vi.hoisted(() => ({
   disposeCount: 0,
   focusCount: 0,
   fitCount: 0,
+  theme: undefined as { background?: string; foreground?: string } | undefined,
+  options: undefined as { theme?: { background?: string; foreground?: string } } | undefined,
 }))
 
 vi.mock('@xterm/xterm', () => {
   class Terminal {
     cols = 80
     rows = 24
+    options: { theme?: { background?: string; foreground?: string } }
+    constructor(opts?: { theme?: { background?: string; foreground?: string } }) {
+      this.options = { theme: opts?.theme }
+      termState.theme = opts?.theme
+      termState.options = this.options
+    }
     loadAddon(): void {}
     open(): void {}
     focus(): void { termState.focusCount += 1 }
@@ -65,6 +74,9 @@ beforeEach(() => {
   termState.disposeCount = 0
   termState.focusCount = 0
   termState.fitCount = 0
+  termState.theme = undefined
+  termState.options = undefined
+  document.body.removeAttribute('data-ds-dark-theme')
   if (typeof globalThis.ResizeObserver === 'undefined') {
     globalThis.ResizeObserver = class {
       observe(): void {}
@@ -367,6 +379,39 @@ describe('TerminalTab', () => {
         { sessionId: 's1', id: 'pty-keep', data: 'ls\r' },
         undefined,
       )
+    })
+  })
+
+  it('opens with the light xterm palette when Appearance is light', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({
+        id: 'pty-light', motd: '', status: { kind: 'running' as const },
+      }),
+      terminalResize: () => ok({ resized: true as const }),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.theme).toEqual(XTERM_THEME_LIGHT)
+    })
+  })
+
+  it('opens with the dark xterm palette and follows Appearance changes', async () => {
+    document.body.setAttribute('data-ds-dark-theme', '')
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({
+        id: 'pty-dark', motd: '', status: { kind: 'running' as const },
+      }),
+      terminalResize: () => ok({ resized: true as const }),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.theme).toEqual(XTERM_THEME_DARK)
+    })
+    act(() => { document.body.removeAttribute('data-ds-dark-theme') })
+    await waitFor(() => {
+      expect(termState.options?.theme).toEqual(XTERM_THEME_LIGHT)
     })
   })
 })
