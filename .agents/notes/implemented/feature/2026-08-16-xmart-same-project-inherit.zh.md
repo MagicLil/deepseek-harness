@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`apply` 订阅 `ctx.sessions.list`。`current` 在共享同一项目键（工作区文件夹路径，否则 cwd）的两条会话之间移动时，`inheritSession` 覆盖目标的编辑器标签和活动项，`cloneExpanded` 覆盖其资源管理器展开，`inheritWorkbenchPersist` 拷贝开关/宽度并写进 `ctx.layout`。终端标签留在源会话，因为 PTY 绑在那条会话上。工作台铬是 `session-maybe`，切换时不再重挂（[闪屏修复](../bug-fix/2026-08-17-same-project-session-switch-flash.md)）；`keepLiveWidth` 仍跳过持久化恢复，宽度不会弹回目标默认值。换到别的文件夹仍加载那一侧自己的持久化。
+`apply` 订阅 `ctx.sessions.list`。`current` 在共享同一项目键（工作区文件夹路径，否则 cwd）的两条会话之间移动时，`inheritSession` 覆盖目标的编辑器标签和活动项，`cloneExpanded` 覆盖其资源管理器展开，`inheritWorkbenchPersist` 拷贝开关/宽度并写进 `ctx.layout`。终端后来也按项目共享（[保住终端](../bug-fix/2026-08-17-same-project-keep-terminal.md)）。工作台铬是 `session-maybe`，切换时不再重挂（[闪屏修复](../bug-fix/2026-08-17-same-project-session-switch-flash.md)）；`keepLiveWidth` 仍跳过持久化恢复，宽度不会弹回目标默认值。换到别的文件夹仍加载那一侧自己的持久化。
 
 按会话的键（`dsh.xmart.workbench.tabs.<sessionId>`、`dsh.xmart.workbench.files`、`dsh.xmart.workbench`）仍按 [标签注册表](2026-08-15-xmart-workbench-tabs.md) 那样存；同文件夹导航是拷进这些键，而不是把 store 升成工作区范围。
 

@@ -87,7 +87,7 @@ export function ExplorerTab({
     return <div className={css.note} data-testid="xmart-workbench-explorer">{t('explorer.noWorkspace')}</div>
   }
 
-  const expanded = snap.expanded[sessionId] ?? {}
+  const expanded = files.expandedOf(sessionId)
 
   const submitCreate = () => {
     if (create === null || !isSingleSegment(name)) return

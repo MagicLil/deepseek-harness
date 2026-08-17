@@ -15,7 +15,7 @@ import {
   TerminalAccessError, listTerminals, openTerminal, readTerminal, writeTerminal,
   resizeTerminal, subscribeTerminalOutput, type HostTerminalMethods,
 } from './terminal-client.ts'
-import { getTerminalSeat, setTerminalSeat } from './terminal-seats.ts'
+import { getTerminalSeat, getTerminalSeatOwner, setTerminalSeat } from './terminal-seats.ts'
 import { ensureXtermCss } from './ensure-xterm-css.ts'
 import css from './TerminalTab.module.css'
 
@@ -27,6 +27,8 @@ export type TerminalTabProps = TabBodyProps & {
   remote: unknown
   /** Absolute directory to spawn in (explorer root). */
   cwd?: string
+  /** Project-scoped seat key; defaults to `sessionId`. */
+  scopeId?: string
 }
 
 /** Keeps the bottom chrome up when the terminal body throws. */
@@ -67,10 +69,16 @@ export function TerminalTab(props: TerminalTabProps) {
   )
 }
 
-function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabProps) {
+function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: TerminalTabProps) {
+  const seatScope = scopeId ?? sessionId
+  const ownerRef = useRef<string | undefined>(undefined)
+  if (ownerRef.current === undefined && sessionId !== '') {
+    ownerRef.current = getTerminalSeatOwner(seatScope, tab.id) ?? sessionId
+  }
+  const owner = ownerRef.current ?? sessionId
   const [available, setAvailable] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [ptyId, setPtyId] = useState<string | undefined>(() => getTerminalSeat(sessionId, tab.id))
+  const [ptyId, setPtyId] = useState<string | undefined>(() => getTerminalSeat(seatScope, tab.id))
   const hostRef = useRef(ptyId)
   hostRef.current = ptyId
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -106,21 +114,21 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
         termRef.current = term
 
         offOutput = subscribeTerminalOutput(remote, (payload) => {
-          if (payload.sessionId !== sessionId || payload.ptyId !== hostRef.current) return
+          if (payload.sessionId !== owner || payload.ptyId !== hostRef.current) return
           term.write(payload.delta)
         })
 
         dataDisposable = term.onData((data) => {
           const id = hostRef.current
           if (id === undefined) return
-          void writeTerminal(host, sessionId, id, data).catch((err: unknown) => {
+          void writeTerminal(host, owner, id, data).catch((err: unknown) => {
             if (!cancelled) {
               setError(err instanceof Error ? err.message : 'write failed')
             }
           })
         })
 
-        const listed = await listTerminals(host, sessionId)
+        const listed = await listTerminals(host, owner)
         if (cancelled) return
         if (!listed.available) {
           setAvailable(false)
@@ -133,30 +141,30 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
           id = named.id
           hostRef.current = id
           setPtyId(id)
-          setTerminalSeat(sessionId, tab.id, id)
-          const text = await readTerminal(host, sessionId, id)
+          setTerminalSeat(seatScope, tab.id, id, owner)
+          const text = await readTerminal(host, owner, id)
           if (cancelled) return
           if (text !== '') term.write(text)
         } else if (id === undefined) {
-          const opened = await openTerminal(host, sessionId, {
+          const opened = await openTerminal(host, owner, {
             name: tab.id,
             ...cwd === undefined || cwd === '' ? {} : { cwd },
             cols: Math.max(term.cols, 80),
             rows: Math.max(term.rows, 24),
           })
           if (cancelled) {
-            setTerminalSeat(sessionId, tab.id, opened.id)
+            setTerminalSeat(seatScope, tab.id, opened.id, owner)
             return
           }
           id = opened.id
           hostRef.current = id
           setPtyId(id)
-          setTerminalSeat(sessionId, tab.id, id)
+          setTerminalSeat(seatScope, tab.id, id, owner)
           // waitReady:false leaves motd empty; the prompt often lands in
           // scrollback before hostRef can accept live terminals/output.
           let text = opened.motd
           try {
-            const replay = await readTerminal(host, sessionId, id)
+            const replay = await readTerminal(host, owner, id)
             if (replay !== '') text = replay
           } catch {
             // Keep motd when the optional read fails.
@@ -172,7 +180,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
                 await new Promise(resolve => setTimeout(resolve, 200))
                 if (cancelled) return
                 try {
-                  const replay = await readTerminal(host, sessionId, id)
+                  const replay = await readTerminal(host, owner, id)
                   if (replay !== '') {
                     term.write(replay)
                     painted = true
@@ -186,11 +194,11 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
             // PowerShell often sits until it sees a key. A lone CR is enough
             // to reprint the prompt; live terminals/output then paints it.
             if (!cancelled && !painted) {
-              void writeTerminal(host, sessionId, id, '\r').catch(() => {})
+              void writeTerminal(host, owner, id, '\r').catch(() => {})
             }
           }
         } else {
-          const text = await readTerminal(host, sessionId, id)
+          const text = await readTerminal(host, owner, id)
           if (cancelled) return
           if (text !== '') term.write(text)
         }
@@ -201,7 +209,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
           fit.fit()
           const cols = Math.max(term.cols, 2)
           const rows = Math.max(term.rows, 2)
-          void resizeTerminal(host, sessionId, live, cols, rows).catch(() => {})
+          void resizeTerminal(host, owner, live, cols, rows).catch(() => {})
         }
         pushSize()
         resizeObserver = new ResizeObserver(() => { pushSize() })
@@ -209,7 +217,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
         openDisposable = term.onResize(({ cols, rows }) => {
           const live = hostRef.current
           if (live === undefined) return
-          void resizeTerminal(host, sessionId, live, Math.max(cols, 2), Math.max(rows, 2)).catch(() => {})
+          void resizeTerminal(host, owner, live, Math.max(cols, 2), Math.max(rows, 2)).catch(() => {})
         })
 
         setAvailable(true)
@@ -235,7 +243,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd }: TerminalTabP
       termRef.current?.dispose()
       termRef.current = null
     }
-  }, [host, remote, sessionId, tab.id, cwd])
+  }, [host, remote, owner, seatScope, tab.id, cwd])
 
   if (available === false) {
     return (

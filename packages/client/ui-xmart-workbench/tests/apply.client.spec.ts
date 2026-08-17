@@ -293,24 +293,39 @@ describe('ui-xmart-workbench apply', () => {
     ])
   })
 
-  it('inherits editor tabs when switching chats in the same project', async () => {
+  it('keeps editor and terminal tabs when switching chats in the same project', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const service = workbench(b.ctx)
     service.openFile('/ws/a.ts', { sessionId: 's1' })
+    service.openTab({ type: 'terminal' }, { sessionId: 's1' })
     service.setActivity('git', { sessionId: 's1' })
     b.sessionById.s2 = { cwd: '/ws', blank: false }
-    service.openFile('/ws/old.ts', { sessionId: 's2' })
     b.sessionList.current = 's2'
     for (const fn of b.sessionListeners) fn()
-    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts'])
+    expect(service.getSnapshot('s2').tabs.map(row => row.type)).toEqual(['editor', 'terminal'])
+    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts', undefined])
     expect(service.getSnapshot('s2').activity).toBe('git')
-    expect(b.layout.setWorkbench).toHaveBeenCalledWith(260)
+    expect(service.observeSession('s1')).toBe(service.observeSession('s2'))
     const primary = (
       b.slots.entries('primarySidebar')[0]!.inject as unknown as (id: string) => PrimarySidebarInjected
     )('s2')
     expect(primary.keepLiveWidth()).toBe(true)
+  })
+
+  it('keeps the live workbench when a new same-project session has no cwd yet', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const service = workbench(b.ctx)
+    service.openFile('/ws/a.ts', { sessionId: 's1' })
+    service.openTab({ type: 'terminal' }, { sessionId: 's1' })
+    b.sessionById.s3 = { blank: true }
+    b.sessionList.current = 's3'
+    for (const fn of b.sessionListeners) fn()
+    expect(service.scopeOf('s3')).toBe('/ws')
+    expect(service.getSnapshot('s3').tabs.map(row => row.type)).toEqual(['editor', 'terminal'])
   })
 
   it('does not inherit into another project', async () => {

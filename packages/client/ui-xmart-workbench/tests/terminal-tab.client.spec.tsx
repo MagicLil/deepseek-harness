@@ -320,4 +320,53 @@ describe('TerminalTab', () => {
     unmount()
     expect(termState.disposeCount).toBe(1)
   })
+
+  it('keeps the live PTY when only the conversation session id changes', async () => {
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: vi.fn(() => ok({
+        id: 'pty-keep', motd: 'ready\n', status: { kind: 'running' as const },
+      })),
+      terminalWrite: vi.fn(() => ok({ written: true as const })),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    const remote = { $on: () => () => {} }
+    const view = render(
+      <TerminalTab
+        tab={{ id: 'terminal:1', type: 'terminal', title: '终端 1' }}
+        visible
+        sessionId="s1"
+        scopeId="/ws"
+        t={t}
+        host={host}
+        remote={remote}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('xmart-terminal-xterm')).toBeTruthy()
+    })
+    const opened = host.terminalOpen as ReturnType<typeof vi.fn>
+    expect(opened).toHaveBeenCalledOnce()
+    const disposed = termState.disposeCount
+    view.rerender(
+      <TerminalTab
+        tab={{ id: 'terminal:1', type: 'terminal', title: '终端 1' }}
+        visible
+        sessionId="s2"
+        scopeId="/ws"
+        t={t}
+        host={host}
+        remote={remote}
+      />,
+    )
+    expect(termState.disposeCount).toBe(disposed)
+    expect(opened).toHaveBeenCalledOnce()
+    act(() => { termState.onData?.('ls\r') })
+    await waitFor(() => {
+      expect(host.terminalWrite).toHaveBeenCalledWith(
+        { sessionId: 's1', id: 'pty-keep', data: 'ls\r' },
+        undefined,
+      )
+    })
+  })
 })

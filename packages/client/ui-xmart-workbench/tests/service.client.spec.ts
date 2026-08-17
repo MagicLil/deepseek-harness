@@ -533,7 +533,7 @@ describe('openFile, persist, and observers', () => {
     expect(second.getSnapshot('keep').activeTabId).toBe('plain:1')
   })
 
-  it('inheritSession copies editor tabs, skips terminals, and overwrites a filled target', () => {
+  it('inheritSession copies editor and terminal tabs and overwrites a filled target', () => {
     const service = new XmartWorkbenchController()
     service.registerTab(tab({ id: 'editor', title: 'Editor', hidden: true, dedupeKey: opened => opened.path }))
     service.registerTab(tab({ id: 'terminal', title: 'Terminal', hidden: true }))
@@ -543,11 +543,28 @@ describe('openFile, persist, and observers', () => {
     service.openFile('/ws/old.ts', { sessionId: 's2' })
     expect(service.inheritSession('s1', 's1')).toBe(false)
     expect(service.inheritSession('s1', 's2')).toBe(true)
-    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts'])
-    expect(service.getSnapshot('s2').tabs.map(row => row.type)).toEqual(['editor'])
-    expect(service.getSnapshot('s2').activeTabId).toBe(service.getSnapshot('s2').tabs[0]?.id)
+    expect(service.getSnapshot('s2').tabs.map(row => row.type)).toEqual(['editor', 'terminal'])
+    expect(service.getSnapshot('s2').tabs.map(row => row.path)).toEqual(['/ws/a.ts', undefined])
+    expect(service.getSnapshot('s2').activeTabId).toBe(service.getSnapshot('s1').activeTabId)
     expect(service.getSnapshot('s2').activity).toBe('git')
     expect(service.inheritSession('s1', 's2')).toBe(true)
+  })
+
+  it('scope resolver shares one store across sessions in the same project', () => {
+    const service = new XmartWorkbenchController()
+    service.setScopeResolver(id => id === 's1' || id === 's2' ? '/ws' : undefined)
+    service.registerTab(tab({ id: 'editor', title: 'Editor', hidden: true, dedupeKey: opened => opened.path }))
+    service.registerTab(tab({ id: 'terminal', title: 'Terminal', hidden: true }))
+    service.openFile('/ws/a.ts', { sessionId: 's1' })
+    service.openTab({ type: 'terminal' }, { sessionId: 's1' })
+    expect(service.scopeOf('s1')).toBe('/ws')
+    expect(service.scopeOf('s2')).toBe('/ws')
+    expect(service.observeSession('s1')).toBe(service.observeSession('s2'))
+    expect(service.getSnapshot('s2').tabs.map(row => row.type)).toEqual(['editor', 'terminal'])
+    expect(service.inheritSession('s1', 's2')).toBe(true)
+    expect(service.getSnapshot('s2').tabs).toHaveLength(2)
+    service.openFile('/ws/b.ts', { sessionId: 's2' })
+    expect(service.getSnapshot('s1').tabs.map(row => row.path)).toEqual(['/ws/a.ts', undefined, '/ws/b.ts'])
   })
 
   it('returns the frozen empty view when no session is bound', () => {

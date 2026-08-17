@@ -1,44 +1,71 @@
 /**
  * In-memory UI-tab → host PTY id map. Survives bottom-panel hide; dies on
- * reload (host PTYs do not survive process exit).
+ * reload (host PTYs do not survive process exit). The first argument is the
+ * workbench scope (project folder), not the conversation session — same-project
+ * chats keep the same seat. `ownerSessionId` is the conversation that opened
+ * the PTY; host.terminal* still addresses that session.
  */
 
-/** Compose the map key for one tab in one session. */
-export function terminalSeatKey(sessionId: string, tabId: string): string {
-  return `${sessionId}\u0000${tabId}`
+/** One live UI terminal seat. */
+export type TerminalSeat = {
+  /** Host PTY id from `host.terminalOpen`. */
+  ptyId: string
+  /** Conversation session that owns the host PTY. */
+  ownerSessionId: string
 }
 
-const seats = new Map<string, string>()
+/** Compose the map key for one tab in one workbench scope. */
+export function terminalSeatKey(scopeId: string, tabId: string): string {
+  return `${scopeId}\u0000${tabId}`
+}
+
+const seats = new Map<string, TerminalSeat>()
 
 /**
  * Read the host PTY id for a tab, if this page already opened one.
- * @param sessionId - session that owns the tab.
+ * @param scopeId - workbench scope (project folder or session id).
  * @param tabId - workbench tab instance id.
  * @returns the host PTY id, or undefined.
  */
-export function getTerminalSeat(sessionId: string, tabId: string): string | undefined {
-  return seats.get(terminalSeatKey(sessionId, tabId))
+export function getTerminalSeat(scopeId: string, tabId: string): string | undefined {
+  return seats.get(terminalSeatKey(scopeId, tabId))?.ptyId
+}
+
+/**
+ * Conversation session that opened this tab's PTY.
+ * @param scopeId - workbench scope.
+ * @param tabId - workbench tab instance id.
+ * @returns the owner session id, or undefined.
+ */
+export function getTerminalSeatOwner(scopeId: string, tabId: string): string | undefined {
+  return seats.get(terminalSeatKey(scopeId, tabId))?.ownerSessionId
 }
 
 /**
  * Remember the host PTY id for a tab.
- * @param sessionId - session that owns the tab.
+ * @param scopeId - workbench scope.
  * @param tabId - workbench tab instance id.
  * @param ptyId - host PTY id from `host.terminalOpen`.
+ * @param ownerSessionId - conversation that owns the host PTY.
  */
-export function setTerminalSeat(sessionId: string, tabId: string, ptyId: string): void {
-  seats.set(terminalSeatKey(sessionId, tabId), ptyId)
+export function setTerminalSeat(
+  scopeId: string,
+  tabId: string,
+  ptyId: string,
+  ownerSessionId = scopeId,
+): void {
+  seats.set(terminalSeatKey(scopeId, tabId), { ptyId, ownerSessionId })
 }
 
 /**
  * Forget the host PTY id for a tab (after kill or a failed reopen).
- * @param sessionId - session that owns the tab.
+ * @param scopeId - workbench scope.
  * @param tabId - workbench tab instance id.
  * @returns the forgotten PTY id, or undefined.
  */
-export function clearTerminalSeat(sessionId: string, tabId: string): string | undefined {
-  const key = terminalSeatKey(sessionId, tabId)
-  const ptyId = seats.get(key)
+export function clearTerminalSeat(scopeId: string, tabId: string): string | undefined {
+  const key = terminalSeatKey(scopeId, tabId)
+  const ptyId = seats.get(key)?.ptyId
   seats.delete(key)
   return ptyId
 }

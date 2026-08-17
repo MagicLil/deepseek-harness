@@ -17,7 +17,6 @@ import {
   XMART_WORKBENCH_FEATURES,
   XMART_WORKBENCH_VERSION,
   isPrimaryActivity,
-  isBottomPanelTabType,
   type ActivityDescriptor,
   type FileViewerDescriptor,
   type OpenTabSeed,
@@ -260,6 +259,8 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
   #currentSession: string | undefined
   #openPanel: (() => void) | undefined
+  #scopeOfSession: ((sessionId: string) => string | undefined) | undefined
+  readonly #lastRawByScope = new Map<string, string>()
 
   /** Construct an empty registry with persisted prefs. */
   constructor() {
@@ -274,6 +275,25 @@ export class XmartWorkbenchController implements IXmartWorkbench {
    */
   bindSession(sessionId: string): void {
     this.#currentSession = sessionId
+    this.#lastRawByScope.set(this.scopeOf(sessionId), sessionId)
+  }
+
+  /**
+   * Map a conversation session onto the workbench store key (project folder).
+   * Same-project chats share tabs, activity, and the bottom panel.
+   * @param resolve - returns a stable project key, or undefined to use the session id.
+   */
+  setScopeResolver(resolve: (sessionId: string) => string | undefined): void {
+    this.#scopeOfSession = resolve
+  }
+
+  /**
+   * Store key for one conversation: the project folder when known, else the session id.
+   * @param sessionId - conversation session.
+   */
+  scopeOf(sessionId: string): string {
+    const key = this.#scopeOfSession?.(sessionId)
+    return key !== undefined && key !== '' ? key : sessionId
   }
 
   /**
@@ -291,17 +311,18 @@ export class XmartWorkbenchController implements IXmartWorkbench {
    * @returns a source whose object identity stays fixed for this session.
    */
   observeSession(sessionId: string): HostObservable<WorkbenchView> {
-    this.#ensure(sessionId)
-    let source = this.#sessionSources.get(sessionId)
+    const key = this.scopeOf(sessionId)
+    this.#ensure(key)
+    let source = this.#sessionSources.get(key)
     if (source === undefined) {
       source = {
         getSnapshot: () => {
           /* v8 ignore next -- #ensure publishes this session's view before the source is read. */
-          return this.#views.get(sessionId) ?? EMPTY_WORKBENCH_VIEW
+          return this.#views.get(key) ?? EMPTY_WORKBENCH_VIEW
         },
         subscribe: fn => this.subscribe(fn),
       }
-      this.#sessionSources.set(sessionId, source)
+      this.#sessionSources.set(key, source)
     }
     return source
   }
@@ -476,9 +497,10 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   getSnapshot(sessionId?: string): WorkbenchView {
     const id = sessionId ?? this.#currentSession
     if (id === undefined) return EMPTY_WORKBENCH_VIEW
-    this.#ensure(id)
+    const key = this.scopeOf(id)
+    this.#ensure(key)
     /* v8 ignore next -- #ensure publishes this session's view before the read. */
-    return this.#views.get(id) ?? EMPTY_WORKBENCH_VIEW
+    return this.#views.get(key) ?? EMPTY_WORKBENCH_VIEW
   }
 
   /** @inheritdoc */
@@ -538,24 +560,24 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
 
   /**
-   * Copy explorer activity and editor tabs onto another session in the
-   * same project. Terminal tabs stay behind — their PTY is bound to the
-   * source session. An existing target list is overwritten so switching
-   * chats in the folder keeps the live editor.
+   * Copy the live workbench chrome onto another session. Same-project
+   * chats already share a store ({@link scopeOf}) and this is a no-op.
+   * Distinct keys (no resolver, or a pending session) get a full copy,
+   * including terminal tabs — the PTY stays on the session that opened it.
    * @param fromId - session that currently has the open files.
-   * @param toId - session that should show the same editor chrome.
-   * @returns true when the target was written.
+   * @param toId - session that should show the same chrome.
+   * @returns true when the target already shares the store or was written.
    */
   inheritSession(fromId: string, toId: string): boolean {
     if (fromId === toId) return false
-    const from = this.#ensure(fromId).getSnapshot()
-    const tabs = from.tabs.filter(tab => !isBottomPanelTabType(tab.type)).map(tab => ({ ...tab }))
-    const active = tabs.some(tab => tab.id === from.activeTabId)
-      ? from.activeTabId
-      : (tabs[tabs.length - 1]?.id ?? null)
-    this.#write(toId, (draft) => {
+    const fromKey = this.scopeOf(fromId)
+    const toKey = this.scopeOf(toId)
+    if (fromKey === toKey) return true
+    const from = this.#ensure(fromKey).getSnapshot()
+    const tabs = from.tabs.map(tab => ({ ...tab }))
+    this.#write(toKey, (draft) => {
       draft.tabs = tabs
-      draft.activeTabId = active
+      draft.activeTabId = from.activeTabId
       draft.nextSeq = from.nextSeq
       draft.activity = from.activity
     })
@@ -573,7 +595,11 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   }
 
   #resolveSession(scope?: SessionScope): string | undefined {
-    return scope?.sessionId ?? this.#currentSession
+    const raw = scope?.sessionId ?? this.#currentSession
+    if (raw === undefined) return undefined
+    const key = this.scopeOf(raw)
+    this.#lastRawByScope.set(key, raw)
+    return key
   }
 
   #ensure(sessionId: string): SnapshotStore<WorkbenchSessionState> {
@@ -624,7 +650,8 @@ export class XmartWorkbenchController implements IXmartWorkbench {
     this.#openPanel?.()
   }
 
-  #menuFor(sessionId: string, state: WorkbenchSessionState): WorkbenchMenuItem[] {
+  #menuFor(storeKey: string, state: WorkbenchSessionState): WorkbenchMenuItem[] {
+    const sessionId = this.#lastRawByScope.get(storeKey) ?? storeKey
     const items: { item: WorkbenchMenuItem; order: number }[] = []
     for (const descriptor of this.#tabs.values()) {
       if (descriptor.hidden === true) continue

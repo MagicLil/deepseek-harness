@@ -62,7 +62,7 @@ import { activeFileTab, dispatchAppMenu, type AppMenuCommand } from './app-menu-
 import { en, NS, zh } from './locales.ts'
 import { canCreateTerminal, countTerminalTabs, shouldCreateOnToggle } from './terminal-actions.ts'
 import { hostTerminalsOf, killTerminal } from './terminal-client.ts'
-import { clearTerminalSeat } from './terminal-seats.ts'
+import { clearTerminalSeat, getTerminalSeatOwner } from './terminal-seats.ts'
 import { isBottomPanelTabType, type TabBodyProps } from './types.ts'
 import { askAgentFix } from './ask-agent-fix.ts'
 
@@ -135,6 +135,42 @@ export function apply(ctx: ClientContext): void {
     ctx.sessions.list.getSnapshot(),
     ctx.workspaces.list.getSnapshot(),
   )
+  let lastKnownProject: string | undefined
+  const resolveScope = (sessionId: string): string | undefined => {
+    const key = projectKey(sessionId)
+    if (key !== undefined) {
+      lastKnownProject = key
+      return key
+    }
+    if (ctx.sessions.list.getSnapshot().current === sessionId) return lastKnownProject
+    return undefined
+  }
+  workbench.setScopeResolver(resolveScope)
+  const scopeOf = (sessionId: string): string => workbench.scopeOf(sessionId)
+  const scopedFiles = {
+    ...files,
+    expandedOf: (id: string) => files.expandedOf(scopeOf(id)),
+    setExpanded: (id: string, path: string, expanded: boolean) => {
+      files.setExpanded(scopeOf(id), path, expanded)
+    },
+    cloneExpanded: (fromId: string, toId: string) => {
+      files.cloneExpanded(scopeOf(fromId), scopeOf(toId))
+    },
+  }
+  const scopedSearch = {
+    stateOf: (id: string) => searchStore.stateOf(scopeOf(id)),
+    update: (id: string, patch: Parameters<typeof searchStore.update>[1]) => {
+      searchStore.update(scopeOf(id), patch)
+    },
+    subscribe: (fn: () => void) => searchStore.subscribe(fn),
+  }
+  const scopedGitBadge = {
+    getSnapshot: (id: string) => gitBadge.getSnapshot(scopeOf(id)),
+    set: (id: string, snap: ReturnType<typeof gitBadge.getSnapshot>) => {
+      gitBadge.set(scopeOf(id), snap)
+    },
+    subscribe: (fn: () => void) => gitBadge.subscribe(fn),
+  }
   let lastSession = ctx.sessions.list.getSnapshot().current
   let skipPersistRestoreFor: string | undefined
   ctx.effect(() => ctx.sessions.list.subscribe(() => {
@@ -145,10 +181,12 @@ export function apply(ctx: ClientContext): void {
     lastSession = next
     skipPersistRestoreFor = undefined
     if (prev === undefined || next === undefined) return
-    if (!shouldInheritSameProject(prev, next, snap, ctx.workspaces.list.getSnapshot())) return
+    const sameProject = shouldInheritSameProject(prev, next, snap, ctx.workspaces.list.getSnapshot())
+      || workbench.scopeOf(prev) === workbench.scopeOf(next)
+    if (!sameProject) return
     workbench.inheritSession(prev, next)
-    files.cloneExpanded(prev, next)
-    const copied = inheritWorkbenchPersist(persist, prev, next)
+    scopedFiles.cloneExpanded(prev, next)
+    const copied = inheritWorkbenchPersist(persist, scopeOf(prev), scopeOf(next))
     if (copied !== undefined) {
       if (copied.open) ctx.layout.setWorkbench(copied.width)
       else ctx.layout.closeWorkbench()
@@ -207,7 +245,7 @@ export function apply(ctx: ClientContext): void {
     getCwd,
     gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
     listEntries: (path, signal) => ctx.workspaces.listEntries(path, signal),
-    store: gitBadge,
+    store: scopedGitBadge,
     watch: (fn) => {
       const offFacts = watchWorkspaceFacts(fn)
       const offFiles = files.subscribe(fn)
@@ -249,7 +287,7 @@ export function apply(ctx: ClientContext): void {
         workbench.openFile(path, { sessionId: props.sessionId })
       },
       mentionFile: (path) => { mentionFile(props.sessionId, path) },
-      files,
+      files: scopedFiles,
       getActivePath,
       watchWorkbench,
     })
@@ -285,7 +323,7 @@ export function apply(ctx: ClientContext): void {
         requestReveal(path, reveal)
         workbench.openFile(path, { sessionId })
       },
-      store: searchStore,
+      store: scopedSearch,
     })
     return workbench.registerActivity({
       id: 'search',
@@ -327,8 +365,8 @@ export function apply(ctx: ClientContext): void {
           title: commitDiffTitle(hash, subject),
         }, { sessionId: props.sessionId })
       },
-      files,
-      gitBadge,
+      files: scopedFiles,
+      gitBadge: scopedGitBadge,
     })
     const disposeTab = workbench.registerTab({
       id: 'git',
@@ -371,6 +409,7 @@ export function apply(ctx: ClientContext): void {
         t,
         host,
         remote,
+        scopeId: scopeOf(props.sessionId),
         ...cwd === undefined ? {} : { cwd },
       })
     },
@@ -615,8 +654,10 @@ export function apply(ctx: ClientContext): void {
   const closeTerminalTab = (sessionId: SessionId, tabId: string): void => {
     const tab = workbench.getSnapshot(sessionId).tabs.find(t => t.id === tabId)
     if (tab?.type === 'terminal') {
-      const ptyId = clearTerminalSeat(sessionId, tabId)
-      if (ptyId !== undefined) void killTerminal(host, sessionId, ptyId)
+      const scope = scopeOf(sessionId)
+      const owner = getTerminalSeatOwner(scope, tabId) ?? sessionId
+      const ptyId = clearTerminalSeat(scope, tabId)
+      if (ptyId !== undefined) void killTerminal(host, owner, ptyId)
     }
     workbench.closeTab(tabId, { sessionId })
     const remaining = workbench.getSnapshot(sessionId).tabs.filter(t => isBottomPanelTabType(t.type))
@@ -701,7 +742,7 @@ export function apply(ctx: ClientContext): void {
     resolveIcon: id => workbench.getActivity(id)?.icon,
     openPrimary: () => {
       if (sessionId !== undefined) {
-        const inst = persist.create(sessionId)
+        const inst = persist.create(scopeOf(sessionId))
         const remembered = inst.getSnapshot().width
         inst.actions.rememberOpen(remembered > 0 ? remembered : WORKBENCH_PERSIST_DEFAULT)
       }
@@ -712,13 +753,13 @@ export function apply(ctx: ClientContext): void {
       workbenchSession: sessionId === undefined ? EMPTY_SESSION_SOURCE : workbench.observeSession(sessionId),
       workbenchRegistry: workbench.observeRegistry(),
       gitBadge: {
-        getSnapshot: () => sessionId === undefined ? EMPTY_GIT_BADGE : gitBadge.getSnapshot(sessionId),
-        subscribe: fn => gitBadge.subscribe(fn),
+        getSnapshot: () => sessionId === undefined ? EMPTY_GIT_BADGE : scopedGitBadge.getSnapshot(sessionId),
+        subscribe: fn => scopedGitBadge.subscribe(fn),
       },
     },
   })
   const primaryInjected = (sessionId: SessionId | undefined): PrimarySidebarInjected => {
-    const inst = sessionId === undefined ? undefined : persist.create(sessionId)
+    const inst = sessionId === undefined ? undefined : persist.create(scopeOf(sessionId))
     return {
       closeWorkbench: () => { ctx.layout.closeWorkbench() },
       setWorkbench: (px) => { ctx.layout.setWorkbench(px) },
