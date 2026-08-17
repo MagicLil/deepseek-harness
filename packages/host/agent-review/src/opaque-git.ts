@@ -1,7 +1,7 @@
 /** Spawn git to snapshot porcelain paths for opaque mutators. */
 
 import { execFile } from 'node:child_process'
-import { resolve as resolvePath } from 'node:path'
+import { dirname, relative, resolve as resolvePath } from 'node:path'
 import { promisify } from 'node:util'
 import { contentHash } from './hash.ts'
 import type { OpaqueCode, OpaqueFileSnap } from './opaque-scan.ts'
@@ -10,7 +10,7 @@ import type { ReviewDisk } from './review.ts'
 
 const execFileAsync = promisify(execFile)
 const GIT_TIMEOUT_MS = 15_000
-const GIT_MAX_BUFFER = 2 * 1024 * 1024
+const GIT_MAX_BUFFER = 32 * 1024 * 1024
 
 /** Classified result of one `git` child process. */
 export type GitRunResult =
@@ -76,6 +76,24 @@ export async function readHeadText(
 ): Promise<string | null> {
   const shown = await run(['-C', root, 'show', `HEAD:${toGitPath(relPath)}`])
   return shown.ok ? shown.stdout : null
+}
+
+/**
+ * `git show HEAD:<path>` using the repo that contains `absPath`.
+ * @param absPath - absolute workspace path.
+ * @param run - git runner.
+ */
+export async function readHeadTextForAbs(
+  absPath: string,
+  run: GitRunner = defaultRunGit,
+): Promise<string | null> {
+  const toplevel = await run(['-C', dirname(absPath), 'rev-parse', '--show-toplevel'])
+  if (!toplevel.ok) return null
+  const root = toplevel.stdout.trim()
+  if (root === '') return null
+  const relPath = relative(root, absPath)
+  if (relPath === '' || relPath.startsWith('..')) return null
+  return readHeadText(root, relPath, run)
 }
 
 /**

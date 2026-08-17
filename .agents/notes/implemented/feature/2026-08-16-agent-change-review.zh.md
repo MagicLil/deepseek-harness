@@ -11,7 +11,7 @@ Status: implemented（Host + Cursor 式输入框上方审查条）
 
 **壳命令 B（2026-08-16）：** `pwsh`/`bash`/… 一律置 `shellMaybeMutated`；字面量 `Remove-Item`/`rm`/`del` 路径按 `kind: delete` 进审查，可 Keep/Undo。解析不到的壳命令仍只显示可关掉的警告。
 
-**不透明 C-lite（2026-08-17）：** `cursor_agent` / `subagent*` 在工具前后用 `git status` 差导入审查行。见 [不透明子代理审查](../bug-fix/2026-08-17-agent-review-opaque-subagent.md)。关掉后经 Remote `dismissShell` 落盘（见 [persist-shell-review-dismiss](../bug-fix/2026-08-17-persist-shell-review-dismiss.md)）。
+**不透明 C-lite（2026-08-17）：** `cursor_agent` / `subagent*` 在工具前后用 `git status` 差导入审查行；git 看不见时再导入提示词/结果里的路径。见 [不透明子代理审查](../bug-fix/2026-08-17-agent-review-opaque-subagent.md)。关掉后经 Remote `dismissShell` 落盘（见 [persist-shell-review-dismiss](../bug-fix/2026-08-17-persist-shell-review-dismiss.md)）。审查入口只有输入框上方的审查条；卡片上的药丸已[否决](../../rejected/bug-fix/2026-08-17-tool-card-review-action.md)。
 
 ## 为什么是 L2
 

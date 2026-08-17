@@ -6,8 +6,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-tools'
-import { collectOpaqueSnap, readHeadText } from './opaque-git.ts'
+import { collectOpaqueSnap, readHeadText, readHeadTextForAbs } from './opaque-git.ts'
 import type { OpaqueSnap } from './opaque-git.ts'
+import { extractOpaquePaths, pathLooksWritten, resultMentionsPath } from './opaque-paths.ts'
 import { isOpaqueMutationTool } from './opaque-tools.ts'
 import { planOpaqueMutations } from './opaque-scan.ts'
 import { openTurnFromEvents, pathFromToolArgs } from './paths.ts'
@@ -86,8 +87,8 @@ export class AgentReviewGateway extends TypertRemoteService {
   private readonly disk: ReviewDisk
   private readonly maxShadowBytes: number
   private readonly extraOpaque: readonly string[]
-  /** Before-snapshots for in-flight opaque tools, keyed by session|turn|call. */
-  private readonly opaqueSnaps = new Map<string, OpaqueSnap>()
+  /** Before-snapshots + path hints for in-flight opaque tools. */
+  private readonly opaqueFlights = new Map<string, OpaqueFlight>()
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'agentReview')
@@ -218,7 +219,7 @@ export class AgentReviewGateway extends TypertRemoteService {
     const ok = !result.isError
 
     if (isOpaqueMutationTool(exec.name, this.extraOpaque)) {
-      await this.settleOpaque(exec, sessionId, turn, session.header.cwd)
+      await this.settleOpaque(exec, result, sessionId, turn, session.header.cwd)
       return
     }
 
@@ -245,44 +246,129 @@ export class AgentReviewGateway extends TypertRemoteService {
     turn: number,
     cwd: string | undefined,
   ): Promise<void> {
-    if (cwd === undefined || cwd.length === 0) {
-      await this.review.markShell(sessionId, turn)
-      return
+    const hinted = new Map<string, OpaqueHint>()
+    for (const path of extractOpaquePaths(exec.arguments, undefined, cwd)) {
+      const size = await this.disk.sizeOf(path)
+      if (size === null) {
+        hinted.set(path, { existed: false, text: null })
+        continue
+      }
+      hinted.set(path, {
+        existed: true,
+        text: size > this.maxShadowBytes ? null : await this.disk.readText(path),
+      })
     }
-    const snap = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
-    if (snap === null) {
-      await this.review.markShell(sessionId, turn)
-      return
+    let snap: OpaqueSnap | null = null
+    if (cwd !== undefined && cwd.length > 0) {
+      snap = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
     }
-    this.opaqueSnaps.set(opaqueKey(sessionId, turn, exec), snap)
+    this.opaqueFlights.set(opaqueKey(sessionId, turn, exec), { snap, hinted })
   }
 
   private async settleOpaque(
     exec: ToolExecution,
+    result: ToolExecutionResult,
     sessionId: string,
     turn: number,
     cwd: string | undefined,
   ): Promise<void> {
     const key = opaqueKey(sessionId, turn, exec)
-    const before = this.opaqueSnaps.get(key)
-    this.opaqueSnaps.delete(key)
-    if (before === undefined || cwd === undefined || cwd.length === 0) {
-      await this.review.markShell(sessionId, turn)
-      return
+    const flight = this.opaqueFlights.get(key)
+    this.opaqueFlights.delete(key)
+    let imported = 0
+    const beforeSnap = flight?.snap ?? null
+    let afterSnap: OpaqueSnap | null = null
+    if (beforeSnap !== null && cwd !== undefined && cwd.length > 0) {
+      afterSnap = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
     }
-    const after = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
-    if (after === null) {
-      await this.review.markShell(sessionId, turn)
-      return
-    }
-    for (const plan of planOpaqueMutations(before.files, after.files)) {
-      let beforeText = plan.beforeText
-      if (beforeText === null && plan.kind !== 'create') {
-        beforeText = await readHeadText(before.root, plan.relPath)
+    if (beforeSnap !== null && afterSnap !== null) {
+      for (const plan of planOpaqueMutations(beforeSnap.files, afterSnap.files)) {
+        let beforeText = plan.beforeText
+        if (beforeText === null && plan.kind !== 'create') {
+          beforeText = await readHeadText(beforeSnap.root, plan.relPath)
+        }
+        await this.review.observe(sessionId, turn, plan.absPath, plan.kind, beforeText)
+        imported += 1
       }
-      await this.review.observe(sessionId, turn, plan.absPath, plan.kind, beforeText)
     }
+    imported += await this.importHintedPaths(exec, result, sessionId, turn, cwd, flight)
+    if (imported === 0) await this.review.markShell(sessionId, turn)
   }
+
+  private async importHintedPaths(
+    exec: ToolExecution,
+    result: ToolExecutionResult,
+    sessionId: string,
+    turn: number,
+    cwd: string | undefined,
+    flight: OpaqueFlight | undefined,
+  ): Promise<number> {
+    const hinted = flight?.hinted ?? new Map<string, OpaqueHint>()
+    const beforeSnap = flight?.snap ?? null
+    const candidates = new Set<string>([
+      ...hinted.keys(),
+      ...extractOpaquePaths(exec.arguments, result, cwd),
+    ])
+    let imported = 0
+    for (const path of candidates) {
+      const size = await this.disk.sizeOf(path)
+      const exists = size !== null
+      const hint = hinted.get(path)
+      let existed = hint?.existed
+      let beforeText = hint?.text ?? beforeSnap?.files.get(path)?.text ?? null
+      if (existed === undefined) {
+        const inBefore = beforeSnap?.files.get(path)
+        if (inBefore !== undefined && inBefore.code !== 'deleted') {
+          existed = true
+        } else if (exists) {
+          const head = await readHeadTextForAbs(path)
+          if (head !== null) {
+            existed = true
+            beforeText = beforeText ?? head
+          } else {
+            existed = false
+          }
+        } else {
+          existed = false
+        }
+      }
+      if (!exists && !existed) continue
+      if (!exists && existed) {
+        await this.review.observe(sessionId, turn, path, 'delete', beforeText)
+        imported += 1
+        continue
+      }
+      if (exists && !existed) {
+        await this.review.observe(sessionId, turn, path, 'create', null)
+        imported += 1
+        continue
+      }
+      const claimed = resultMentionsPath(result, path, cwd) || pathLooksWritten(exec.arguments, path)
+      // Same-content overwrite of a named write target still belongs in the
+      // dock. The first cursor_agent create often leaves the file on disk; a
+      // later "create again" with the same body must not fall back to the
+      // yellow shell bar. Prompt-only mentions that did not change stay out.
+      if (!claimed && beforeText !== null) {
+        const after = await this.disk.readText(path)
+        if (after === beforeText) continue
+      }
+      await this.review.observe(sessionId, turn, path, 'update', beforeText)
+      imported += 1
+    }
+    return imported
+  }
+}
+
+/** Pre-execute snapshot of one mentioned path. */
+interface OpaqueHint {
+  readonly existed: boolean
+  readonly text: string | null
+}
+
+/** In-flight opaque capture: git porcelain plus mentioned-path stats. */
+interface OpaqueFlight {
+  readonly snap: OpaqueSnap | null
+  readonly hinted: Map<string, OpaqueHint>
 }
 
 function opaqueKey(sessionId: string, turn: number, exec: ToolExecution): string {

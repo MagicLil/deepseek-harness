@@ -11,7 +11,7 @@ Per-turn Agent file mutations (`write`/`edit`) are captured as host-side shadows
 
 **Shell B (2026-08-16):** `pwsh`/`bash`/… set `shellMaybeMutated`; literal `Remove-Item`/`rm`/`del` paths are captured as `kind: delete` with Keep/Undo. Unparseable shell still shows a dismissible dock warning.
 
-**Opaque C-lite (2026-08-17):** `cursor_agent` / `subagent*` snapshot `git status` before the tool and import create/update/delete after it returns. See [opaque subagent review](../bug-fix/2026-08-17-agent-review-opaque-subagent.md). Dismiss persists via Remote `dismissShell` (clears the flag on disk; see [persist-shell-review-dismiss](../bug-fix/2026-08-17-persist-shell-review-dismiss.md)).
+**Opaque C-lite (2026-08-17):** `cursor_agent` / `subagent*` snapshot `git status` before the tool and import create/update/delete after it returns; paths named in the prompt/result are imported when git cannot see them. See [opaque subagent review](../bug-fix/2026-08-17-agent-review-opaque-subagent.md). Dismiss persists via Remote `dismissShell` (clears the flag on disk; see [persist-shell-review-dismiss](../bug-fix/2026-08-17-persist-shell-review-dismiss.md)). The composer dock is the only Review UI; an in-card pill was [rejected](../../rejected/bug-fix/2026-08-17-tool-card-review-action.md).
 
 ## Why L2
 

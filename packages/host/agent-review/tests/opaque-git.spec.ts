@@ -7,6 +7,7 @@ import {
   collectOpaqueSnap,
   defaultRunGit,
   readHeadText,
+  readHeadTextForAbs,
   type GitRunner,
 } from '../src/opaque-git.ts'
 import { createNodeDisk } from '../src/index.ts'
@@ -106,6 +107,24 @@ describe('collectOpaqueSnap', () => {
     const fail: GitRunner = async () => ({ ok: false, code: 'git-failed', message: 'no' })
     expect(await readHeadText('/repo', 'a\\b.txt', ok)).toBe('head\n')
     expect(await readHeadText('/repo', 'a.txt', fail)).toBeNull()
+  })
+
+  it('readHeadTextForAbs follows the containing repo and rejects misses', async () => {
+    const ok: GitRunner = async (args) => {
+      if (args.includes('rev-parse')) return { ok: true, stdout: '/repo\n' }
+      return { ok: true, stdout: 'old\n' }
+    }
+    expect(await readHeadTextForAbs('/repo/a.txt', ok)).toBe('old\n')
+    const fail: GitRunner = async () => ({ ok: false, code: 'git-unavailable', message: 'no' })
+    expect(await readHeadTextForAbs('/repo/a.txt', fail)).toBeNull()
+    const empty: GitRunner = async () => ({ ok: true, stdout: '  \n' })
+    expect(await readHeadTextForAbs('/repo/a.txt', empty)).toBeNull()
+    const outside: GitRunner = async (args) => {
+      if (args.includes('rev-parse')) return { ok: true, stdout: '/repo\n' }
+      return { ok: true, stdout: 'x' }
+    }
+    expect(await readHeadTextForAbs('/other/a.txt', outside)).toBeNull()
+    expect(await readHeadTextForAbs(join(tmpdir(), 'dsh-no-abs-head', 'a.txt'))).toBeNull()
   })
 })
 
