@@ -12,7 +12,8 @@ import {
 } from './review-client.ts'
 import type { WorkbenchFilesStore } from './files-store.ts'
 import type { WorkbenchKey } from './locales.ts'
-import { basename } from './route-file.ts'
+import { FileIcon } from './FileIcon.tsx'
+import { ellipsizeReviewPath } from './review-path.ts'
 import css from './ReviewDock.module.css'
 
 type Translate = (key: WorkbenchKey) => string
@@ -120,7 +121,7 @@ export function ReviewDock(props: ReviewDockProps) {
     return null
   if (pending <= 0 && !shellOnly)
     return null
-  return (_jsxs('div', { className: css.root, 'data-testid': 'review-dock', children: [_jsxs('div', { className: css.header, children: [_jsxs('button', { type: 'button', className: css.titleBtn, 'data-testid': 'review-dock-toggle', 'aria-expanded': expanded, onClick: () => { setExpanded(v => !v) }, children: [_jsx('span', { className: css.chevron, 'aria-hidden': true, children: expanded ? '▾' : '▸' }), _jsx('span', { children: pending > 0
+  return (_jsxs('div', { className: css.root, 'data-testid': 'review-dock', 'data-review-dock': '', children: [_jsxs('div', { className: css.header, children: [_jsxs('button', { type: 'button', className: css.titleBtn, 'data-testid': 'review-dock-toggle', 'aria-expanded': expanded, onClick: () => { setExpanded(v => !v) }, children: [_jsx('span', { className: css.chevron, 'aria-hidden': true, children: expanded ? '▾' : '▸' }), _jsx('span', { children: pending > 0
     ? t('review.files').replace('{n}', String(pending))
     : t('review.shellTitle') })] }), _jsxs('div', { className: css.headerActions, children: [pending > 0 && (_jsxs(_Fragment, { children: [_jsx('button', { type: 'button', className: css.textBtn, disabled: busy || counts.pending === 0, 'data-testid': 'review-dock-undo-all', onClick: () => {
     const blocked = pendingFiles.some(file => dirty(file.path))
@@ -184,14 +185,7 @@ function DockRow(props: {
   onUndo: () => void
 }) {
   const { file, chip, t, busy, onOpen, onKeep, onUndo } = props
-  return (_jsxs('li', { className: css.row, 'data-testid': 'review-dock-row', children: [_jsxs('button', { type: 'button', className: css.pathBtn, onClick: onOpen, children: [_jsx('span', { className: css.kind, children: kindMark(file) }), _jsx('span', { className: css.name, children: basename(file.path) }), chip !== undefined && (chip.add > 0 || chip.del > 0) && (_jsxs('span', { className: css.chip, children: [chip.add > 0 && _jsxs('span', { className: css.add, children: ['+', chip.add] }), chip.del > 0 && _jsxs('span', { className: css.del, children: ['\u2212', chip.del] })] }))] }), _jsxs('span', { className: css.rowActions, children: [_jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-undo', title: t('review.undo'), 'aria-label': t('review.undo'), onClick: onUndo, children: _jsx(IconCloseOutline16, { size: 14 }) }), _jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-keep', title: t('review.keep'), 'aria-label': t('review.keep'), onClick: onKeep, children: _jsx(IconCheckOutline16, { size: 14 }) })] })] }))
-}
-function kindMark(file: ReviewFileRow): string {
-  if (file.kind === 'create')
-    return 'A'
-  if (file.kind === 'delete')
-    return 'D'
-  return 'M'
+  return (_jsxs('li', { className: css.row, 'data-testid': 'review-dock-row', children: [_jsxs('button', { type: 'button', className: css.pathBtn, title: file.path, onClick: onOpen, children: [_jsx(FileIcon, { path: file.path, kind: 'file', size: 14 }), _jsx('span', { className: css.name, children: ellipsizeReviewPath(file.path) })] }), chip !== undefined && (chip.add > 0 || chip.del > 0) && (_jsxs('span', { className: css.chip, children: [chip.add > 0 && _jsxs('span', { className: css.add, children: ['+', chip.add] }), chip.del > 0 && _jsxs('span', { className: css.del, children: ['-', chip.del] })] })), _jsxs('span', { className: css.rowActions, children: [_jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-undo', title: t('review.undo'), 'aria-label': t('review.undo'), onClick: onUndo, children: _jsx(IconCloseOutline16, { size: 14 }) }), _jsx('button', { type: 'button', className: css.iconBtn, disabled: busy || file.status === 'irreversible', 'data-testid': 'review-dock-keep', title: t('review.keep'), 'aria-label': t('review.keep'), onClick: onKeep, children: _jsx(IconCheckOutline16, { size: 14 }) })] })] }))
 }
 function errorKey(code: string | undefined): WorkbenchKey {
   if (code === 'dirty-editor')

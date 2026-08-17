@@ -199,6 +199,14 @@
   gap: var(--dsh-composer-stack-gap);
 }
 
+/* Review dock hangs on the input card: flatten the card's top so they share
+   one outline. The dock cancels the stack gap with a negative margin. */
+.composerStack:has(:global([data-review-dock])) :global([data-composer-card]) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
+}
+
 /* Common seat for the composer chain (fallback + elected overlay siblings). */
 .composerSeat {
   display: flex;

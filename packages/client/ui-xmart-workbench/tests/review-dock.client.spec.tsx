@@ -78,7 +78,9 @@ describe('ReviewDock', () => {
         openReviewDiff={openReviewDiff}
       />,
     )
-    expect(await screen.findByTestId('review-dock')).toBeTruthy()
+    const dock = await screen.findByTestId('review-dock')
+    expect(dock).toBeTruthy()
+    expect(dock.getAttribute('data-review-dock')).toBe('')
     fireEvent.click(screen.getByTestId('review-dock-review'))
     expect(openReviewDiff).toHaveBeenCalledWith('/tmp/a.ts', 1)
   })
