@@ -10,6 +10,7 @@
 - 随后 Electron 运行 **已编译的** [`lib/electron-main.js`](lib/electron-main.js)（由 `pnpm run build:lib` 构建）。Electron 不能使用 `tsx` —— 其 Node ABI 无法加载 tsx 的原生 esbuild 二进制。
 - [`shell`](src/shell.ts) 在 `apiProxy` 与 `clientModules` 就绪后打开窗口，并安装应用菜单（系统自带的 File / Edit / View / Window / Help，外加「终端」）。
 - 再次运行 `dsh desktop` 会聚焦已有窗口（单实例锁）。窗口位置与尺寸保存在 `$DSH_HOME/desktop-window.json`。点关闭会藏到托盘（托盘菜单「退出」才真正退出）。第一次隐藏会弹一次提示，标记写在 `$DSH_HOME/desktop-prefs.json`。
+- NSIS / 便携安装包会在 `resources/node` 旁带一份真 Node。`electron-main` 写入 `DSH_NODE_EXEC_PATH`，并在 PATH 前放 `dsh` shim（编译好的 CLI，不带 tsx），避免 Host 子进程把 `electron.exe` 当 Node 拉起。未打包的 `dsh desktop` 仍由 [`relaunch`](src/relaunch.ts) 记下启动用的 Node。
 
 ## 更新
 

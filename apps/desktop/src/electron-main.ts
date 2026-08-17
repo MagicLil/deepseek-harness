@@ -12,10 +12,21 @@ import { parseDshArgs } from '@deepseek-ai/dsh/args'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import { desktopElectronUserArgv } from './launch-argv.ts'
 import { markAppQuitting } from './lifecycle.ts'
-import { installElectronEvalSpawn } from './node-eval-spawn.ts'
+import { installElectronEvalSpawn, runDesktopRelaunch } from './node-eval-spawn.ts'
 import { desktopSplitProxyPacScript, resolveDesktopProxyServer } from './proxy-env.ts'
+import { installDesktopRuntime, resolveDesktopCliEntry } from './runtime-node.ts'
 import { desktopSecondInstanceAction } from './title-bar.ts'
 import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
+
+// Packaged NSIS/portable never runs relaunch.ts. Find the bundled Node (or
+// the unpackaged recorded path) and put a `dsh` shim on PATH before Host
+// children spawn — sandbox runner, community market, folder-picker koffi.
+const desktopRuntime = installDesktopRuntime({
+  env: process.env,
+  resourcesPath: process.resourcesPath,
+  platform: process.platform,
+  cliEntry: resolveDesktopCliEntry(import.meta.url),
+})
 
 // dsh-market's one-click restart does `spawn(process.execPath, ['-e', helper])`.
 // Under Electron that is `electron.exe -e <source>`, which becomes
@@ -23,10 +34,13 @@ import { focusDesktopWindow, registerDesktopSchemes } from './shell.ts'
 // run as Node via DSH_NODE_EXEC_PATH / ELECTRON_RUN_AS_NODE.
 installElectronEvalSpawn({
   execPath: process.execPath,
-  nodePath: process.env.DSH_NODE_EXEC_PATH,
+  nodePath: desktopRuntime.node ?? process.env.DSH_NODE_EXEC_PATH,
   onRelaunch: () => {
-    markAppQuitting()
-    app.relaunch()
+    runDesktopRelaunch({
+      markQuitting: markAppQuitting,
+      relaunch: () => { app.relaunch() },
+      exit: (code) => { app.exit(code) },
+    })
   },
 })
 

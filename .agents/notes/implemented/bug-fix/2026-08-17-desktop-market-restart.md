@@ -10,7 +10,7 @@ Settings → Plugin Market (`dshmarket`) update, then **Restart now**, showed El
 
 ## Decision
 
-`electron-main` patches `child_process.spawn` before the profile boots. A `dsh-market-restart` `-e` helper becomes `app.relaunch()` (plus the existing quit flag so the window does not hide to tray). Other `electron -e` children run as Node: `DSH_NODE_EXEC_PATH` when the unpackaged relaunch recorded it, otherwise the same binary with `ELECTRON_RUN_AS_NODE=1`. The planner lives in `apps/desktop/src/node-eval-spawn.ts`.
+`electron-main` patches `child_process.spawn` before the profile boots, then calls `module.syncBuiltinESMExports()` so ESM `import { spawn }` (dsh-market) sees the patch — assigning only the CJS export leaves Electron launching `electron.exe -e <source>`. A `dsh-market-restart` `-e` helper becomes `runDesktopRelaunch` (`app.relaunch()` plus the quit flag, then `app.exit(0)` — same as the second-instance path, so the helper need not SIGTERM). Other `electron -e` children run as Node: `DSH_NODE_EXEC_PATH` from relaunch or the [packaged bundled Node](2026-08-17-desktop-packaged-node.md), otherwise the same binary with `ELECTRON_RUN_AS_NODE=1`. The planner lives in `apps/desktop/src/node-eval-spawn.ts`.
 
 ## Alternatives considered
 
@@ -22,4 +22,4 @@ Settings → Plugin Market (`dshmarket`) update, then **Restart now**, showed El
 
 ## Consequences
 
-Clicking Restart now after a market update schedules a real desktop relaunch instead of a second Electron GUI. Install still uses the PATH `dsh` shim from [the loopback-market note](2026-08-17-desktop-loopback-market.md). Packaged hosts without a recorded Node still get `ELECTRON_RUN_AS_NODE` for non-market `-e` children.
+Clicking Restart now after a market update schedules a real desktop relaunch and exits 0, instead of a second Electron GUI. Install still uses the PATH `dsh` shim from [the loopback-market note](2026-08-17-desktop-loopback-market.md) and [the packaged-node note](2026-08-17-desktop-packaged-node.md). Hosts without a Node path still get `ELECTRON_RUN_AS_NODE` for non-market `-e` children.

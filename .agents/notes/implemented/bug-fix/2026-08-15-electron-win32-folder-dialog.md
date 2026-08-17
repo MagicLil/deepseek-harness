@@ -16,7 +16,7 @@ Desktop loads the built `lib/worker.cjs`, not the TypeScript source. A bindings 
 ## What changed
 
 - `readUtf16` asks `kernel32.lstrlenW` for the character count and views exactly `chars * 2` bytes. The bindings fake refuses any larger view so this over-read stays red in unit tests.
-- `spawnDialogWorker` prefers `DSH_NODE_EXEC_PATH` (or `internals.nodeExecPath`) under Electron and skips `ELECTRON_RUN_AS_NODE` in that case, so koffi loads against the Node ABI it was built for. Packaged Electron still falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
-- Desktop `relaunch` records `DSH_NODE_EXEC_PATH=process.execPath` (the Node that launched `dsh desktop`) before spawning Electron.
+- `spawnDialogWorker` prefers `DSH_NODE_EXEC_PATH` (or `internals.nodeExecPath`) under Electron and skips `ELECTRON_RUN_AS_NODE` in that case, so koffi loads against the Node ABI it was built for. Packaged hosts get that path from [the bundled Node](2026-08-17-desktop-packaged-node.md); only a host with no Node path falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
+- Desktop `relaunch` records `DSH_NODE_EXEC_PATH=process.execPath` (the Node that launched `dsh desktop`) before spawning Electron. Packaged `electron-main` records the bundled binary the same way.
 
 See workspace `FORK-PATCHES.md` entries 8 and 11.

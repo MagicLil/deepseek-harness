@@ -6,6 +6,7 @@ import {
   installElectronEvalSpawn,
   isMarketRestartEval,
   planElectronEvalSpawn,
+  runDesktopRelaunch,
   sameExecPath,
   type SpawnTarget,
 } from '../src/node-eval-spawn.ts'
@@ -132,6 +133,18 @@ describe('isMarketRestartEval', () => {
   })
 })
 
+describe('runDesktopRelaunch', () => {
+  it('marks quitting, relaunches, then exits 0 so the market helper need not SIGTERM', () => {
+    const calls: string[] = []
+    runDesktopRelaunch({
+      markQuitting: () => { calls.push('quit') },
+      relaunch: () => { calls.push('relaunch') },
+      exit: (code) => { calls.push(`exit:${String(code)}`) },
+    })
+    expect(calls).toEqual(['quit', 'relaunch', 'exit:0'])
+  })
+})
+
 describe('createRestartHelperStub', () => {
   it('exposes a pid and no-op unref for the market helper', () => {
     const stub = createRestartHelperStub()
@@ -207,5 +220,30 @@ describe('installElectronEvalSpawn', () => {
     target.spawn('dsh', { cwd: 'D:\\repo' })
     expect(target.calls).toEqual([{ file: 'dsh', args: [] }])
     restore()
+  })
+
+  it('syncs builtin ESM exports when patching the real child_process', () => {
+    let synced = 0
+    const restore = installElectronEvalSpawn({
+      execPath: process.execPath,
+      onRelaunch: () => {},
+      syncExports: () => { synced += 1 },
+    })
+    expect(synced).toBe(1)
+    restore()
+    expect(synced).toBe(2)
+  })
+
+  it('does not sync ESM exports when tests pass a fake spawn target', () => {
+    let synced = 0
+    const target = fakeTarget()
+    const restore = installElectronEvalSpawn({
+      execPath: ELECTRON,
+      onRelaunch: () => {},
+      syncExports: () => { synced += 1 },
+    }, target)
+    expect(synced).toBe(0)
+    restore()
+    expect(synced).toBe(0)
   })
 })

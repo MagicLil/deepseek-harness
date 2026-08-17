@@ -8,10 +8,11 @@
  *
  * Desktop (`dsh desktop`) hosts this plugin inside Electron. `process.execPath`
  * is then `electron.exe`. Prefer the Node binary recorded in
- * `DSH_NODE_EXEC_PATH` (set by the desktop relaunch) so koffi loads against
- * the Node ABI it was built for. Packaged Electron has no such Node; those
- * hosts fall back to the same `execPath` with `ELECTRON_RUN_AS_NODE=1`.
- * Spawning `electron.exe` as a GUI child exits before the IPC protocol.
+ * `DSH_NODE_EXEC_PATH` (desktop relaunch, or the packaged bundled Node
+ * installed by `electron-main`) so koffi loads against the Node ABI it was
+ * built for. Hosts without that path fall back to the same `execPath` with
+ * `ELECTRON_RUN_AS_NODE=1`. Spawning `electron.exe` as a GUI child exits
+ * before the IPC protocol.
  */
 
 import { spawn, type StdioOptions } from 'node:child_process'

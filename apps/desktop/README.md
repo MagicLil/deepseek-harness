@@ -10,6 +10,7 @@ Electron main/preload shell for the desktop profile: `dsh://` static serving, IP
 - Electron then runs the **compiled** [`lib/electron-main.js`](lib/electron-main.js) (built by `pnpm run build:lib`). Electron cannot use `tsx` — its Node ABI does not load tsx's native esbuild binary.
 - [`shell`](src/shell.ts) opens the window once `apiProxy` and `clientModules` are live, and installs the application menu (stock File / Edit / View / Window / Help plus Terminal).
 - A second `dsh desktop` focuses the existing window (single-instance lock). Window bounds persist under `$DSH_HOME/desktop-window.json`. Closing the window hides to the tray (Quit from the tray menu exits). The first hide shows a one-time toast; that flag lives in `$DSH_HOME/desktop-prefs.json`.
+- Packaged NSIS/portable copies a real Node next to `resources/node`. `electron-main` sets `DSH_NODE_EXEC_PATH` and prepends a PATH `dsh` shim (compiled CLI, no tsx) so Host children do not spawn `electron.exe` as Node. Unpackaged `dsh desktop` still records the launching Node in [`relaunch`](src/relaunch.ts).
 
 ## Updates
 

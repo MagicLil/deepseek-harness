@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-desktop/node-eval-spawn
  */
 
-import { createRequire } from 'node:module'
+import { createRequire, syncBuiltinESMExports } from 'node:module'
 import type { ChildProcess, SpawnOptions } from 'node:child_process'
 
 const childProcess = createRequire(import.meta.url)('node:child_process') as typeof import('node:child_process')
@@ -26,7 +26,7 @@ export interface ElectronEvalSpawnInput {
   readonly env?: NodeJS.ProcessEnv | undefined
   /** `process.execPath` of this Electron process. */
   readonly execPath: string
-  /** Real Node recorded by the desktop relaunch (`DSH_NODE_EXEC_PATH`). */
+  /** Real Node (`DSH_NODE_EXEC_PATH` from relaunch or the packaged bundle). */
   readonly nodePath?: string | undefined
 }
 
@@ -71,16 +71,45 @@ export function planElectronEvalSpawn(input: ElectronEvalSpawnInput): ElectronEv
 export interface InstallElectronEvalSpawnOptions {
   /** `process.execPath` of this Electron process. */
   readonly execPath: string
-  /** Real Node recorded by the desktop relaunch. */
+  /** Real Node (`DSH_NODE_EXEC_PATH` from relaunch or the packaged bundle). */
   readonly nodePath?: string | undefined
   /** Electron-native restart used instead of dsh-market's helper. */
   readonly onRelaunch: () => void
+  /**
+   * After patching the real `child_process` CJS export, refresh ESM
+   * `import { spawn }` bindings. dsh-market is ESM; without this, Electron
+   * still sees `electron.exe -e <source>` and shows "Error launching app".
+   * Tests inject a counter; omitted on fake spawn targets.
+   */
+  readonly syncExports?: () => void
 }
 
 /**
  * Minimal child the market only `unref()`s and reads `pid` from.
  * @returns a stub that looks enough like a detached helper.
  */
+/** Hooks used to restart this Electron process without a Node `-e` helper. */
+export interface DesktopRelaunchHooks {
+  /** Mark quit so the window does not hide to the tray. */
+  readonly markQuitting: () => void
+  /** `app.relaunch()` — replay the current Electron argv after exit. */
+  readonly relaunch: () => void
+  /** `app.exit(0)` — do not wait for a community-plugin SIGTERM. */
+  readonly exit: (code: number) => void
+}
+
+/**
+ * Relaunch this desktop process and exit immediately.
+ * dsh-market's helper only `unref()`s and later SIGTERMs the parent; the
+ * second-instance path already calls `app.exit(0)` after `app.relaunch()`.
+ * @param hooks - quit flag, Electron relaunch, and process exit.
+ */
+export function runDesktopRelaunch(hooks: DesktopRelaunchHooks): void {
+  hooks.markQuitting()
+  hooks.relaunch()
+  hooks.exit(0)
+}
+
 export function createRestartHelperStub(): ChildProcess {
   const stub = {
     pid: 1,
@@ -149,6 +178,8 @@ export function installElectronEvalSpawn(
   target: SpawnTarget = childProcess,
 ): () => void {
   const original = target.spawn
+  const syncing = target === childProcess
+  const sync = options.syncExports ?? syncBuiltinESMExports
   const patched: typeof childProcess.spawn = ((
     file: string,
     argsOrOptions?: readonly string[] | SpawnOptions,
@@ -177,7 +208,9 @@ export function installElectronEvalSpawn(
     return invokeSpawn(original, file, argsOrOptions ?? [], maybeOptions)
   }) as typeof childProcess.spawn
   target.spawn = patched
+  if (syncing) sync()
   return () => {
     target.spawn = original
+    if (syncing) sync()
   }
 }

@@ -16,7 +16,7 @@
 ## 改动
 
 - `readUtf16` 先用 `kernel32.lstrlenW` 取字符数，再只 view `chars * 2` 字节。bindings 的假 koffi 拒绝更大的 view，这个过读会在单测里保持红色。
-- `spawnDialogWorker` 在 Electron 下优先用 `DSH_NODE_EXEC_PATH`（或 `internals.nodeExecPath`），此时不再设 `ELECTRON_RUN_AS_NODE`，让 koffi 对着它编译时的 Node ABI 加载。打包后的 Electron 仍回退到 `electron.exe` + `ELECTRON_RUN_AS_NODE`。
-- 桌面 `relaunch` 在拉起 Electron 之前记下 `DSH_NODE_EXEC_PATH=process.execPath`（启动 `dsh desktop` 的那份 Node）。
+- `spawnDialogWorker` 在 Electron 下优先用 `DSH_NODE_EXEC_PATH`（或 `internals.nodeExecPath`），此时不再设 `ELECTRON_RUN_AS_NODE`，让 koffi 对着它编译时的 Node ABI 加载。安装包从[自带 Node](2026-08-17-desktop-packaged-node.md) 得到这条路径；只有没有 Node 路径的宿主才回退到 `electron.exe` + `ELECTRON_RUN_AS_NODE`。
+- 桌面 `relaunch` 在拉起 Electron 之前记下 `DSH_NODE_EXEC_PATH=process.execPath`（启动 `dsh desktop` 的那份 Node）。打包后的 `electron-main` 用同样的方式记下自带的二进制。
 
 见工作区 `FORK-PATCHES.md` 条目 8 与 11。

@@ -1,7 +1,7 @@
 /**
  * Pick the Node binary that should run a Node language-server script.
- * Desktop relaunch records `DSH_NODE_EXEC_PATH`; packaged Electron without
- * that fact falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
+ * Desktop records `DSH_NODE_EXEC_PATH` (relaunch or packaged bundled Node);
+ * Electron without that fact falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
  * @module @deepseek-ai/dsh-lsp-languages/node-launch
  */
 

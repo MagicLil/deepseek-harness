@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-17-desktop-market-restart.md
-2026-08-17-desktop-market-restart.md: 431e56dac68b491b0c5183063148ee93bae7bc4c
-2026-08-17-desktop-market-restart.zh.md: 4b37b435425a8e6236754ed13c1bca0317dad456
+2026-08-17-desktop-market-restart.md: db262d413762aeae269527f3a39ce555b1b315fc
+2026-08-17-desktop-market-restart.zh.md: 1cc40c3d0433e4d417f2898de02d8e408770d83d

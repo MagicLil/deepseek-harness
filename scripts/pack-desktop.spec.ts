@@ -4,13 +4,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  BUNDLED_NODE_DIRNAME,
   DEFAULT_DESKTOP_DIST,
   PACK_REQUIRED_PACKAGES,
+  bundledNodeFileName,
+  copyBundledNode,
   hoistDeclaredWorkspaceDependencies,
   hoistMissingWorkspacePackages,
   missingPackPackages,
   pinVisibleWorkspaceDependencies,
   stripStarDependencies,
+  syncBundledNode,
   syncScopedWorkspacePackages,
   parsePackDesktopArgs,
   removeDir,
@@ -47,6 +51,8 @@ describe('electron-builder.yml', () => {
     expect(yml).not.toContain('DeepSeek-Harness')
     expect(yml).not.toContain('万物智汇')
     expect(yml).toContain('afterPack: ./after-pack.cjs')
+    expect(yml).toContain('from: ../../.desktop-pack/bundled-node')
+    expect(yml).toContain('to: node')
   })
 })
 
@@ -82,6 +88,7 @@ describe('missingPackPackages', () => {
     expect(missing).toEqual([
       'lib/electron-main.js',
       'preload.mjs',
+      `${BUNDLED_NODE_DIRNAME}/${bundledNodeFileName()}`,
       '@deepseek-ai/dsh',
     ])
     expect(PACK_REQUIRED_PACKAGES).toContain('@deepseek-ai/dsh')
@@ -207,6 +214,40 @@ describe('resolveElectronBuilderCli', () => {
     const cli = resolveElectronBuilderCli(join(import.meta.dirname, '../apps/desktop/package.json'))
     expect(cli.replaceAll('\\', '/')).toMatch(/\/electron-builder\/cli\.js$/)
     expect(existsSync(cli)).toBe(true)
+  })
+})
+
+describe('copyBundledNode', () => {
+  it('copies the packer Node into bundled-node/', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-pack-node-'))
+    const source = join(dir, 'source-node')
+    writeFileSync(source, 'node-bytes')
+    const dest = copyBundledNode(dir, source, 'win32')
+    expect(dest).toBe(join(dir, BUNDLED_NODE_DIRNAME, 'node.exe'))
+    expect(readFileSync(dest, 'utf8')).toBe('node-bytes')
+  })
+})
+
+describe('syncBundledNode', () => {
+  it('copies a missing bundled Node into the unpacked resources tree', () => {
+    const source = mkdtempSync(join(tmpdir(), 'dsh-pack-node-src-'))
+    const dest = mkdtempSync(join(tmpdir(), 'dsh-pack-node-dst-'))
+    mkdirSync(join(source, BUNDLED_NODE_DIRNAME), { recursive: true })
+    writeFileSync(join(source, BUNDLED_NODE_DIRNAME, bundledNodeFileName()), 'node-bytes')
+    const copied = syncBundledNode(source, dest)
+    expect(copied).toBe(join(dest, 'node', bundledNodeFileName()))
+    expect(existsSync(join(dest, 'node', bundledNodeFileName()))).toBe(true)
+  })
+
+  it('leaves an already-copied Node in place', () => {
+    const source = mkdtempSync(join(tmpdir(), 'dsh-pack-node-src-'))
+    const dest = mkdtempSync(join(tmpdir(), 'dsh-pack-node-dst-'))
+    mkdirSync(join(source, BUNDLED_NODE_DIRNAME), { recursive: true })
+    mkdirSync(join(dest, 'node'), { recursive: true })
+    writeFileSync(join(source, BUNDLED_NODE_DIRNAME, bundledNodeFileName()), 'new')
+    writeFileSync(join(dest, 'node', bundledNodeFileName()), 'old')
+    expect(syncBundledNode(source, dest)).toBeUndefined()
+    expect(readFileSync(join(dest, 'node', bundledNodeFileName()), 'utf8')).toBe('old')
   })
 })
 

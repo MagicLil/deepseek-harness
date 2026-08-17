@@ -28,8 +28,8 @@ export interface NodeLaunch {
 
 /**
  * Pick the Node binary that should run `@vue/language-server`.
- * Desktop relaunch records `DSH_NODE_EXEC_PATH`; packaged Electron without
- * that fact falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
+ * Desktop records `DSH_NODE_EXEC_PATH` (relaunch or packaged bundled Node);
+ * Electron without that fact falls back to `electron.exe` + `ELECTRON_RUN_AS_NODE`.
  * @param internals - process-fact overrides for tests.
  */
 export function nodeLaunch(internals: NodeLaunchInternals = {}): NodeLaunch {

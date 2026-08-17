@@ -13,6 +13,9 @@ files:
   - '!**/*.map'
   - '!**/tests/**'
   - '!**/src/**'
+extraResources:
+  - from: ../../.desktop-pack/bundled-node
+    to: node
 extraMetadata:
   main: lib/electron-main.js
 win:

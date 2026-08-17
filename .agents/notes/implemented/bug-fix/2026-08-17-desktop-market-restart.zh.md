@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-`electron-main` 在 profile 启动前补丁 `child_process.spawn`。带 `dsh-market-restart` 的 `-e` 助手改走 `app.relaunch()`（并打上已有的退出标记，避免窗口藏进托盘）。其它 `electron -e` 子进程按 Node 跑：未打包 relaunch 记下的 `DSH_NODE_EXEC_PATH`，否则同一二进制加 `ELECTRON_RUN_AS_NODE=1`。规划函数在 `apps/desktop/src/node-eval-spawn.ts`。
+`electron-main` 在 profile 启动前补丁 `child_process.spawn`，并调用 `module.syncBuiltinESMExports()`，让 ESM 的 `import { spawn }`（dsh-market）也能看到补丁 —— 只改 CJS 导出时，Electron 仍会把 `electron.exe -e <源码>` 当成应用路径。带 `dsh-market-restart` 的 `-e` 助手改走 `runDesktopRelaunch`（`app.relaunch()` 加上退出标记，然后 `app.exit(0)` —— 和第二实例路径一样，不必等助手 SIGTERM）。其它 `electron -e` 子进程按 Node 跑：`DSH_NODE_EXEC_PATH` 来自 relaunch 或[安装包自带的 Node](2026-08-17-desktop-packaged-node.md)，否则同一二进制加 `ELECTRON_RUN_AS_NODE=1`。规划函数在 `apps/desktop/src/node-eval-spawn.ts`。
 
 ## Alternatives considered
 
@@ -22,4 +22,4 @@ Status: implemented
 
 ## Consequences
 
-市场更新后点「立即重启」会安排一次真正的桌面 relaunch，而不是再开一个 Electron GUI。安装仍走 [本机市场笔记](2026-08-17-desktop-loopback-market.md) 里的 PATH `dsh` shim。没有记下 Node 的打包宿主，非市场 `-e` 子进程仍用 `ELECTRON_RUN_AS_NODE`。
+市场更新后点「立即重启」会安排一次真正的桌面 relaunch 并以 0 退出，而不是再开一个 Electron GUI。安装仍走 [本机市场笔记](2026-08-17-desktop-loopback-market.md) 和[安装包 Node 笔记](2026-08-17-desktop-packaged-node.md) 里的 PATH `dsh` shim。没有 Node 路径的宿主，非市场 `-e` 子进程仍用 `ELECTRON_RUN_AS_NODE`。

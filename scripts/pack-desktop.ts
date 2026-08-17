@@ -32,6 +32,57 @@ export const PACK_REQUIRED_PACKAGES = [
 /** Default electron-builder output directory (repo-relative). */
 export const DEFAULT_DESKTOP_DIST = 'dist-desktop'
 
+/** Directory under the deploy tree that holds the shipped Node binary. */
+export const BUNDLED_NODE_DIRNAME = 'bundled-node'
+
+/**
+ * File name of the Node binary we copy into the installer.
+ * @param platform - pack host (Windows installers need `node.exe`).
+ */
+export function bundledNodeFileName(platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? 'node.exe' : 'node'
+}
+
+/**
+ * Copy the packer's real Node into the deploy tree for electron-builder
+ * `extraResources`. Packaged Electron must not spawn `electron.exe` as Node
+ * (koffi ABI, sandbox runner, community `dsh` shim).
+ * @param packRoot - `.desktop-pack`.
+ * @param nodePath - binary to copy (defaults to the packer `process.execPath`).
+ * @param platform - selects `node.exe` vs `node`.
+ * @returns destination path.
+ */
+export function copyBundledNode(
+  packRoot: string,
+  nodePath: string = process.execPath,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const destDir = join(packRoot, BUNDLED_NODE_DIRNAME)
+  mkdirSync(destDir, { recursive: true })
+  const dest = join(destDir, bundledNodeFileName(platform))
+  cpSync(nodePath, dest)
+  return dest
+}
+
+/**
+ * Copy the bundled Node into unpacked `resources/node` when extraResources
+ * did not land it (same belt-and-suspenders as scoped workspace sync).
+ * @param sourcePack - `.desktop-pack`.
+ * @param destResources - `win-unpacked/resources`.
+ * @returns destination path when a copy happened.
+ */
+export function syncBundledNode(sourcePack: string, destResources: string): string | undefined {
+  const name = bundledNodeFileName()
+  const from = join(sourcePack, BUNDLED_NODE_DIRNAME, name)
+  if (!existsSync(from)) return undefined
+  const destDir = join(destResources, 'node')
+  const to = join(destDir, name)
+  if (existsSync(to)) return undefined
+  mkdirSync(destDir, { recursive: true })
+  cpSync(from, to)
+  return to
+}
+
 /** Flags the pack command accepts. */
 export interface PackDesktopArgs {
   skipBuild: boolean
@@ -106,6 +157,8 @@ export function missingPackPackages(packRoot: string): string[] {
   const missing: string[] = []
   if (!existsSync(join(packRoot, 'lib', 'electron-main.js'))) missing.push('lib/electron-main.js')
   if (!existsSync(join(packRoot, 'preload.mjs'))) missing.push('preload.mjs')
+  const bundledNode = `${BUNDLED_NODE_DIRNAME}/${bundledNodeFileName()}`
+  if (!existsSync(join(packRoot, BUNDLED_NODE_DIRNAME, bundledNodeFileName()))) missing.push(bundledNode)
   const cliManifest = join(packRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
   if (!existsSync(cliManifest)) {
     missing.push('@deepseek-ai/dsh')
@@ -511,6 +564,8 @@ function main(): void {
   if (stripped.length > 0) {
     console.log(`desktop pack: stripped electron-builder pins: ${stripped.join(', ')}`)
   }
+  const bundledNode = copyBundledNode(packRoot)
+  console.log(`desktop pack: bundled Node ${bundledNode}`)
   const missing = missingPackPackages(packRoot)
   if (missing.length > 0) {
     throw new Error(`desktop pack: deployed tree is incomplete: ${missing.join(', ')}`)
@@ -529,10 +584,15 @@ function main(): void {
     '--publish',
     publish,
   ], desktopDir)
-  const unpackedApp = join(out, 'win-unpacked', 'resources', 'app')
+  const unpackedResources = join(out, 'win-unpacked', 'resources')
+  const unpackedApp = join(unpackedResources, 'app')
   const synced = syncScopedWorkspacePackages(packRoot, unpackedApp)
   if (synced.length > 0) {
     console.log(`desktop pack: synced peer packages into unpacked app: ${synced.join(', ')}`)
+  }
+  const syncedNode = syncBundledNode(packRoot, unpackedResources)
+  if (syncedNode !== undefined) {
+    console.log(`desktop pack: synced bundled Node into unpacked resources: ${syncedNode}`)
   }
   console.log(`desktop pack: installer artifacts in ${out}`)
 }
