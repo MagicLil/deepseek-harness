@@ -50,6 +50,12 @@ export interface Config {
   host: '127.0.0.1' | '0.0.0.0'
   /** Listen port; zero requests an OS-assigned port. */
   port: number
+  /**
+   * Extra sequential ports to try after an EADDRINUSE on {@link port}.
+   * Zero (the default) keeps the fail-loud activation used by `dsh web`.
+   * Ignored when {@link port} is 0 (the OS already picks a free port).
+   */
+  fallbackPorts?: number
 }
 
 /**
@@ -63,6 +69,7 @@ export class WebServer extends Service {
   static Config: z<Config> = z.object({
     host: z.union([z.const('127.0.0.1'), z.const('0.0.0.0')]).required(),
     port: z.natural().max(65535).required(),
+    fallbackPorts: z.natural().max(100).default(0),
   })
 
   private readonly exact = new Map<string, WebRoute>()
@@ -225,6 +232,27 @@ export class WebServer extends Service {
   }
 
   private async openListen(): Promise<void> {
+    const preferred = this.config.port
+    const extras = preferred === 0 ? 0 : (this.config.fallbackPorts ?? 0)
+    const attempts = 1 + extras
+    let lastError: unknown
+    for (let i = 0; i < attempts; i++) {
+      const port = preferred === 0 ? 0 : preferred + i
+      this.server = this.createHttpServer()
+      try {
+        await this.listenOn(port)
+        return
+      } catch (error) {
+        lastError = error
+        await closeUnusedServer(this.server)
+        if (!isAddrInUse(error) || i === attempts - 1) throw error
+      }
+    }
+    /* v8 ignore next -- the loop always returns or throws on the last attempt. */
+    throw lastError
+  }
+
+  private createHttpServer(): Server {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
       if (this.denied(req)) {
         await this.answerUnauthorized(req, res)
@@ -250,7 +278,7 @@ export class WebServer extends Service {
     // rejection killing the process on one malformed request (bad %-escape,
     // client dropping mid-body). Per-request failures log and answer 400 —
     // never a process exit.
-    this.server = createServer((req, res) => {
+    const server = createServer((req, res) => {
       handle(req, res).catch((err: unknown) => {
         this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
         if (res.headersSent) {
@@ -261,7 +289,7 @@ export class WebServer extends Service {
         res.end()
       })
     })
-    this.server.on('upgrade', (req, socket, head) => {
+    server.on('upgrade', (req, socket, head) => {
       const onError = (error: Error): void => {
         this.ctx.logger.warn(error)
         socket.destroy()
@@ -299,10 +327,13 @@ export class WebServer extends Service {
         socket.destroy()
       }
     })
+    return server
+  }
 
-    await new Promise<void>((resolve, reject) => {
+  private listenOn(port: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
       this.server.once('error', reject)
-      this.server.listen(this.config.port, this.config.host, () => {
+      this.server.listen(port, this.config.host, () => {
         this.server.off('error', reject)
         this.server.on('error', (err) => { this.ctx.logger.error(err) })
         this.listenedPort = (this.server.address() as AddressInfo).port
@@ -353,6 +384,16 @@ export class WebServer extends Service {
     for (const transform of this.indexTaps) out = transform(out)
     return out
   }
+}
+
+function isAddrInUse(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
+}
+
+function closeUnusedServer(server: Server): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => { resolve() })
+  })
 }
 
 export default WebServer

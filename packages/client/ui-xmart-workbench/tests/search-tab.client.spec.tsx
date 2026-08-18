@@ -6,6 +6,7 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type { FileSearchResult } from '@deepseek-ai/dsh-client-runtime/client'
 import { WORKBENCH_SEARCH_EVENT } from '../src/client/app-menu-dispatch.ts'
 import { SearchTab, SEARCH_DEBOUNCE_MS } from '../src/client/SearchTab.tsx'
+import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { createWorkbenchSearchStore } from '../src/client/search-store.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -30,9 +31,14 @@ function mount(opts?: {
   visible?: boolean
   sessionId?: string
   search?: (path: string, query: string, options: object, signal?: AbortSignal) => Promise<FileSearchResult>
-  openHit?: (sessionId: string, path: string, reveal: { line: number; character: number }) => void
+  openHit?: (sessionId: string, path: string, reveal: {
+    line: number
+    character: number
+    end?: number
+  }) => void
   watchSessions?: (fn: () => void) => () => void
   store?: ReturnType<typeof createWorkbenchSearchStore>
+  files?: ReturnType<typeof createWorkbenchFilesStore>
 }) {
   const store = opts?.store ?? createWorkbenchSearchStore()
   const search = opts?.search ?? vi.fn(async () => page())
@@ -49,6 +55,7 @@ function mount(opts?: {
       search={search}
       openHit={openHit}
       store={store}
+      files={opts?.files}
     />,
   )
   return { search, openHit, store }
@@ -75,7 +82,7 @@ describe('SearchTab', () => {
     expect(screen.getByTestId('xmart-search-file').textContent).toContain('src')
     expect(screen.getByRole('mark').textContent).toBe('js')
     await act(async () => { screen.getByTestId('xmart-search-hit').click() })
-    expect(openHit).toHaveBeenCalledWith('s1', '/ws/src/a.ts', { line: 2, character: 6 })
+    expect(openHit).toHaveBeenCalledWith('s1', '/ws/src/a.ts', { line: 2, character: 6, end: 8 })
   })
 
   it('flushes on Enter, toggles flags and globs, and collapses a file group', async () => {
@@ -114,11 +121,20 @@ describe('SearchTab', () => {
     expect(screen.getByTestId('xmart-search-empty').textContent).toBe('没有找到结果。')
 
     cleanup()
-    const failed = vi.fn(async () => {
+    const unavailable = vi.fn(async () => {
       throw { rpcError: { code: 'search-unavailable' } }
     })
-    mount({ search: failed })
+    mount({ search: unavailable })
     await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: 'x' } }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(screen.getByTestId('xmart-search-error').textContent).toBe('搜索引擎不可用。')
+
+    cleanup()
+    const failed = vi.fn(async () => {
+      throw { rpcError: { code: 'search-failed' } }
+    })
+    mount({ search: failed })
+    await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: 'y' } }) })
     await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
     expect(screen.getByTestId('xmart-search-error').textContent).toBe('搜索失败。')
 
@@ -130,6 +146,15 @@ describe('SearchTab', () => {
     await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: '[' } }) })
     await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
     expect(screen.getByTestId('xmart-search-error').textContent).toBe('正则表达式不合法。')
+
+    cleanup()
+    const badGlob = vi.fn(async () => {
+      throw { rpcError: { code: 'search-invalid', message: 'error parsing glob' } }
+    })
+    mount({ search: badGlob })
+    await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: 'z' } }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(screen.getByTestId('xmart-search-error').textContent).toBe('文件筛选不合法。')
   })
 
   it('ignores a superseded search and refocuses the input on the menu event', async () => {
@@ -193,5 +218,56 @@ describe('SearchTab', () => {
     roots = []
     await act(async () => { notify() })
     expect(screen.getByTestId('xmart-workbench-search').textContent).toContain('还没有可搜索的工作区目录')
+  })
+
+  it('keeps stale hits while a later search is in flight', async () => {
+    vi.useFakeTimers()
+    let finishNext!: (value: FileSearchResult) => void
+    const search = vi.fn((_path: string, query: string) => {
+      if (query === 'js') return Promise.resolve(page())
+      return new Promise<FileSearchResult>((resolve) => { finishNext = resolve })
+    })
+    mount({ search })
+    await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: 'js' } }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(screen.getByTestId('xmart-search-summary')).toBeTruthy()
+    await act(async () => { fireEvent.change(screen.getByTestId('xmart-search-input'), { target: { value: 'jsx' } }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(screen.getByTestId('xmart-search-summary')).toBeTruthy()
+    expect(screen.getByTestId('xmart-search-searching').textContent).toBe('正在搜索…')
+    await act(async () => { finishNext(page({ hits: [], fileCount: 0 })) })
+    expect(screen.getByTestId('xmart-search-empty')).toBeTruthy()
+  })
+
+  it('opens the selected hit with the keyboard and re-searches after a disk refresh', async () => {
+    vi.useFakeTimers()
+    const files = createWorkbenchFilesStore()
+    const search = vi.fn(async () => page({
+      hits: [
+        { path: '/ws/src/a.ts', line: 3, text: 'const js = 1', spans: [{ start: 6, end: 8 }] },
+        { path: '/ws/src/b.ts', line: 1, text: 'js()', spans: [{ start: 0, end: 2 }] },
+      ],
+      fileCount: 2,
+    }))
+    const { openHit, store } = mount({ search, files })
+    const input = screen.getByTestId('xmart-search-input')
+    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowDown' }) })
+    await act(async () => { fireEvent.change(input, { target: { value: 'js' } }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(search).toHaveBeenCalledOnce()
+    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowDown' }) })
+    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowUp' }) })
+    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowDown' }) })
+    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowDown' }) })
+    await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }) })
+    expect(openHit).toHaveBeenCalledWith('s1', '/ws/src/b.ts', { line: 0, character: 0, end: 2 })
+    await act(async () => { store.update('s1', { selectedKey: '/missing\n9' }) })
+    await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }) })
+    expect(openHit).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(search).toHaveBeenCalledTimes(2)
+    await act(async () => { files.bumpRefresh() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS) })
+    expect(search).toHaveBeenCalledTimes(3)
   })
 })

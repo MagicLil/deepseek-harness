@@ -56,6 +56,11 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Retry a failed history open for the scoped session.
+   * @returns completion of the open; failures land in snapshot.openState.
+   */
+  reloadHistory(): Promise<void>
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -285,6 +290,11 @@ export class ConversationController extends Service implements IConversation {
   /** Pull one older history page for the scoped Session. */
   async loadOlder(): Promise<void> {
     await this.scopedSession('loadOlder').loadOlder()
+  }
+
+  /** Retry a failed history open for the scoped Session. */
+  async reloadHistory(): Promise<void> {
+    await this.scopedSession('reloadHistory').open()
   }
 
   /** Resolve the caller scope's session face or throw on root contexts. */

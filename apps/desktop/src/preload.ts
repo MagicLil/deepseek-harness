@@ -24,6 +24,21 @@ import {
   type IpcFetchResponseHead,
 } from './ipc-protocol.ts'
 
+document.addEventListener('click', (event) => {
+  if (!event.ctrlKey || event.button !== 0 || event.defaultPrevented) return
+  const anchor = event.composedPath().find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
+  if (anchor === undefined) return
+  let url: URL
+  try {
+    url = new URL(anchor.href)
+  } catch {
+    return
+  }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.origin === location.origin) return
+  event.preventDefault()
+  window.open(url.href, '_blank', 'noopener')
+}, true)
+
 const bridge: DshIpcBridge = {
   async fetch(request: IpcFetchRequest): Promise<IpcFetchResponseHead> {
     return await ipcRenderer.invoke(DSH_FETCH_CHANNEL, request) as IpcFetchResponseHead

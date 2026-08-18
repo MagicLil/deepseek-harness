@@ -8,7 +8,7 @@
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import { matchFileViewer as matchViewer } from './match-viewer.ts'
-import { basename, tabTypeForViewer } from './route-file.ts'
+import { basename, isUnder, rewritePath, tabTypeForViewer } from './route-file.ts'
 import {
   DEFAULT_ACTIVITY_ORDER,
   DEFAULT_TAB_ORDER,
@@ -107,6 +107,14 @@ export interface IXmartWorkbench {
    * @returns the focused tab id, or undefined when the open is refused.
    */
   openFile(path: string, scope?: SessionScope, head?: Uint8Array): string | undefined
+  /**
+   * Rewrite or drop open file tabs at or under `from` after explorer
+   * rename/delete. `to` omitted closes those tabs.
+   * @param from - old absolute file or directory.
+   * @param to - new absolute path; omit to close.
+   * @param scope - target session; defaults to the column-bound session.
+   */
+  retargetPaths(from: string, to: string | undefined, scope?: SessionScope): void
   /**
    * Session snapshot (tabs, focus, derived `+` menu).
    * @param sessionId - session to read; defaults to the column-bound session.
@@ -491,6 +499,28 @@ export class XmartWorkbenchController implements IXmartWorkbench {
   openFile(path: string, scope?: SessionScope, head?: Uint8Array): string | undefined {
     const viewer = this.matchFileViewer(path, head)
     return this.openTab({ type: tabTypeForViewer(viewer?.id), path, title: basename(path) }, scope)
+  }
+
+  /** @inheritdoc */
+  retargetPaths(from: string, to: string | undefined, scope?: SessionScope): void {
+    const sessionId = this.#resolveSession(scope)
+    if (sessionId === undefined) return
+    this.#write(sessionId, (draft) => {
+      const kept: WorkbenchTab[] = []
+      for (const tab of draft.tabs) {
+        if (tab.path === undefined || !isUnder(tab.path, from)) {
+          kept.push(tab)
+          continue
+        }
+        if (to === undefined) continue
+        const path = rewritePath(tab.path, from, to)
+        kept.push({ ...tab, path, title: basename(path) })
+      }
+      draft.tabs = kept
+      if (draft.activeTabId !== null && !kept.some(tab => tab.id === draft.activeTabId)) {
+        draft.activeTabId = kept[kept.length - 1]?.id ?? null
+      }
+    })
   }
 
   /** @inheritdoc */

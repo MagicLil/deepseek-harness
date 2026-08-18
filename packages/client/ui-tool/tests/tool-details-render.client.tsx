@@ -58,6 +58,13 @@ export function renderToolDetails(t: TranslateNS<'conversation'>): DetailsSlotPr
     // PropsRenderSlots keeps its key generic even for this one-key share;
     // recover the concrete owner selected by the adapter's fixed slot.
     const details = owner as unknown as DetailsToolOwnerProps
-    return <ToolDetails block={details.block} cwd={details.cwd} t={t} />
+    const props = {
+      block: details.block,
+      cwd: details.cwd,
+      t,
+      useStore: ((selector: (value: { developerMode: boolean }) => unknown) => selector({ developerMode: false })),
+      actions: { setDeveloperMode: () => {} },
+    } as unknown as Parameters<typeof ToolDetails>[0]
+    return <ToolDetails {...props} />
   }
 }

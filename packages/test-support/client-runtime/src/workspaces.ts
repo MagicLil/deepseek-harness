@@ -196,6 +196,47 @@ export class TestWorkspaces implements IWorkspaces {
   }
 
   /**
+   * Explorer rename (recorded). The default echoes `parent/name`.
+   * @param path - absolute existing file or directory.
+   * @param name - single destination path segment.
+   * @returns the stubbed or derived new path.
+   */
+  async renameEntry(path: string, name: string): Promise<string> {
+    this.calls.push({ method: 'renameEntry', args: [path, name] })
+    const stub = this.stubs.get('renameEntry')
+    if (stub !== undefined) return await (stub(path, name) as Promise<string>)
+    const sep = path.includes('\\') ? '\\' : '/'
+    const parent = path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')))
+    return `${parent}${sep}${name}`
+  }
+
+  /**
+   * Explorer delete (recorded; default no-op).
+   * @param path - absolute existing file or directory.
+   */
+  async deleteEntry(path: string): Promise<void> {
+    this.calls.push({ method: 'deleteEntry', args: [path] })
+    await (this.stubs.get('deleteEntry')?.(path) as Promise<void> | undefined)
+  }
+
+  /**
+   * Image-preview bytes (recorded). The default serves empty bytes.
+   * @param path - absolute file path.
+   * @param signal - forwarded like the production face passes it to the wire.
+   */
+  async readFileBytes(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    this.calls.push({ method: 'readFileBytes', args: [path, signal] })
+    const stub = this.stubs.get('readFileBytes')
+    if (stub !== undefined) {
+      return await (stub(path, signal) as Promise<{ bytes: Uint8Array; mimeType: string }>)
+    }
+    return { bytes: new Uint8Array(), mimeType: 'application/octet-stream' }
+  }
+
+  /**
    * Workspace text search (recorded). The default serves an empty result;
    * stub to shape hits or failures.
    * @param path - absolute directory to search.
@@ -454,5 +495,15 @@ export class TestWorkspaces implements IWorkspaces {
     await this.update((draft) => {
       draft.archivedSessionIds = [...draft.archivedSessionIds, sessionId]
     })
+  }
+
+  /**
+   * Re-pull the workspace list baseline (recorded).
+   * @returns completion of the stub, or immediately when none is installed.
+   */
+  async refresh(): Promise<void> {
+    this.calls.push({ method: 'refresh', args: [] })
+    const stub = this.stubs.get('refresh')
+    if (stub !== undefined) await stub()
   }
 }

@@ -394,12 +394,15 @@ export function apply(ctx: Context): void {
         fileMentions: owner => ctx.get('chatFileMentions')?.forClosing(owner),
         openFile: (path) => {
           const cwd = sessions.list.getSnapshot().byId[sessionId]?.cwd
-          void workspaces.openPath(resolveWorkspacePath(cwd, path)).catch(() => {
+          const resolved = resolveWorkspacePath(cwd, path)
+          if (ctx.get('chatFileOpen')?.open(resolved) === true) return
+          void workspaces.openPath(resolved).catch(() => {
             // Host/OS open failures stay silent in the chat row; the native
             // app surfaces its own error dialog when the path is unusable.
           })
         },
         loadOlder: () => { void scoped.loadOlder() },
+        reloadHistory: () => { void scoped.reloadHistory() },
         loadImage: attachment => conversation.resolveImage(sessionId, attachment),
         // Unregistered 'trajectory' id is safe: the tab ring falls back to
         // the first view, and the untouched inspect target stays inert.

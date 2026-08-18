@@ -154,6 +154,8 @@ export type WorkspaceBrowserProps =
 export type WorkspacePickerInjected = DirectoryPickingInjected & {
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  /** Re-pull workspace.list after a baseline failure. */
+  refreshWorkspaces: () => void
 }
 
 /**

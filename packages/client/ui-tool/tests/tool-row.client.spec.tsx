@@ -164,12 +164,12 @@ describe('tool-call-model', () => {
     expect(toolRowModel('bash', result({ content: [] })).output).toBeNull()
   })
 
-  it('derives errorSummary as the first output line on error rows only', () => {
-    const failed = result({ content: [{ type: 'text', text: 'boom\ndetail' }], isError: true })
-    expect(toolRowModel('bash', failed).errorSummary).toBe('boom')
-    expect(toolRowModel('bash', result({ content: [{ type: 'text', text: 'boom' }] })).errorSummary).toBeNull()
-    expect(toolRowModel('bash', result({ content: [], isError: true })).errorSummary).toBeNull()
-    expect(toolRowModel('bash', running()).errorSummary).toBeNull()
+  it('derives a sanitized errorKind on error rows only', () => {
+    const failed = result({ content: [{ type: 'text', text: 'boom\ndetail' }], isError: true, error: { name: 'FsError', code: 'FS_IO_ERROR' } })
+    expect(toolRowModel('bash', failed).errorKind).toBe('file-busy')
+    expect(toolRowModel('bash', result({ content: [{ type: 'text', text: 'boom' }], isError: true })).errorKind).toBe('default')
+    expect(toolRowModel('bash', result({ content: [], isError: true })).errorKind).toBe('default')
+    expect(toolRowModel('bash', running()).errorKind).toBeNull()
   })
 
   it('gives Cordis lifecycle tools action titles over their generic variants', () => {
@@ -290,14 +290,22 @@ describe('ToolRow', () => {
     expect(open).not.toHaveBeenCalled()
   })
 
-  it('an error row shows the failure first line in the collapsed summary and the full text expanded', () => {
+  it('an error row shows the sanitized summary and hides the raw text behind developer mode', () => {
     const view = render(
-      <ToolRow {...rowProps} state="error" errorSummary="boom" output={'boom\ndetail'} />,
+      <ToolRow
+        {...rowProps}
+        state="error"
+        errorSummary="操作未完成，请稍后重试。"
+        output={'Error: ReplaceFileW EIO (Win32 32)'}
+        onToggleDeveloperMode={vi.fn()}
+      />,
     )
-    expect(view.getByText('boom')).toBeTruthy()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
     expect(view.queryByText('List files')).toBeNull()
     fireEvent.click(view.getByRole('button'))
-    expect(view.getByText(/detail/)).toBeTruthy()
+    // Raw error internals stay out of the DOM until developer mode is on.
+    expect(view.queryByText(/ReplaceFileW/)).toBeNull()
+    expect(view.getByText('开发者模式')).toBeTruthy()
     expect(view.container.querySelector('[data-error]')).not.toBeNull()
   })
 
@@ -377,6 +385,7 @@ describe('ToolRow', () => {
 describe('GenericToolCard', () => {
   const props = (toolName: string, block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
     callId: 'c1', toolName, block, openFile: vi.fn(), t,
+    developerMode: false, setDeveloperMode: vi.fn(),
   })
 
   it('renders the classified variant row from the frozen slice', () => {

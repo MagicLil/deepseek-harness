@@ -187,6 +187,7 @@ describe('searchCardModel', () => {
 describe('chat row search body (GenericToolCard fallback)', () => {
   const ownerProps = (block: RunningToolCall | ToolResultNode, toolName: string): GenericToolCardProps => ({
     callId: 'c1', toolName, block, openFile: vi.fn(), t,
+    developerMode: false, setDeveloperMode: vi.fn(),
   })
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
   const toggleRow = (view: { container: HTMLElement }) => {
@@ -280,19 +281,16 @@ describe('SearchRow keyed card', () => {
     expect(errorView.container.querySelector('[data-variant="search"]')?.getAttribute('data-state')).toBe('error')
   })
 
-  it('surfaces the result text through the Output section when an errored search has no card', () => {
-    // grep/glob return no presentResult on error → no card; the row shows the
-    // first error line as the collapsed summary and the full text once expanded.
+  it('shows a sanitized message when an errored search has no card', () => {
     const view = render(<SearchRow {...rowProps(settledGrep({
       isError: true, resultView: null,
       content: [{ type: 'text', text: 'grep: invalid regular expression' }],
     }), 'grep')} />)
     expect(searchKindOf(view.container)).toBeNull()
-    // Error state: the first line is the collapsed summary.
-    expect(view.getByText('grep: invalid regular expression')).toBeTruthy()
+    expect(view.queryByText('grep: invalid regular expression')).toBeNull()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
     toggleRow(view)
-    // Now in ToolRow's Output section too (the kept summary makes it appear twice).
-    expect(view.container.querySelector('[data-error]')?.textContent).toBe('grep: invalid regular expression')
+    expect(view.container.querySelector('[data-error]')?.textContent).toBe('操作未完成，请稍后重试。')
   })
 
   it('surfaces the result text for a settled non-error call with no card once expanded', () => {
@@ -330,13 +328,13 @@ describe('SearchRow keyed card', () => {
     expect(view.container.textContent).not.toMatch(/stored at/)
   })
 
-  it('falls back to the error name/code when an errored result has no text block', () => {
+  it('uses the generic sanitized message when an errored result has no text block', () => {
     const view = render(<SearchRow {...rowProps(settledGrep({
       isError: true, resultView: null, content: [],
       error: { name: 'ToolError', code: 'timeout' },
     }), 'grep')} />)
-    // Error state: the derived name/code line is the collapsed summary.
-    expect(view.getByText('ToolError: timeout')).toBeTruthy()
+    expect(view.queryByText('ToolError: timeout')).toBeNull()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 
   it('shows the result view\'s replacement title instead of the args summary', () => {

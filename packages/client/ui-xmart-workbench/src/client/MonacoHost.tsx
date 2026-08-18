@@ -120,9 +120,17 @@ export function MonacoHost({ initialValue, filePath, labels, onChange, onSave, l
           const applyReveal = (): void => {
             const reveal = takeReveal(initialRef.current.path)
             if (reveal === undefined) return
-            const position = { lineNumber: reveal.line + 1, column: reveal.character + 1 }
-            editor.setPosition(position)
-            editor.revealPositionInCenter(position)
+            const lineNumber = reveal.line + 1
+            const startColumn = reveal.character + 1
+            const endColumn = (reveal.end ?? reveal.character) + 1
+            const range = {
+              startLineNumber: lineNumber,
+              startColumn,
+              endLineNumber: lineNumber,
+              endColumn: Math.max(endColumn, startColumn),
+            }
+            editor.setSelection(range)
+            editor.revealRangeInCenter(range)
           }
           applyReveal()
           cleanups.push(subscribeReveal(applyReveal))

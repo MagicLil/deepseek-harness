@@ -165,8 +165,20 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async readFile(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/a.txt', content: '' } } }
       },
+      async readFileBytes(request) {
+        return {
+          rpcId: request.rpcId,
+          result: { ok: true, value: { path: '/w/a.png', contentBase64: '', mimeType: 'image/png' } },
+        }
+      },
       async writeFile(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/a.txt' } } }
+      },
+      async renameEntry(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/b.txt' } } }
+      },
+      async deleteEntry(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: request.payload.path } } }
       },
       async search(request) {
         return {
@@ -502,6 +514,14 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     expect(home.result).toMatchObject({ ok: true, value: { home: '/w' } })
     const created = await c.host.createDirectory({ path: '/w', name: 'fresh' })
     expect(created.result).toEqual({ ok: true, value: { path: '/w/new' } })
+    const renamed = await c.host.renameEntry({ path: '/w/a.txt', name: 'b.txt' })
+    expect(renamed.result).toEqual({ ok: true, value: { path: '/w/b.txt' } })
+    const deleted = await c.host.deleteEntry({ path: '/w/b.txt' })
+    expect(deleted.result).toEqual({ ok: true, value: { path: '/w/b.txt' } })
+    const bytes = await c.host.readFileBytes({ path: '/w/a.png' })
+    expect(bytes.result).toEqual({
+      ok: true, value: { path: '/w/a.png', contentBase64: '', mimeType: 'image/png' },
+    })
   })
 
   it('round-trips host.openPath through the wire form', async () => {

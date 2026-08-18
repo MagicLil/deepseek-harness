@@ -25,7 +25,8 @@ import {
   hostTerminalSignalValueSchema, hostTerminalWriteValueSchema,
   hostListDirectoryValueSchema, hostListEntriesValueSchema,
   hostOpenPathValueSchema, hostPickDirectoryValueSchema,
-  hostReadFileValueSchema, hostSearchValueSchema, hostWriteFileValueSchema,
+  hostReadFileBytesValueSchema, hostReadFileValueSchema, hostRenameEntryValueSchema, hostDeleteEntryValueSchema,
+  hostSearchValueSchema, hostWriteFileValueSchema,
 } from '../api/host.schema.ts'
 import {
   sessionCancelValueSchema,
@@ -123,7 +124,10 @@ export interface IApiClient {
     openPath(payload: RequestPayload<'host.openPath'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.openPath'>>>
     listEntries(payload: RequestPayload<'host.listEntries'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.listEntries'>>>
     readFile(payload: RequestPayload<'host.readFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.readFile'>>>
+    readFileBytes(payload: RequestPayload<'host.readFileBytes'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.readFileBytes'>>>
     writeFile(payload: RequestPayload<'host.writeFile'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.writeFile'>>>
+    renameEntry(payload: RequestPayload<'host.renameEntry'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.renameEntry'>>>
+    deleteEntry(payload: RequestPayload<'host.deleteEntry'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.deleteEntry'>>>
     search(payload: RequestPayload<'host.search'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.search'>>>
     gitStatus(payload: RequestPayload<'host.gitStatus'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitStatus'>>>
     gitDiff(payload: RequestPayload<'host.gitDiff'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'host.gitDiff'>>>
@@ -226,7 +230,10 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'host.openPath': hostOpenPathValueSchema,
   'host.listEntries': hostListEntriesValueSchema,
   'host.readFile': hostReadFileValueSchema,
+  'host.readFileBytes': hostReadFileBytesValueSchema,
   'host.writeFile': hostWriteFileValueSchema,
+  'host.renameEntry': hostRenameEntryValueSchema,
+  'host.deleteEntry': hostDeleteEntryValueSchema,
   'host.search': hostSearchValueSchema,
   'host.gitStatus': hostGitStatusValueSchema,
   'host.gitDiff': hostGitDiffValueSchema,
@@ -499,7 +506,10 @@ export abstract class AbstractApiClient implements IApiClient {
     openPath: (payload, signal) => this.callUnary('host.openPath', payload, signal),
     listEntries: (payload, signal) => this.callUnary('host.listEntries', payload, signal),
     readFile: (payload, signal) => this.callUnary('host.readFile', payload, signal),
+    readFileBytes: (payload, signal) => this.callUnary('host.readFileBytes', payload, signal),
     writeFile: (payload, signal) => this.callUnary('host.writeFile', payload, signal),
+    renameEntry: (payload, signal) => this.callUnary('host.renameEntry', payload, signal),
+    deleteEntry: (payload, signal) => this.callUnary('host.deleteEntry', payload, signal),
     search: (payload, signal) => this.callUnary('host.search', payload, signal),
     gitStatus: (payload, signal) => this.callUnary('host.gitStatus', payload, signal),
     gitDiff: (payload, signal) => this.callUnary('host.gitDiff', payload, signal),

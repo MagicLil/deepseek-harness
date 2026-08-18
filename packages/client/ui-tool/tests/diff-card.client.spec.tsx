@@ -118,6 +118,7 @@ describe('diffCardModel', () => {
 describe('chat row diff body', () => {
   const ownerProps = (block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
     callId: 'c1', toolName: 'edit', block, openFile: vi.fn(), t,
+    developerMode: false, setDeveloperMode: vi.fn(),
   })
 
   it('the expanded body is the applied diff, capped tighter than the panel', () => {
@@ -142,6 +143,7 @@ describe('chat row diff body', () => {
     // args body is the fallback the diff card must not have replaced.
     const view = render(<GenericToolCard {...{
       callId: 'c1', toolName: 'some_tool', openFile: vi.fn(), t,
+      developerMode: false, setDeveloperMode: vi.fn(),
       block: settled({
         call: { name: 'some_tool', argsRaw: '{"foo":"bar"}' },
         callView: null, resultView: null,
@@ -223,24 +225,23 @@ describe('FileMutationRow diff card', () => {
     expect(view.container.querySelector('[data-diff]')).toBeNull()
   })
 
-  it('surfaces the result text when an errored mutation has no diff card', () => {
-    // write/edit return undefined from presentResult on isError, so the failure
-    // has no diff — ToolRow shows the model-facing error text as the collapsed
-    // summary's first line (errorSummary) instead of a bare red dot.
+  it('shows a sanitized message when an errored mutation has no diff card', () => {
     const view = render(<FileMutationRow {...rowProps(settled({
       isError: true, callView: null, resultView: null,
       content: [{ type: 'text', text: 'old_string not found in notes/demo.txt' }],
     }))} />)
     expect(view.container.querySelector('[data-diff]')).toBeNull()
-    expect(view.getByText('old_string not found in notes/demo.txt')).toBeTruthy()
+    expect(view.queryByText('old_string not found in notes/demo.txt')).toBeNull()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 
-  it('falls back to the error name/code when an errored result has no text block', () => {
+  it('uses the generic sanitized message when an errored result has no text block', () => {
     const view = render(<FileMutationRow {...rowProps(settled({
       isError: true, callView: null, resultView: null, content: [],
       error: { name: 'ToolError', code: 'sandbox_denied' },
     }))} />)
-    expect(view.getByText('ToolError: sandbox_denied')).toBeTruthy()
+    expect(view.queryByText('ToolError: sandbox_denied')).toBeNull()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 
   it('shows no error summary for a successful diff or a running call', () => {

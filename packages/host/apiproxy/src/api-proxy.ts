@@ -4,8 +4,11 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat } from 'node:fs/promises'
+import { deleteEntryOnDisk, renameEntryOnDisk } from './entry-ops.ts'
+import { IMAGE_FILE_MAX_BYTES, imageMimeType } from './image-mime.ts'
 import { dirname, join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
@@ -650,6 +653,22 @@ const EDITOR_LISTING_MAX_ENTRIES = 2000
 /** Map a filesystem failure onto one editor error code carrying the path detail. */
 function fileError(code: 'file-unreadable' | 'file-write-failed', path: string, error: unknown): RpcError {
   return { code, message: `${path}: ${error instanceof Error ? error.message : String(error)}`, details: { path } }
+}
+
+/**
+ * Whole-file replace through a sibling temp + rename. The parent directory
+ * must already exist (editor contract); a crash mid-write leaves the previous
+ * complete file rather than a truncated target.
+ */
+async function replaceEditorFile(path: string, content: string): Promise<void> {
+  await stat(dirname(path))
+  let mode = 0o644
+  try {
+    mode = (await stat(path)).mode & 0o777
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  await writeFileAtomic(path, content, { mode })
 }
 
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
@@ -3105,6 +3124,40 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         return ok(request, { path, content: bytes.toString('utf8') })
       },
 
+      async readFileBytes(request, signal) {
+        const { path } = request.payload
+        if (signal.aborted) {
+          return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+        }
+        let size: number
+        try {
+          size = (await stat(path)).size
+        } catch (error: unknown) {
+          return err(request, fileError('file-unreadable', path, error))
+        }
+        if (size > IMAGE_FILE_MAX_BYTES) {
+          return err(request, {
+            code: 'file-too-large',
+            message: `${path} is ${size} bytes; image preview reads at most ${IMAGE_FILE_MAX_BYTES}`,
+            details: { path, size, maxBytes: IMAGE_FILE_MAX_BYTES },
+          })
+        }
+        let bytes: Buffer
+        try {
+          bytes = await readFile(path, { signal })
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+          }
+          return err(request, fileError('file-unreadable', path, error))
+        }
+        return ok(request, {
+          path,
+          contentBase64: bytes.toString('base64'),
+          mimeType: imageMimeType(path),
+        })
+      },
+
       async writeFile(request) {
         const { path, content } = request.payload
         // Refuse growth past the read bound too: a document the editor could
@@ -3117,11 +3170,29 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         }
         try {
-          await writeFile(path, content, 'utf8')
+          await replaceEditorFile(path, content)
         } catch (error: unknown) {
           return err(request, fileError('file-write-failed', path, error))
         }
         return ok(request, { path })
+      },
+
+      async renameEntry(request) {
+        const { path, name } = request.payload
+        const result = await renameEntryOnDisk(path, name)
+        if (!result.ok) {
+          return err(request, { code: result.code, message: result.message, details: { path: result.path } })
+        }
+        return ok(request, { path: result.path })
+      },
+
+      async deleteEntry(request) {
+        const { path } = request.payload
+        const result = await deleteEntryOnDisk(path)
+        if (!result.ok) {
+          return err(request, { code: result.code, message: result.message, details: { path: result.path } })
+        }
+        return ok(request, { path: result.path })
       },
 
       async search(request, signal) {

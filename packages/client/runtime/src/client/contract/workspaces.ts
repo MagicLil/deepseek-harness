@@ -2,7 +2,7 @@
  * The outward workspaces-service face — what `ctx.workspaces` exposes to
  * feature packages and the renderer host, and therefore exactly what the
  * test runtime's workspaces double must implement. Wire-pump entry points
- * (handleHostEnvelope/handleConnected/refresh/startInitialSelection) stay on
+ * (handleHostEnvelope/handleConnected/startInitialSelection) stay on
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
@@ -105,6 +105,25 @@ export interface IWorkspaces {
    * @param content - the full replacement text.
    */
   writeFile(path: string, content: string): Promise<void>
+  /**
+   * Rename one file or directory in its parent (explorer Rename).
+   * @param path - absolute existing file or directory.
+   * @param name - single destination path segment.
+   * @returns the new absolute path.
+   */
+  renameEntry(path: string, name: string): Promise<string>
+  /**
+   * Delete one file or directory tree (explorer Delete).
+   * @param path - absolute existing file or directory.
+   */
+  deleteEntry(path: string): Promise<void>
+  /**
+   * Read one file as bytes for in-column image preview.
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns raw bytes and a MIME guess from the path.
+   */
+  readFileBytes(path: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; mimeType: string }>
   /**
    * Workspace-wide text search for the workbench search panel.
    * @param path - absolute directory to search.
@@ -247,4 +266,9 @@ export interface IWorkspaces {
    * @param sessionId - session to archive.
    */
   archiveSession(sessionId: SessionId): Promise<void>
+  /**
+   * Re-pull the workspace.list baseline. In-flight pulls are reused.
+   * @returns completion of the current or newly started pull.
+   */
+  refresh(): Promise<void>
 }

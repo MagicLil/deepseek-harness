@@ -15,7 +15,7 @@ import {
   TerminalAccessError, listTerminals, openTerminal, readTerminal, writeTerminal,
   resizeTerminal, subscribeTerminalOutput, type HostTerminalMethods,
 } from './terminal-client.ts'
-import { getTerminalSeat, getTerminalSeatOwner, setTerminalSeat } from './terminal-seats.ts'
+import { clearTerminalSeat, getTerminalSeat, getTerminalSeatOwner, setTerminalSeat } from './terminal-seats.ts'
 import { xtermTheme } from './terminal-theme.ts'
 import { darkTheme } from './MonacoHost.tsx'
 import { ensureXtermCss } from './ensure-xterm-css.ts'
@@ -93,6 +93,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
     let themeObserver: MutationObserver | undefined
     let dataDisposable: { dispose: () => void } | undefined
     let openDisposable: { dispose: () => void } | undefined
+    let removeCopyCapture = (): void => {}
 
     void (async () => {
       try {
@@ -108,7 +109,22 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
         })
         const fit = new FitAddon()
         term.loadAddon(fit)
-        term.open(mountRef.current)
+        const terminalHost = mountRef.current
+        term.open(terminalHost)
+        const copySelection = (event: KeyboardEvent): boolean => {
+          if (!event.ctrlKey || event.key.toLowerCase() !== 'c' || !term.hasSelection()) return false
+          event.preventDefault()
+          event.stopPropagation()
+          void navigator.clipboard.writeText(term.getSelection()).catch(() => {})
+          return true
+        }
+        // xterm's textarea may receive Ctrl+C before its custom-key hook on some
+        // Chromium/Electron combinations. Capture on its host first so a selected
+        // terminal range always copies instead of becoming the PTY interrupt byte.
+        const captureCopy = (event: KeyboardEvent): void => { copySelection(event) }
+        terminalHost.addEventListener('keydown', captureCopy, true)
+        removeCopyCapture = () => { terminalHost.removeEventListener('keydown', captureCopy, true) }
+        term.attachCustomKeyEventHandler(event => !copySelection(event))
         fit.fit()
         termRef.current = term
         themeObserver = new MutationObserver(() => {
@@ -142,16 +158,8 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
         }
 
         let id = hostRef.current
-        const named = listed.sessions.find(row => row.name === tab.id)
-        if (named !== undefined) {
-          id = named.id
-          hostRef.current = id
-          setPtyId(id)
-          setTerminalSeat(seatScope, tab.id, id, owner)
-          const text = await readTerminal(host, owner, id)
-          if (cancelled) return
-          if (text !== '') term.write(text)
-        } else if (id === undefined) {
+
+        const openFresh = async (): Promise<void> => {
           const opened = await openTerminal(host, owner, {
             name: tab.id,
             ...cwd === undefined || cwd === '' ? {} : { cwd },
@@ -162,15 +170,14 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
             setTerminalSeat(seatScope, tab.id, opened.id, owner)
             return
           }
-          id = opened.id
-          hostRef.current = id
-          setPtyId(id)
-          setTerminalSeat(seatScope, tab.id, id, owner)
+          hostRef.current = opened.id
+          setPtyId(opened.id)
+          setTerminalSeat(seatScope, tab.id, opened.id, owner)
           // waitReady:false leaves motd empty; the prompt often lands in
           // scrollback before hostRef can accept live terminals/output.
           let text = opened.motd
           try {
-            const replay = await readTerminal(host, owner, id)
+            const replay = await readTerminal(host, owner, opened.id)
             if (replay !== '') text = replay
           } catch {
             // Keep motd when the optional read fails.
@@ -186,7 +193,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
                 await new Promise(resolve => setTimeout(resolve, 200))
                 if (cancelled) return
                 try {
-                  const replay = await readTerminal(host, owner, id)
+                  const replay = await readTerminal(host, owner, opened.id)
                   if (replay !== '') {
                     term.write(replay)
                     painted = true
@@ -200,13 +207,43 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
             // PowerShell often sits until it sees a key. A lone CR is enough
             // to reprint the prompt; live terminals/output then paints it.
             if (!cancelled && !painted) {
-              void writeTerminal(host, owner, id, '\r').catch(() => {})
+              void writeTerminal(host, owner, opened.id, '\r').catch(() => {})
             }
           }
-        } else {
+        }
+
+        const named = listed.sessions.find(row => row.name === tab.id)
+        if (named !== undefined) {
+          id = named.id
+          hostRef.current = id
+          setPtyId(id)
+          setTerminalSeat(seatScope, tab.id, id, owner)
           const text = await readTerminal(host, owner, id)
           if (cancelled) return
           if (text !== '') term.write(text)
+        } else if (id === undefined) {
+          await openFresh()
+        } else {
+          let reopened = false
+          let text = ''
+          try {
+            text = await readTerminal(host, owner, id)
+          } catch (err) {
+            if (err instanceof TerminalAccessError && err.message.startsWith('unknown PTY session ')) {
+              // The seat points at a PTY the host no longer knows (it died or
+              // the host restarted). Drop the stale seat and open a fresh one so
+              // the tab self-heals instead of showing the unavailable note.
+              clearTerminalSeat(seatScope, tab.id)
+              hostRef.current = undefined
+              setPtyId(undefined)
+              await openFresh()
+              reopened = true
+            } else {
+              throw err
+            }
+          }
+          if (cancelled) return
+          if (!reopened && text !== '') term.write(text)
         }
 
         const pushSize = (): void => {
@@ -243,6 +280,7 @@ function TerminalTabInner({ tab, sessionId, t, host, remote, cwd, scopeId }: Ter
     return () => {
       cancelled = true
       offOutput()
+      removeCopyCapture()
       themeObserver?.disconnect()
       resizeObserver?.disconnect()
       dataDisposable?.dispose()

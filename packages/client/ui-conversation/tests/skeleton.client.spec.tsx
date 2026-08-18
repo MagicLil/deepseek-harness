@@ -476,6 +476,7 @@ describe('ConversationRoot resident composer', () => {
     expect(selectWorkspace).toHaveBeenCalledWith(wid('second'))
     expect(b.view.queryByText('Selected Folder')).toBeNull()
     expect(b.view.getByText('one')).toBeTruthy()
+    expect(b.view.getByRole('alert').textContent).toContain('connect failed')
   })
 
   it('blank session keeps the interactive picker chip (workspace switchable until the first message)', () => {

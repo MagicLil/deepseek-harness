@@ -2,6 +2,7 @@
 /**
  * BottomPanel: terminal tab strip under the editor track.
  */
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -119,6 +120,50 @@ describe('BottomPanel', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(closeTab).toHaveBeenCalledWith('checks:1')
+  })
+
+  it('remounts the body when switching between same-type tabs so state is isolated', () => {
+    // A stateful stub whose useState initializer captures the FIRST tab.id it
+    // sees. Without a key on <Body>, React reuses the instance and the initializer
+    // never re-runs, so the stale tab.id leaks into the new tab. With key={active.id}
+    // the component remounts and the initializer runs fresh for each tab.
+    let mountCount = 0
+    function StatefulStub({ tab }: TabBodyProps) {
+      mountCount += 1
+      const [seed] = useState(tab.id)
+      return <div data-testid="xmart-bottom-body" data-seed={seed}>{tab.title}</div>
+    }
+    const baseView: WorkbenchView = {
+      ...EMPTY_WORKBENCH_VIEW,
+      activeTabId: 'terminal:1',
+      tabs: [
+        { id: 'terminal:1', type: 'terminal', title: '终端 1' },
+        { id: 'terminal:2', type: 'terminal', title: '终端 2' },
+      ],
+    }
+    function makeProps(view: WorkbenchView): BottomPanelProps {
+      return {
+        height: 200,
+        sessionId: 's1' as SessionId,
+        useSession: (() => null) as never,
+        useSessions: (() => null) as never,
+        useWorkspaces: (() => null) as never,
+        resolveBody: () => StatefulStub,
+        activateTab: vi.fn(),
+        closeTab: vi.fn(),
+        newTerminal: vi.fn(),
+        useWorkbenchSession: constantHook(view),
+        t,
+      } as BottomPanelProps
+    }
+    const { rerender } = render(<BottomPanel {...makeProps(baseView)} />)
+    expect(screen.getByTestId('xmart-bottom-body').dataset.seed).toBe('terminal:1')
+    expect(mountCount).toBe(1)
+
+    // Switch to terminal:2 — must remount, not reuse terminal:1's state.
+    rerender(<BottomPanel {...makeProps({ ...baseView, activeTabId: 'terminal:2' })} />)
+    expect(screen.getByTestId('xmart-bottom-body').dataset.seed).toBe('terminal:2')
+    expect(mountCount).toBe(2)
   })
 
   it('disables + at the session quota', () => {

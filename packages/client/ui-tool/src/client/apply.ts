@@ -3,6 +3,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ToolCallTree } from './tool/ToolCallTree.tsx'
 import { ToolDetails } from './tool/ToolDetails.tsx'
+import { createToolErrorViewStore } from './tool/tool-error-view-store.ts'
 import { CONVERSATION_NS as NS } from './locale.ts'
 import { askQuestionToolview } from './tool/toolviews/ask-question-row.tsx'
 import { bashToolviewSample } from './tool/toolviews/bash-sample.tsx'
@@ -20,10 +21,13 @@ export const inject = ['slots']
  * @param ctx - Client root context.
  */
 export function apply(ctx: ClientContext): void {
+  const errorViewStore = createToolErrorViewStore()
+
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'tool-call',
     locale: NS,
+    store: errorViewStore,
     children: {
       'tool.call.toolview': { kind: 'keyed', scope: 'session' },
     },
@@ -32,6 +36,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('conversation.details.tool', () => ctx.slots.register({
     name: 'conversation.details.tool',
     locale: NS,
+    store: errorViewStore,
   }, ToolDetails))
 
   ctx.plugin(bashToolviewSample)

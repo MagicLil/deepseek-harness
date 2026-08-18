@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：coding persona、storage／workspace／api-gateway、钉死的原生目录选择器、浏览器客户端名录、`127.0.0.1:3080` 上的 loopback `webserver`，以及本包的 `desktop-runtime` 粘合插件。该运行时通过 `frontend-static` 提供前端 dist，并让 Electron 打开这个本机 URL，使社区 HTTP 插件与宿主同源。第一方 `/api` 仍可通过 preload IPC 桥。应用命令行由 [`src/startup.ts`](src/startup.ts) 经 `ctx.cmdlineArgs` 解析。
+dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：coding persona、storage／workspace／api-gateway、钉死的原生目录选择器、浏览器客户端名录、`127.0.0.1:3080` 上的 loopback `webserver`（3080 被占时顺延最多 20 个端口），以及本包的 `desktop-runtime` 粘合插件。该运行时通过 `frontend-static` 提供前端 dist，并让 Electron 打开这个本机 URL，使社区 HTTP 插件与宿主同源。第一方 `/api` 仍可通过 preload IPC 桥。应用命令行由 [`src/startup.ts`](src/startup.ts) 经 `ctx.cmdlineArgs` 解析。
 
 ## 模型体验
 

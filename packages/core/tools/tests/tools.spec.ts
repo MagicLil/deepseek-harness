@@ -93,6 +93,38 @@ describe('ToolRuntime', () => {
     expect(observed).toEqual(result)
   })
 
+  it('keeps an internally recovered tool call at its final result', async () => {
+    const ctx = await setup()
+    let attempts = 0
+    ctx.tools.register({
+      ...echoTool,
+      name: 'retry-once',
+      async execute() {
+        attempts++
+        if (attempts === 1) throw new Error('raw internal failure: D:\\work\\file.txt')
+        return 'recovered'
+      },
+    })
+    ctx.on('tools/execute', async (_exec, next) => {
+      const first = await next()
+      return first.isError ? next() : first
+    })
+
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('retry-once'),
+      name: 'retry-once',
+      arguments: { text: 'ignored' },
+    })
+
+    expect(attempts).toBe(2)
+    expect(result).toEqual({
+      content: [{ type: 'text', text: 'recovered' }],
+      isError: false,
+      value: 'recovered',
+    })
+  })
+
   it('projects presentation metadata from the canonical value', async () => {
     const ctx = await setup()
     ctx.tools.register({

@@ -402,6 +402,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Archive a session into the registry-global set (hidden from grouping surfaces; session log and accounting slot remain). Archiving the current session clears the selection into the New Session view state.',
         parameters: [{ name: 'sessionId', description: 'session to archive.' }],
       },
+      {
+        signature: 'refresh(): Promise<void>',
+        description: 'Re-pull the workspace.list baseline. In-flight pulls are reused.',
+        parameters: [],
+        returns: 'completion of the current or newly started pull.',
+      },
     ],
   },
   {
@@ -717,7 +723,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ISession',
-    declaration: 'export interface ISession {\n    readonly sessionId: SessionId;\n    readonly projections: ProjectionsFace;\n    prompt(content: PromptContentPart[], mode: \'queue\' | \'steer\'): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    readAttachment(attachmentId: AttachmentIdType): Promise<RpcResult<{\n        attachment: ImageAttachmentRef;\n        data: Uint8Array;\n    }>>;\n    updateQueue(itemId: MessageId, action: QueueAction): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    cancel(): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    rename(title: string): Promise<RpcResult<{\n        title: string;\n        seq: number;\n    }>>;\n    loadOlder(): Promise<void>;\n    command(line: string): Promise<RemoteResult<{\n        matched: boolean;\n    }>>;\n}',
+    declaration: 'export interface ISession {\n    readonly sessionId: SessionId;\n    readonly projections: ProjectionsFace;\n    prompt(content: PromptContentPart[], mode: \'queue\' | \'steer\'): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    readAttachment(attachmentId: AttachmentIdType): Promise<RpcResult<{\n        attachment: ImageAttachmentRef;\n        data: Uint8Array;\n    }>>;\n    updateQueue(itemId: MessageId, action: QueueAction): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    cancel(): Promise<RpcResult<{\n        accepted: true;\n    }>>;\n    rename(title: string): Promise<RpcResult<{\n        title: string;\n        seq: number;\n    }>>;\n    open(): Promise<void>;\n    loadOlder(): Promise<void>;\n    command(line: string): Promise<RemoteResult<{\n        matched: boolean;\n    }>>;\n}',
   },
   {
     name: 'KeyPropsOf',

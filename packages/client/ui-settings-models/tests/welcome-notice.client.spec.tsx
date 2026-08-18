@@ -63,8 +63,8 @@ function mount(version?: string, mutateImpl: () => Promise<unknown> = () => Prom
 describe('WelcomeNotice', () => {
   it('uses the exact owner copy in both GUI locales', () => {
     expect(WELCOME_NOTICE_COPY.en).toEqual({
-      title: 'Internal Testing Notice',
-      body: "DeepSeek Harness 0.1 remains in testing for Harness developers. Many areas need further improvement, and we welcome feedback from the developer community. DeepSeek Harness's core plugins and foundational APIs will continue to evolve rapidly over the coming months.\n\nWe look forward to exploring the limits of intelligence with developers around the world, building on open-source, open, reusable, and composable infrastructure. We welcome Harness developers everywhere to join the DSH plugin ecosystem.",
+      title: 'Welcome to Xmart',
+      body: 'Xmart is a desktop coding assistant for local projects. Open a folder, describe the work in chat on the right; the editor sits in the middle, with files, search, and Git on the left.\n\nThis build is still in preview. Add an API key next, then pick a project folder to start.',
       continueLabel: 'Continue',
     })
     expect(en.welcomeBody).toBe(WELCOME_NOTICE_COPY.en.body)

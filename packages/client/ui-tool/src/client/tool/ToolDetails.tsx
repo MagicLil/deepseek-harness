@@ -5,24 +5,21 @@ import { diffCardModel } from './models/diff-card-model.ts'
 import { readCardModel } from './models/read-card-model.ts'
 import { searchCardModel } from './models/search-card-model.ts'
 import { terminalBlockLabels, terminalCardModel } from './models/terminal-card-model.ts'
+import { friendlyToolErrorSummary, toolErrorKind } from './models/tool-error.ts'
 import { resultText } from './models/tool-call-model.ts'
 import { webCardModel } from './models/web-card-model.ts'
 import css from './ToolDetails.module.css'
 
-/** Pure details-body inputs; framework session seats stay at the slot boundary. */
-interface ToolDetailsContentProps {
-  block: ToolDetailsProps['block']
-  cwd?: ToolDetailsProps['cwd']
-  t: ToolDetailsProps['t']
-}
-
 /**
  * Render the selected Tool call's structured output when its presentation
- * intent is known, otherwise preserve the flattened result text.
+ * intent is known, otherwise preserve the flattened result text. A failed
+ * call shows the sanitized failure message and reveals the raw text only
+ * under developer mode.
  * @param props - selected call slice, workspace root, and locale seat.
  * @returns the details output body.
  */
-export function ToolDetails({ block, cwd, t }: ToolDetailsContentProps) {
+export function ToolDetails({ block, cwd, useStore, actions, t }: ToolDetailsProps) {
+  const developerMode = useStore(s => s.developerMode)
   const terminal = terminalCardModel(block, cwd)
   if (terminal !== null) {
     return (
@@ -58,9 +55,31 @@ export function ToolDetails({ block, cwd, t }: ToolDetailsContentProps) {
     )
   }
   if (!('kind' in block)) return <div className={css.empty}>{t('details.running')}</div>
+  if (!block.isError) {
+    return (
+      <pre className={css.code}>
+        {resultText(block)}
+      </pre>
+    )
+  }
+  const summary = friendlyToolErrorSummary(toolErrorKind(block.error?.code), t)
   return (
-    <pre className={css.code} data-error={block.isError || undefined}>
-      {resultText(block)}
-    </pre>
+    <>
+      <div className={css.errorMessage}>{summary}</div>
+      <label className={css.developerToggle}>
+        <input
+          type="checkbox"
+          checked={developerMode}
+          onChange={(event) => { actions.setDeveloperMode(event.target.checked) }}
+        />
+        {t('tool.error.developerMode')}
+      </label>
+      {developerMode && (
+        <details className={css.debugDetails}>
+          <summary>{t('tool.error.debugDetails')}</summary>
+          <pre className={css.debugText}>{resultText(block)}</pre>
+        </details>
+      )}
+    </>
   )
 }

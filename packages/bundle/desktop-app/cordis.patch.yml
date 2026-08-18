@@ -5,8 +5,9 @@
 # A patch replaces the targeted row's whole `config`, so each row below
 # restates every key it owns.
 #
-# Desktop mounts webserver on 127.0.0.1:3080. The desktop-runtime row opens
-# Electron at that loopback URL. LAN rebind belongs to xmart-lan, not this row.
+# Desktop mounts webserver on 127.0.0.1:3080 and walks +1..+20 on EADDRINUSE
+# (a leftover `dsh web` or a stale listen). The desktop-runtime row opens
+# Electron at the port that actually bound. LAN rebind belongs to xmart-lan.
 # Shared HMR is unused (no module-reload watcher for the Electron shell).
 # `dsh --profile desktop --help` provides no desktopStartup, so no window opens.
 
@@ -119,6 +120,7 @@
       config:
         host: '127.0.0.1'
         port: 3080
+        fallbackPorts: 20
 
     - id: xmart-lan
       name: '@deepseek-ai/dsh-host-xmart-lan'
@@ -141,6 +143,7 @@
     # still use preload IPC for first-party RPC.
     - id: connection
       name: '@deepseek-ai/dsh-client-connection'
+      inject: [webServer]
       config:
         trustedHosts: []
 

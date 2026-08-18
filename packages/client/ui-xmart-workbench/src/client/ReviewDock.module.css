@@ -7,14 +7,10 @@
   max-width: var(--dsh-composer-card-max-width);
   margin: 0 auto calc(-1 * var(--dsh-composer-stack-gap, 6px));
   padding: 6px 14px 8px;
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, var(--dsw-alias-border-subtle));
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
   border-bottom: none;
   border-radius: 22px 22px 0 0;
-  background: color-mix(
-    in srgb,
-    var(--dsw-alias-fg-primary) 5%,
-    var(--dsw-specific-input-major, var(--dsw-alias-bg-elevated))
-  );
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-elevated));
   color: var(--dsw-alias-fg-primary);
   font-size: 12px;
   line-height: 16px;

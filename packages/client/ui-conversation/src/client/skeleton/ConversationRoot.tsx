@@ -30,6 +30,7 @@ export function ConversationRoot({
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
+  const [pickError, setPickError] = useState<string | null>(null)
   const pickerAnchor = useRef<HTMLButtonElement>(null)
 
   // Publishes the seat's live height as --dsh-composer-height on the scroll
@@ -98,28 +99,35 @@ export function ConversationRoot({
           : workspaceLabel(cwd)))
 
   const heroWorkspaceRow = (
-    <div className={css.heroWorkspaceRow}>
-      <WorkspaceChip
-        buttonRef={pickerAnchor}
-        label={chipTitle}
-        menuOpen={pickerOpen}
-        onClick={() => { setPickerOpen(open => !open) }}
-        t={t}
-      />
-      {renderSlot('conversation.hero.workspace', {
-        open: pickerOpen,
-        anchorRef: pickerAnchor,
-        selectedId: pendingWorkspaceId ?? sessionWorkspace?.workspaceId,
-        onPick: (workspaceId) => {
-          setPickerOpen(false)
-          setPendingWorkspaceId(workspaceId)
-          void selectWorkspace(workspaceId).catch(() => {
-            setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
-          })
-        },
-        onClose: () => { setPickerOpen(false) },
-      })}
-      {renderSlot('conversation.hero.agentPreset', {})}
+    <div className={css.heroWorkspaceBlock}>
+      <div className={css.heroWorkspaceRow}>
+        <WorkspaceChip
+          buttonRef={pickerAnchor}
+          label={chipTitle}
+          menuOpen={pickerOpen}
+          onClick={() => { setPickerOpen(open => !open) }}
+          t={t}
+        />
+        {renderSlot('conversation.hero.workspace', {
+          open: pickerOpen,
+          anchorRef: pickerAnchor,
+          selectedId: pendingWorkspaceId ?? sessionWorkspace?.workspaceId,
+          onPick: (workspaceId) => {
+            setPickerOpen(false)
+            setPendingWorkspaceId(workspaceId)
+            setPickError(null)
+            void selectWorkspace(workspaceId).catch((reason: unknown) => {
+              setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
+              setPickError(reason instanceof Error ? reason.message : String(reason))
+            })
+          },
+          onClose: () => { setPickerOpen(false) },
+        })}
+        {renderSlot('conversation.hero.agentPreset', {})}
+      </div>
+      {pickError !== null && (
+        <div className={css.heroWorkspaceError} role="alert">{t('hero.workspaceFailed', { message: pickError })}</div>
+      )}
     </div>
   )
 

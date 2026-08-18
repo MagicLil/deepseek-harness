@@ -34,6 +34,8 @@ export interface WorkspacePickFlowProps {
   useWorkspaces: <S>(selector: (state: WorkspaceListState) => S) => S
   /** Adopt a picked host directory as a real Workspace. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  /** Re-pull workspace.list after a baseline failure. */
+  refreshWorkspaces?: () => void
   /** Bound occupancy selector hook for this surface's directory-flow hole (empty leaves the surface with no add action). */
   useDirectoryFlow: SnapshotSelectorHook<boolean>
   /** Render this surface's directory-flow hole with the owner conversation (the entry's narrowed renderSlot). */
@@ -61,6 +63,7 @@ export function WorkspacePickFlow({
   anchorRef,
   useWorkspaces,
   createWorkspace,
+  refreshWorkspaces,
   useDirectoryFlow,
   renderDirectoryFlow,
   onPick,
@@ -148,8 +151,11 @@ export function WorkspacePickFlow({
   // only final once the baseline lands — until then the menu stays up with its
   // loading status instead of jumping into a flow the arriving list would have
   // made unnecessary; the add-only surface lists nothing and never waits.
-  const listSettled = addOnly || workspaceSnapshot.phase === 'ready'
-  const addIsTheOnlyEntry = !pinAdd && listSettled && addEntries.length === 1
+  const listFailed = workspaceSnapshot.state === 'error'
+  // An empty list is only final once the baseline lands or fails — a failed
+  // pull must not look like "still loading" (phase stays pending on error).
+  const listSettled = addOnly || workspaceSnapshot.phase === 'ready' || listFailed
+  const addIsTheOnlyEntry = !pinAdd && listSettled && !listFailed && addEntries.length === 1
   // `flowBusy` gates this exactly as it disables the equivalent menu entry: a
   // pick still being adopted owns the surface until it settles.
   useEffect(() => {
@@ -194,7 +200,15 @@ export function WorkspacePickFlow({
         portal
         getAnchorRect={getAnchorRect}
       />
-      {open && !addIsTheOnlyEntry && !menuIsEmpty && workspaceSnapshot.phase === 'pending' && <div className={css.menuStatus} role="status">{t('picker.loading')}</div>}
+      {open && !addIsTheOnlyEntry && !menuIsEmpty && workspaceSnapshot.phase === 'pending' && !listFailed && <div className={css.menuStatus} role="status">{t('picker.loading')}</div>}
+      {open && !addIsTheOnlyEntry && listFailed && (
+        <div className={css.menuStatus} role="alert">
+          <span>{t('picker.error', { message: workspaceSnapshot.error?.message ?? workspaceSnapshot.error?.code ?? '' })}</span>
+          {refreshWorkspaces !== undefined && (
+            <button type="button" className={css.menuRetry} onClick={refreshWorkspaces}>{t('picker.retry')}</button>
+          )}
+        </div>
+      )}
       {renderDirectoryFlow(flowOwner)}
       <Modal
         open={errorOpen}
@@ -230,6 +244,7 @@ export function WorkspacePicker({
   onPick,
   onClose,
   createWorkspace,
+  refreshWorkspaces,
   useDirectoryFlow,
   renderSlot,
   t,
@@ -241,6 +256,7 @@ export function WorkspacePicker({
       anchorRef={anchorRef}
       useWorkspaces={useWorkspaces}
       createWorkspace={createWorkspace}
+      refreshWorkspaces={refreshWorkspaces}
       useDirectoryFlow={useDirectoryFlow}
       renderDirectoryFlow={owner => renderSlot('conversation.hero.workspace.directoryFlow', owner)}
       selectedId={selectedId}

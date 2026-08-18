@@ -14,6 +14,7 @@ import { IconBrowseOutline16, IconGlobeOutline14 } from '@deepseek-ai/dsh-client
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { webCardModel } from '../models/web-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -32,9 +33,10 @@ const WEB_TITLES: Record<string, string> = {
  * the completed retrieval's web card as the row's collapsed-by-default card
  * body. The row discriminates on `toolName` only to pick its icon and title.
  */
-export function WebRow({ toolName, block, inspect, t }: WebRowProps) {
+export function WebRow({ toolName, block, inspect, developerMode, setDeveloperMode, t }: WebRowProps) {
   const model = toolRowModel(toolName, block)
   const web = webCardModel(block)
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   // Web search uses a globe; local grep/glob keep the magnifier family.
   const icon = toolName === 'web_fetch' ? <IconBrowseOutline16 size={14} /> : <IconGlobeOutline14 size={14} />
   return (
@@ -47,10 +49,12 @@ export function WebRow({ toolName, block, inspect, t }: WebRowProps) {
       summary={model.summary}
       body={null}
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       web={web}
       state={model.state}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

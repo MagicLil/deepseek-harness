@@ -24,6 +24,8 @@ import {
   hostGitStageRequestSchema, hostGitSuggestCommitRequestSchema, hostGitSuggestCommitValueSchema,
   hostGitUnstageRequestSchema, hostGitRootValueSchema,
   hostListDirectoryRequestSchema, hostListDirectoryValueSchema,
+  hostRenameEntryRequestSchema, hostRenameEntryValueSchema,
+  hostDeleteEntryRequestSchema, hostDeleteEntryValueSchema,
 } from '../src/api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema, workspaceArchiveSessionValueSchema,
@@ -89,6 +91,9 @@ describe('rpcErrorSchema', () => {
     // The credentials producer still emits this code, so the branch has to stay.
     expect(rpcErrorSchema.parse({ code: 'credential-rejected', message: 'm', details: { ref: 'r' } }).code).toBe('credential-rejected')
     expect(rpcErrorSchema.parse({ code: 'internal', message: 'm', details: {} }).code).toBe('internal')
+    expect(rpcErrorSchema.parse({ code: 'file-exists', message: 'm', details: { path: '/x' } }).code).toBe('file-exists')
+    expect(rpcErrorSchema.parse({ code: 'file-rename-failed', message: 'm', details: { path: '/x' } }).code).toBe('file-rename-failed')
+    expect(rpcErrorSchema.parse({ code: 'file-delete-failed', message: 'm', details: { path: '/x' } }).code).toBe('file-delete-failed')
   })
 
   it('rejects a known code with missing details', () => {
@@ -350,6 +355,16 @@ describe('host domain schemas', () => {
       expect(() => hostCreateDirectoryRequestSchema.parse({ path: '/x', name })).toThrow()
     }
     expect(hostCreateDirectoryValueSchema.parse({ path: '/x/new' })).toEqual({ path: '/x/new' })
+    expect(hostRenameEntryRequestSchema.parse({ path: '/x/a.ts', name: 'b.ts' })).toEqual({
+      path: '/x/a.ts', name: 'b.ts',
+    })
+    for (const name of ['', ' ', '.', '..', 'a/b', 'a\\b']) {
+      expect(() => hostRenameEntryRequestSchema.parse({ path: '/x/a.ts', name })).toThrow()
+    }
+    expect(hostRenameEntryValueSchema.parse({ path: '/x/b.ts' })).toEqual({ path: '/x/b.ts' })
+    expect(hostDeleteEntryRequestSchema.parse({ path: '/x/a.ts' })).toEqual({ path: '/x/a.ts' })
+    expect(() => hostDeleteEntryRequestSchema.parse({ path: '' })).toThrow()
+    expect(hostDeleteEntryValueSchema.parse({ path: '/x/a.ts' })).toEqual({ path: '/x/a.ts' })
   })
 
   it('validates git ops payloads and rejects unsafe relative paths', () => {

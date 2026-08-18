@@ -136,9 +136,9 @@ describe('ActivityBar', () => {
     expect(screen.queryByTestId('xmart-activity-ghost')).toBeNull()
   })
 
-  it('has no settings or terminal icon on the activity rail', () => {
+  it('shows settings and keeps terminal off the activity rail', () => {
     mount({})
-    expect(screen.queryByTestId('xmart-activity-settings')).toBeNull()
+    expect(screen.getByTestId('xmart-activity-settings')).toBeDefined()
     expect(screen.queryByTestId('xmart-activity-terminal')).toBeNull()
   })
 

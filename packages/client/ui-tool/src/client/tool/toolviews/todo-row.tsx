@@ -11,6 +11,7 @@ import { IconChecklistOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -58,10 +59,11 @@ function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
  *  sections, ToolRow's unified expand). Non-ok execution states keep the
  *  shared row's dot semantics — a cancelled call wrote no todo/write, so it
  *  must not read as a completed update. */
-export function TodoRow({ toolName, block, inspect, t }: TodoRowProps) {
+export function TodoRow({ toolName, block, inspect, developerMode, setDeveloperMode, t }: TodoRowProps) {
   const model = toolRowModel(toolName, block)
   const argsRaw = ('kind' in block ? block.call?.argsRaw : block.argsRaw) ?? ''
   const summary = summarize(argsRaw, t) ?? { text: model.summary, extra: 0 }
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   return (
     <ToolRow
       t={t}
@@ -73,9 +75,11 @@ export function TodoRow({ toolName, block, inspect, t }: TodoRowProps) {
       summarySuffix={summary.extra > 0 ? `+${summary.extra}` : null}
       body={model.body}
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       state={model.state}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

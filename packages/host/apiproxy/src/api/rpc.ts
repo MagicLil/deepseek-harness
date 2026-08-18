@@ -49,6 +49,9 @@ export interface RpcErrorDetailsMap {
   'file-too-large': { path: string; size: number; maxBytes: number }
   'file-binary': { path: string }
   'file-write-failed': { path: string }
+  'file-exists': { path: string }
+  'file-rename-failed': { path: string }
+  'file-delete-failed': { path: string }
   'git-unavailable': { path: string }
   'git-failed': { path: string }
   'search-unavailable': { path: string }

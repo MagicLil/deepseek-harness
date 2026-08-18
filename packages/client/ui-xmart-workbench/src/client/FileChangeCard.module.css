@@ -1,0 +1,221 @@
+.card,
+.fallback {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--dsw-alias-border-subtle);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-markdown-code-block));
+  color: var(--dsw-alias-fg-primary);
+  font: var(--dsw-font-xs-13, inherit);
+  overflow: hidden;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  min-height: 28px;
+}
+
+.fallbackText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
+  min-height: 28px;
+}
+
+.pathBtn {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pathBtn:hover {
+  text-decoration: underline;
+}
+
+.stats {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.add {
+  color: var(--dsw-alias-success, var(--dsw-alias-state-success-primary));
+}
+
+.del {
+  color: var(--dsw-alias-danger, var(--dsw-alias-state-error-primary));
+}
+
+.iconBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-fg-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.iconBtn:hover {
+  color: var(--dsw-alias-fg-primary);
+  background: var(--dsw-alias-bg-hover, color-mix(in srgb, var(--dsw-alias-fg-primary) 6%, transparent));
+}
+
+.toggle {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-fg-secondary);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 10px;
+  opacity: 0.6;
+  transform: rotate(-90deg);
+}
+
+.chevron[data-open] {
+  transform: none;
+}
+
+.body {
+  border-top: 1px solid var(--dsw-alias-border-subtle);
+  font: var(--dsw-font-markdown-code-block, ui-monospace, monospace);
+  overflow-x: auto;
+}
+
+.line {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 18px;
+  padding: 0 8px 0 0;
+  box-sizing: border-box;
+  white-space: pre;
+  text-align: left;
+}
+
+.lineBtn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lineBtn:hover {
+  filter: brightness(1.06);
+}
+
+.gutter {
+  flex-shrink: 0;
+  width: 2.6em;
+  padding: 0 6px 0 8px;
+  text-align: right;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  opacity: 0.7;
+}
+
+.sign {
+  flex-shrink: 0;
+  width: 1.1em;
+  user-select: none;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.line.add {
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+  color: var(--dsw-alias-fg-primary);
+}
+
+.line.add .sign {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.line.del {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
+  color: var(--dsw-alias-fg-primary);
+}
+
+.line.del .sign {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.line.ctx {
+  color: var(--dsw-alias-fg-primary);
+}
+
+.line.gap {
+  color: var(--dsw-alias-label-tertiary);
+  padding-left: 8px;
+}
+
+.markIns {
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 36%, transparent);
+  border-radius: 2px;
+}
+
+.markDel {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 36%, transparent);
+  border-radius: 2px;
+}
+
+.more {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 4px 10px 6px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.more:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.card[data-state='running'] {
+  opacity: 0.92;
+}

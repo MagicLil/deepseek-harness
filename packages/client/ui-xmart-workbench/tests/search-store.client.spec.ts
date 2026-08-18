@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FileSearchHit } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   classifySearchFailure, createWorkbenchSearchStore, EMPTY_SEARCH_STATE, formatSearchCount,
-  groupSearchHits, revealTarget, splitSearchLine,
+  groupSearchHits, revealTarget, searchHitKey, splitSearchLine, stepSearchHit, visibleSearchHits,
 } from '../src/client/search-store.ts'
 
 const hit = (
@@ -68,17 +68,38 @@ describe('splitSearchLine', () => {
 
 describe('revealTarget', () => {
   it('uses the first span and a zero-based line, defaulting the column to 0', () => {
-    expect(revealTarget(hit('/ws/a.ts', 3))).toEqual({ line: 2, character: 6 })
+    expect(revealTarget(hit('/ws/a.ts', 3))).toEqual({ line: 2, character: 6, end: 8 })
     expect(revealTarget(hit('/ws/a.ts', 0, 'x', []))).toEqual({ line: 0, character: 0 })
   })
 })
 
 describe('classifySearchFailure', () => {
-  it('treats search-invalid as a user-fixable pattern and everything else as failed', () => {
+  it('splits unavailable, glob, and regex failures', () => {
     expect(classifySearchFailure({ rpcError: { code: 'search-invalid' } })).toBe('invalid')
-    expect(classifySearchFailure({ rpcError: { code: 'search-unavailable' } })).toBe('failed')
+    expect(classifySearchFailure({
+      rpcError: { code: 'search-invalid', message: 'error parsing glob' },
+    })).toBe('badGlob')
+    expect(classifySearchFailure({ rpcError: { code: 'search-unavailable' } })).toBe('unavailable')
+    expect(classifySearchFailure({ rpcError: { code: 'search-failed' } })).toBe('failed')
     expect(classifySearchFailure(new Error('boom'))).toBe('failed')
     expect(classifySearchFailure(null)).toBe('failed')
+  })
+})
+
+describe('search hit keys', () => {
+  it('walks visible hits and wraps at the ends', () => {
+    const a = hit('/ws/a.ts', 1)
+    const b = hit('/ws/a.ts', 4)
+    const c = hit('/ws/b.ts', 2)
+    const groups = groupSearchHits([a, b, c], [{ path: '/ws', title: 'ws' }])
+    expect(searchHitKey(a)).toBe('/ws/a.ts\n1')
+    expect(visibleSearchHits(groups, { '/ws/a.ts': true })).toEqual([c])
+    expect(stepSearchHit([a, b, c], null, 1)).toBe(searchHitKey(a))
+    expect(stepSearchHit([a, b, c], null, -1)).toBe(searchHitKey(c))
+    expect(stepSearchHit([a, b, c], searchHitKey(a), 1)).toBe(searchHitKey(b))
+    expect(stepSearchHit([a, b, c], searchHitKey(c), 1)).toBe(searchHitKey(c))
+    expect(stepSearchHit([a, b, c], searchHitKey(a), -1)).toBe(searchHitKey(a))
+    expect(stepSearchHit([], null, 1)).toBeNull()
   })
 })
 

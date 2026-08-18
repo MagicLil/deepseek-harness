@@ -24,9 +24,9 @@ describe('reveal queue', () => {
     expect(normalizeEditorPath('d:\\ws\\A.java')).toBe('D:/ws/A.java')
     const seen: string[] = []
     const stop = subscribeReveal(() => { seen.push('x') })
-    requestReveal('D:\\ws\\A.java', { line: 10, character: 2 })
+    requestReveal('D:\\ws\\A.java', { line: 10, character: 2, end: 5 })
     expect(seen).toEqual(['x'])
-    expect(takeReveal('d:/ws/A.java')).toEqual({ line: 10, character: 2 })
+    expect(takeReveal('d:/ws/A.java')).toEqual({ line: 10, character: 2, end: 5 })
     expect(takeReveal('d:/ws/A.java')).toBeUndefined()
     stop()
     requestReveal('D:\\ws\\A.java', { line: 1, character: 0 })

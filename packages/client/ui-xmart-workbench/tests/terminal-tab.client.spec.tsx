@@ -4,7 +4,7 @@
  */
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TerminalTab } from '../src/client/TerminalTab.tsx'
@@ -16,11 +16,14 @@ import { zh } from '../src/client/locales.ts'
 
 type DataHandler = (data: string) => void
 type ResizeHandler = (size: { cols: number; rows: number }) => void
+type KeyHandler = (event: KeyboardEvent) => boolean
 
 const termState = vi.hoisted(() => ({
   writes: [] as string[],
   onData: undefined as DataHandler | undefined,
   onResize: undefined as ResizeHandler | undefined,
+  onKey: undefined as KeyHandler | undefined,
+  selection: '',
   disposeCount: 0,
   focusCount: 0,
   fitCount: 0,
@@ -43,6 +46,9 @@ vi.mock('@xterm/xterm', () => {
     focus(): void { termState.focusCount += 1 }
     write(data: string): void { termState.writes.push(data) }
     dispose(): void { termState.disposeCount += 1 }
+    hasSelection(): boolean { return termState.selection !== '' }
+    getSelection(): string { return termState.selection }
+    attachCustomKeyEventHandler(handler: KeyHandler): void { termState.onKey = handler }
     onData(handler: DataHandler): { dispose: () => void } {
       termState.onData = handler
       return { dispose: () => { if (termState.onData === handler) termState.onData = undefined } }
@@ -71,6 +77,8 @@ beforeEach(() => {
   termState.writes = []
   termState.onData = undefined
   termState.onResize = undefined
+  termState.onKey = undefined
+  termState.selection = ''
   termState.disposeCount = 0
   termState.focusCount = 0
   termState.fitCount = 0
@@ -134,6 +142,26 @@ describe('TerminalTab', () => {
     await waitFor(() => {
       expect(screen.getByTestId('xmart-workbench-terminal').textContent).toContain('还没有挂上主机终端')
     })
+  })
+
+  it('copies selection on Ctrl+C and otherwise leaves Ctrl+C for the PTY', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    mount({
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalOpen: () => ok({ id: 'pty-copy', motd: 'ready\n', status: { kind: 'running' as const } }),
+      terminalResize: () => ok({ resized: true as const }),
+    })
+    await waitFor(() => expect(termState.onKey).toBeDefined())
+
+    const host = screen.getByTestId('xmart-terminal-xterm')
+    termState.selection = 'selected output'
+    expect(fireEvent.keyDown(host, { ctrlKey: true, key: 'c' })).toBe(false)
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('selected output'))
+
+    termState.selection = ''
+    expect(fireEvent.keyDown(host, { ctrlKey: true, key: 'c' })).toBe(true)
+    expect(termState.onKey?.(new KeyboardEvent('keydown', { ctrlKey: true, key: 'c' }))).toBe(true)
   })
 
   it('opens a PTY, writes motd, and appends live output via xterm', async () => {
@@ -286,6 +314,28 @@ describe('TerminalTab', () => {
     await waitFor(() => {
       expect(termState.writes).toEqual(['old\n'])
     })
+  })
+
+  it('reopens a fresh PTY when the seat points at a dead session', async () => {
+    setTerminalSeat('s1', 'terminal:1', 'pty-9')
+    const host: HostTerminalMethods = {
+      terminalList: () => ok({ available: true, sessions: [] }),
+      terminalRead: () => fail('internal', 'unknown PTY session pty-9'),
+      terminalOpen: vi.fn(() => ok({
+        id: 'pty-new', motd: 'fresh\n', status: { kind: 'running' as const },
+      })),
+      terminalWrite: vi.fn(() => ok({ written: true as const })),
+      terminalResize: vi.fn(() => ok({ resized: true as const })),
+    }
+    mount(host)
+    await waitFor(() => {
+      expect(termState.writes).toEqual(['fresh\n'])
+    })
+    expect(host.terminalOpen).toHaveBeenCalledWith(
+      { sessionId: 's1', name: 'terminal:1', cols: 80, rows: 24 },
+      undefined,
+    )
+    expect(host.terminalWrite).not.toHaveBeenCalled()
   })
 
   it('shows a write error from onData', async () => {

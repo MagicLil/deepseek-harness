@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SessionRuntime } from '../src/client/sessions/service.ts'
 import { WorkspaceManager } from '../src/client/workspaces/manager.ts'
-import { DirectoryBrowseError, GitAccessError, SearchAccessError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
+import { DirectoryBrowseError, FileAccessError, GitAccessError, SearchAccessError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 
 const sid = (id: string): SessionId => id as SessionId
@@ -347,6 +347,44 @@ describe('WorkspaceRuntime', () => {
     expect(api.callsOf('host.createDirectory')).toEqual([{ path: '/home/u', name: 'fresh' }])
     api.onCreateDirectory = () => Promise.resolve(err({ code: 'directory-exists', message: 'taken', details: { path: '/home/u/fresh' } }))
     await expect(workspaces.createDirectory('/home/u', 'fresh')).rejects.toMatchObject({ rpcError: { code: 'directory-exists' } })
+  })
+
+  it('forwards explorer rename and delete and wraps host failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    await expect(workspaces.renameEntry('/w/a.ts', 'b.ts')).resolves.toBe('/home/fake/renamed.txt')
+    expect(api.callsOf('host.renameEntry')).toEqual([{ path: '/w/a.ts', name: 'b.ts' }])
+    api.onRenameEntry = () => Promise.resolve(err({
+      code: 'file-exists', message: 'taken', details: { path: '/w/b.ts' },
+    }))
+    await expect(workspaces.renameEntry('/w/a.ts', 'b.ts')).rejects.toMatchObject({
+      rpcError: { code: 'file-exists' },
+    })
+    await expect(workspaces.deleteEntry('/w/a.ts')).resolves.toBeUndefined()
+    expect(api.callsOf('host.deleteEntry')).toEqual([{ path: '/w/a.ts' }])
+    api.onDeleteEntry = () => Promise.resolve(err({
+      code: 'file-unreadable', message: 'gone', details: { path: '/w/a.ts' },
+    }))
+    await expect(workspaces.deleteEntry('/w/a.ts')).rejects.toBeInstanceOf(FileAccessError)
+  })
+
+  it('decodes host.readFileBytes and wraps host failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    api.onReadFileBytes = () => Promise.resolve(ok({
+      path: '/w/a.png', contentBase64: 'aGk=', mimeType: 'image/png',
+    }))
+    await expect(workspaces.readFileBytes('/w/a.png')).resolves.toEqual({
+      bytes: new Uint8Array([0x68, 0x69]),
+      mimeType: 'image/png',
+    })
+    expect(api.callsOf('host.readFileBytes')).toEqual([{ path: '/w/a.png' }])
+    api.onReadFileBytes = () => Promise.resolve(err({
+      code: 'file-too-large', message: 'big', details: { path: '/w/a.png', size: 9, maxBytes: 8 },
+    }))
+    await expect(workspaces.readFileBytes('/w/a.png')).rejects.toBeInstanceOf(FileAccessError)
   })
 
   it('opens a filesystem path through the host without local state', async () => {

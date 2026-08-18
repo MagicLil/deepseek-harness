@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) stacks on [`dsh-base`](../base/README.md): coding persona, storage/workspace/api-gateway, a pinned native directory picker, the browser client roster, a loopback `webserver` on `127.0.0.1:3080`, and this package's `desktop-runtime` glue. The runtime serves the built frontend through `frontend-static` and opens Electron at that loopback URL so community HTTP plugins share origin with the host. First-party `/api` can still ride the preload IPC bridge. App flags come from [`src/startup.ts`](src/startup.ts) via `ctx.cmdlineArgs`.
+The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) stacks on [`dsh-base`](../base/README.md): coding persona, storage/workspace/api-gateway, a pinned native directory picker, the browser client roster, a loopback `webserver` on `127.0.0.1:3080` (walks the next 20 ports on EADDRINUSE), and this package's `desktop-runtime` glue. The runtime serves the built frontend through `frontend-static` and opens Electron at that loopback URL so community HTTP plugins share origin with the host. First-party `/api` can still ride the preload IPC bridge. App flags come from [`src/startup.ts`](src/startup.ts) via `ctx.cmdlineArgs`.
 
 ## Model experience
 

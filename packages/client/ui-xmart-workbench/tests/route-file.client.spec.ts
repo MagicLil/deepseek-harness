@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  absPath, basename, dirname, hasNulByte, isSingleSegment, isUnder, joinPath, relativeTo, tabTypeForViewer,
+  absPath, basename, dirname, hasNulByte, isSingleSegment, isUnder, joinPath, relativeTo, rewritePath, tabTypeForViewer,
 } from '../src/client/route-file.ts'
 import { isMarkdownPath, languageFromPath } from '../src/client/language-from-path.ts'
 import { indexGitChanges, letter, markKind } from '../src/client/git-marks.ts'
@@ -38,6 +38,10 @@ describe('route-file helpers', () => {
     expect(isSingleSegment('  ')).toBe(false)
     expect(isSingleSegment('a/b')).toBe(false)
     expect(isSingleSegment('a\\b')).toBe(false)
+    expect(rewritePath('/ws/a.ts', '/ws/a.ts', '/ws/b.ts')).toBe('/ws/b.ts')
+    expect(rewritePath('/ws/src/a.ts', '/ws/src', '/ws/lib')).toBe('/ws/lib/a.ts')
+    expect(rewritePath('C:\\ws\\src\\a.ts', 'C:\\ws\\src', 'C:\\ws\\lib')).toBe('C:\\ws\\lib\\a.ts')
+    expect(rewritePath('/other', '/ws', '/x')).toBe('/other')
   })
 })
 

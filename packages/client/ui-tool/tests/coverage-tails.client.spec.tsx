@@ -61,6 +61,7 @@ describe('Tool presentation tails', () => {
     }
     const props: GenericToolCardProps = {
       callId: 'c5', toolName: 'todo_write', block: settled, openFile: vi.fn(), t,
+      developerMode: false, setDeveloperMode: vi.fn(),
     }
     const view = render(<GenericToolCard {...props} />)
     expect(view.container.querySelector('[data-variant="others"] svg')).not.toBeNull()

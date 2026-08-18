@@ -16,6 +16,7 @@ import { IconSearchOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { searchCardModel } from '../models/search-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -33,12 +34,13 @@ const SEARCH_TITLES: Record<string, string> = {
  * completed search's card as the row's collapsed-by-default card body (a capped
  * search's recovery footer rides below it, inside ToolRow). Registered under
  * both `grep` and `glob`; the derived model's `kind` decides the card shape. A
- * settled call with no search card surfaces its model-facing text through
- * ToolRow's Output section, since the keyed SearchRow owns this render slot.
+ * settled call with no search card surfaces its sanitized failure message
+ * through ToolRow's Output section, since the keyed SearchRow owns this render slot.
  */
-export function SearchRow({ toolName, block, inspect, t }: SearchRowProps) {
+export function SearchRow({ toolName, block, inspect, developerMode, setDeveloperMode, t }: SearchRowProps) {
   const model = toolRowModel(toolName, block)
   const search = searchCardModel(block)
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   return (
     <ToolRow
       t={t}
@@ -52,15 +54,17 @@ export function SearchRow({ toolName, block, inspect, t }: SearchRowProps) {
       body={null}
       // A settled call with no search card (errored search, nested run_code
       // sub-dispatch, legacy generic result) has its text nowhere else to go;
-      // ToolRow's Output section carries it, and errorSummary its first line.
+      // ToolRow's Output section carries it, and errorSummary its sanitized line.
       // When a card is present ToolRow renders it instead of the output, so
       // model.output passes unconditionally and the four card rows stay
       // symmetric.
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       search={search}
       state={model.state}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

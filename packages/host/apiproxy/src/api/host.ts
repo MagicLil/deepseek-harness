@@ -340,13 +340,45 @@ export interface HostApi {
   ): Promise<RpcResponse<{ path: string; content: string }>>
 
   /**
+   * Read one file as base64 for in-column image preview. Missing or
+   * unreadable targets fail with `file-unreadable`; files past the
+   * image byte bound with `file-too-large`. NUL bytes are allowed.
+   * UI-only — never an agent tool.
+   */
+  readFileBytes(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ path: string; contentBase64: string; mimeType: string }>>
+
+  /**
    * Write one UTF-8 text file for the in-app editor (whole-content
-   * replacement; the parent directory must exist). Filesystem failures
+   * replacement via sibling temp + rename; the parent directory must exist).
+   * A crash mid-write leaves the previous complete file. Filesystem failures
    * report `file-write-failed`. Last write wins — the editor owns any
    * concurrent-edit presentation.
    */
   writeFile(
     request: RpcRequest<{ path: string; content: string }>,
+  ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Rename one file or directory in its parent (the explorer's Rename).
+   * `name` is a single path segment. A destination that already exists
+   * fails with `file-exists`; a missing source with `file-unreadable`;
+   * other filesystem failures with `file-rename-failed`. UI-only — never
+   * an agent tool.
+   */
+  renameEntry(
+    request: RpcRequest<{ path: string; name: string }>,
+  ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Delete one file or directory tree (the explorer's Delete). A missing
+   * path fails with `file-unreadable`; other filesystem failures with
+   * `file-delete-failed`. UI-only — never an agent tool.
+   */
+  deleteEntry(
+    request: RpcRequest<{ path: string }>,
   ): Promise<RpcResponse<{ path: string }>>
 
   /**

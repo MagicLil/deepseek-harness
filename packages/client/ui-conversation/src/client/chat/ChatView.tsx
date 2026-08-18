@@ -144,7 +144,7 @@ function TurnStatus({ startTime, t }: {
  * ordered business Node crosses the keyed renderer seat.
  */
 export function ChatView({
-  useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, loadImage, inspectCall, chatScroll, forkAt,
+  useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, reloadHistory, loadImage, inspectCall, chatScroll, forkAt,
   fileMentions, t,
 }: ChatViewSlotProps) {
   const order = useSession(s => s.chat.order)
@@ -369,7 +369,10 @@ export function ChatView({
           {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
           {openState === 'error' && openError !== null && (
             <div className={css.openError}>
-              {t('chat.loadError', { message: openError.message, code: openError.code })}
+              <div>{t('chat.loadError', { message: openError.message, code: openError.code })}</div>
+              <button type="button" className={css.reloadHistory} onClick={reloadHistory}>
+                {t('chat.reloadHistory')}
+              </button>
             </div>
           )}
           {hasMore && (

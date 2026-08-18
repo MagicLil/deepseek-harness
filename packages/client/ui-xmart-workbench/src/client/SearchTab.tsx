@@ -11,8 +11,10 @@ import type { TabBodyProps } from './types.ts'
 import type { WorkbenchKey } from './locales.ts'
 import type { ExplorerRoot } from './explorer-roots.ts'
 import { WORKBENCH_SEARCH_EVENT } from './app-menu-dispatch.ts'
+import type { WorkbenchFilesStore } from './files-store.ts'
 import {
-  classifySearchFailure, formatSearchCount, groupSearchHits, revealTarget, splitSearchLine,
+  classifySearchFailure, formatSearchCount, groupSearchHits, revealTarget, searchHitKey,
+  splitSearchLine, stepSearchHit, visibleSearchHits,
   type WorkbenchSearchStore,
 } from './search-store.ts'
 import css from './SearchTab.module.css'
@@ -29,23 +31,30 @@ export type SearchTabProps = TabBodyProps & {
   getRoots: (sessionId: string) => readonly ExplorerRoot[]
   watchSessions: (fn: () => void) => () => void
   search: (path: string, query: string, options: FileSearchOptions, signal?: AbortSignal) => Promise<FileSearchResult>
-  openHit: (sessionId: string, path: string, reveal: { line: number; character: number }) => void
+  openHit: (sessionId: string, path: string, reveal: { line: number; character: number; end?: number }) => void
   store: WorkbenchSearchStore
+  /** When present, a D7 / explorer refresh re-runs the current query. */
+  files?: WorkbenchFilesStore
 }
 
 /** Search pane body (see module doc). */
 export function SearchTab({
-  sessionId, visible, t, getRoots, watchSessions, search, openHit, store,
+  sessionId, visible, t, getRoots, watchSessions, search, openHit, store, files,
 }: SearchTabProps) {
   const [state, setState] = useState(() => store.stateOf(sessionId))
   const [roots, setRoots] = useState(() => getRoots(sessionId))
   const [flushNonce, setFlushNonce] = useState(0)
+  const [diskEpoch, setDiskEpoch] = useState(() => files?.getSnapshot().refreshNonce ?? 0)
   const flushRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => store.subscribe(() => { setState(store.stateOf(sessionId)) }), [store, sessionId])
   useEffect(() => { setState(store.stateOf(sessionId)) }, [store, sessionId])
   useEffect(() => watchSessions(() => { setRoots(getRoots(sessionId)) }), [getRoots, sessionId, watchSessions])
+  useEffect(() => {
+    if (files === undefined) return
+    return files.subscribe(() => { setDiskEpoch(files.getSnapshot().refreshNonce) })
+  }, [files])
 
   // Ctrl+Shift+F while the pane is already mounted refocuses the input; the
   // mount-time focus below covers the activity switch that mounts it.
@@ -70,7 +79,7 @@ export function SearchTab({
     flushRef.current = false
     if (rootPath === undefined || query === '') {
       store.update(sessionId, {
-        status: 'idle', errorKind: null, hits: [], fileCount: 0, truncated: false,
+        status: 'idle', errorKind: null, hits: [], fileCount: 0, truncated: false, selectedKey: null,
       })
       return
     }
@@ -97,6 +106,7 @@ export function SearchTab({
             hits: result.hits,
             fileCount: result.fileCount,
             truncated: result.truncated,
+            selectedKey: null,
           })
         },
         (error: unknown) => {
@@ -116,21 +126,36 @@ export function SearchTab({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [store, search, sessionId, rootPath, query, regex, caseSensitive, wholeWord, include, exclude, flushNonce])
+  }, [store, search, sessionId, rootPath, query, regex, caseSensitive, wholeWord, include, exclude, flushNonce, diskEpoch])
 
   if (root === undefined) {
     return <div className={css.note} data-testid="xmart-workbench-search">{t('search.noWorkspace')}</div>
   }
 
   const groups = groupSearchHits(state.hits, roots)
+  const visibleHits = visibleSearchHits(groups, state.collapsed)
   const toggle = (key: 'regex' | 'caseSensitive' | 'wholeWord'): void => {
     store.update(sessionId, { [key]: !state[key] })
+  }
+  const errorKey = (): WorkbenchKey => {
+    if (state.errorKind === 'invalid') return 'search.badPattern'
+    if (state.errorKind === 'badGlob') return 'search.badGlob'
+    if (state.errorKind === 'unavailable') return 'search.unavailable'
+    return 'search.error'
+  }
+  const openSelected = (): boolean => {
+    const key = state.selectedKey
+    if (key === null) return false
+    const hit = state.hits.find(row => searchHitKey(row) === key)
+    if (hit === undefined) return false
+    openHit(sessionId, hit.path, revealTarget(hit))
+    return true
   }
   const body = (): React.ReactNode => {
     if (state.status === 'error') {
       return (
         <div className={css.note} data-testid="xmart-search-error">
-          {t(state.errorKind === 'invalid' ? 'search.badPattern' : 'search.error')}
+          {t(errorKey())}
         </div>
       )
     }
@@ -146,6 +171,11 @@ export function SearchTab({
         <div className={css.summary} data-testid="xmart-search-summary">
           {formatSearchCount(t('search.summary'), state.hits.length, state.fileCount)}
         </div>
+        {state.status === 'searching' && (
+          <div className={css.truncated} data-testid="xmart-search-searching">
+            {t('search.searching')}
+          </div>
+        )}
         {state.truncated && (
           <div className={css.truncated} data-testid="xmart-search-truncated">
             {formatSearchCount(t('search.truncated'), state.hits.length)}
@@ -174,22 +204,30 @@ export function SearchTab({
                   {group.dir !== '' && <span className={css.fileDir}>{group.dir}</span>}
                   <span className={css.count}>{group.hits.length}</span>
                 </button>
-                {!collapsed && group.hits.map(hit => (
-                  <button
-                    key={hit.line}
-                    type="button"
-                    className={css.hitRow}
-                    data-testid="xmart-search-hit"
-                    onClick={() => { openHit(sessionId, hit.path, revealTarget(hit)) }}
-                  >
-                    <span className={css.lineNo}>{hit.line}</span>
-                    <span className={css.lineText}>
-                      {splitSearchLine(hit.text, hit.spans).map((segment, index) => segment.hit
-                        ? <mark key={index} className={css.hitMark}>{segment.text}</mark>
-                        : <span key={index}>{segment.text}</span>)}
-                    </span>
-                  </button>
-                ))}
+                {!collapsed && group.hits.map((hit) => {
+                  const key = searchHitKey(hit)
+                  const selected = state.selectedKey === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={selected ? `${css.hitRow} ${css.hitRowOn}` : css.hitRow}
+                      aria-current={selected}
+                      data-testid="xmart-search-hit"
+                      onClick={() => {
+                        store.update(sessionId, { selectedKey: key })
+                        openHit(sessionId, hit.path, revealTarget(hit))
+                      }}
+                    >
+                      <span className={css.lineNo}>{hit.line}</span>
+                      <span className={css.lineText}>
+                        {splitSearchLine(hit.text, hit.spans).map((segment, index) => segment.hit
+                          ? <mark key={index} className={css.hitMark}>{segment.text}</mark>
+                          : <span key={index}>{segment.text}</span>)}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )
           })}
@@ -209,10 +247,19 @@ export function SearchTab({
           aria-label={t('search.placeholder')}
           spellCheck={false}
           data-testid="xmart-search-input"
-          onChange={(event) => { store.update(sessionId, { query: event.target.value }) }}
+          onChange={(event) => { store.update(sessionId, { query: event.target.value, selectedKey: null }) }}
           onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              if (visibleHits.length === 0) return
+              event.preventDefault()
+              store.update(sessionId, {
+                selectedKey: stepSearchHit(visibleHits, state.selectedKey, event.key === 'ArrowDown' ? 1 : -1),
+              })
+              return
+            }
             if (event.key !== 'Enter') return
             event.preventDefault()
+            if (openSelected()) return
             flushRef.current = true
             setFlushNonce(nonce => nonce + 1)
           }}

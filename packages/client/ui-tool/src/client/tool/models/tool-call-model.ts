@@ -10,6 +10,7 @@
 // contract only forwards it (type-definition authority stays with the layer
 // that produces the values).
 import type { ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-runtime/client'
+import { toolErrorKind, type ToolErrorKind } from './tool-error.ts'
 
 export type { ToolCallBlock } from '@deepseek-ai/dsh-client-runtime/client'
 
@@ -90,10 +91,10 @@ export interface ToolRowModel {
   filePath: string | undefined
   /** Expanded-body input text (pretty args); null = no input section. */
   body: string | null
-  /** Flattened result text ({@link resultText}); null while running or when the result carries no text. */
+  /** Flattened result text; error-row text is debug-only material shown in developer mode. */
   output: string | null
-  /** First line of the result text on an error row; null for every other state. */
-  errorSummary: string | null
+  /** Sanitized failure category on an error row; null for every other state. */
+  errorKind: ToolErrorKind | null
   state: ToolRowState
 }
 
@@ -222,11 +223,14 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
   const summary = variant === 'others' && toolName !== '' && toolTitle === undefined
     ? `${toolName} · ${base}`
     : base
-  // The empty string is "no text" for both derived result fields: a settled
-  // call with blank content has nothing to expand, and a blank first line
-  // would erase the collapsed error row's summary slot.
+  // The empty string is "no text": a settled call with blank content has
+  // nothing to expand. The raw failure text stays available as `output` for
+  // developer-mode inspection, but the collapsed summary no longer derives
+  // from it — the renderer composes a sanitized message from `errorKind`.
   const output = done ? (resultText(block) || null) : null
-  const errorSummary = state === 'error' && output !== null ? firstLine(output) : null
+  const errorKind = state === 'error'
+    ? toolErrorKind(done && 'error' in block ? block.error.code : undefined)
+    : null
   return {
     variant,
     title: toolTitle ?? VARIANT_TITLES[variant],
@@ -234,7 +238,7 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
     filePath: deriveFilePath(variant, argsRaw),
     body: deriveBody(variant, argsRaw),
     output,
-    errorSummary,
+    errorKind,
     state,
   }
 }

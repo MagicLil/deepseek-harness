@@ -23,8 +23,8 @@ Checklist: `PRODUCT-FEATURE-CHECKLIST.md` §1
 | 项 | 选择 |
 | --- | --- |
 | 撤销基准 | **回合影子快照**：第一次改某文件前存改前全文（新建则为「不存在」） |
-| UI 落点 | **A（Cursor）**：仅对话输入框上方 `conversation.input.dock` 审查条；**无**活动栏「审查」入口 |
-| 跟踪范围 | **C+B**：以 `write` / `edit`（及同族）为主；壳命令启发式解析删除路径进审查；解析不到则弱提示。不透明子代理（`cursor_agent` / `subagent*`）用调用前后的 `git status` 差导入审查行 |
+| UI 落点 | **A（Cursor）**：对话输入框上方 `conversation.input.dock` 审查条；**无**活动栏「审查」入口，也无工具卡片上的审查药丸 |
+| 跟踪范围 | **C+B**：以 `write` / `edit`（及同族）为主；壳命令启发式解析删除路径进审查；解析不到则弱提示。不透明子代理（`cursor_agent` / `subagent*`）用调用前后的 `git status` 差，外加提示词/结果里的路径，导入审查行 |
 | 接受语义 | **A+C**：接受 = 保留磁盘结果、丢影子、移出待审；提供「全部接受」；**不**自动 `git stage` |
 
 ## Non-goals (v1)

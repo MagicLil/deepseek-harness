@@ -22,7 +22,7 @@ const CLIENT_SERVICES: Readonly<Record<string, readonly string[]>> = {
   theme: ['getTheme', 'setTheme', 'register', 'overrideTokens'],
   workspaces: [
     'connectWorkspace', 'startSession', 'create', 'pickDirectory', 'listDirectory', 'createDirectory',
-    'openPath', 'rename', 'delete', 'insertSessionBefore', 'archiveSession',
+    'openPath', 'rename', 'delete', 'insertSessionBefore', 'archiveSession', 'refresh',
   ],
   xmartWorkbench: [
     'registerTab', 'registerFileViewer',

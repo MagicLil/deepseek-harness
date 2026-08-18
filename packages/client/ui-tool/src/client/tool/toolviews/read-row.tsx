@@ -12,6 +12,7 @@ import { IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { readCardModel } from '../models/read-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -24,9 +25,10 @@ type ReadRowProps = ToolCallViewProps & PropsLocale<'conversation'>
  * read card as the row's collapsed-by-default card body. The summary path is an
  * openable host link when the row names a single file.
  */
-export function ReadRow({ toolName, block, cwd, openFile, inspect, t }: ReadRowProps) {
+export function ReadRow({ toolName, block, cwd, openFile, inspect, developerMode, setDeveloperMode, t }: ReadRowProps) {
   const model = toolRowModel(toolName, block, cwd)
   const read = readCardModel(block, cwd)
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   return (
     <ToolRow
       t={t}
@@ -37,12 +39,14 @@ export function ReadRow({ toolName, block, cwd, openFile, inspect, t }: ReadRowP
       summary={model.summary}
       body={null}
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       read={read}
       state={model.state}
       filePath={model.filePath}
       onOpenFile={openFile}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

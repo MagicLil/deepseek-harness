@@ -154,6 +154,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
   const openDetails = vi.fn<(t: SelectionTarget) => void>()
   const openFile = vi.fn<(path: string) => void>()
   const loadOlder = vi.fn()
+  const reloadHistory = vi.fn()
   const inspectCall = vi.fn<(callId: string) => void>()
   // In-memory scroll memory matching the apply.ts per-session map contract.
   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
@@ -283,6 +284,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
     openDetails,
     openFile,
     loadOlder,
+    reloadHistory,
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
     inspectCall,
     chatScroll,
@@ -294,7 +296,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
   }
   const setSelection = (next: SelectionTarget | null): void => { chat.actions.select(next) }
   return {
-    set, ChatView, props, openDetails, openFile, loadOlder, inspectCall,
+    set, ChatView, props, openDetails, openFile, loadOlder, reloadHistory, inspectCall,
     chatScroll, forkAt, setSelection, toolOwners,
   }
 }
@@ -1237,6 +1239,8 @@ describe('ChatView', () => {
     })
     const view = render(<h.ChatView {...h.props} />)
     expect(view.getByText(/历史加载失败：boom/)).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '重新加载' }))
+    expect(h.reloadHistory).toHaveBeenCalledTimes(1)
     const loading = makeHarness({ openState: 'loading' })
     const lv = render(<loading.ChatView {...loading.props} />)
     expect(lv.getByText('载入历史…')).toBeTruthy()

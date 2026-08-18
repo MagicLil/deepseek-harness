@@ -13,6 +13,7 @@ import { IconEditOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { diffCardModel } from '../models/diff-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -26,12 +27,13 @@ type FileMutationRowProps = ToolCallViewProps & PropsLocale<'conversation'>
  * summary is a path link (a file tool's interaction); the host's `openFile`
  * resolves it against the session cwd, so this passes the tool's own path
  * verbatim. An errored mutation has no diff card, so ToolRow surfaces the
- * model-facing error text through its Output section and its first line in the
- * collapsed summary instead.
+ * sanitized failure message in the Output section and reveals the raw text only
+ * in developer mode.
  */
-export function FileMutationRow({ toolName, block, cwd, openFile, inspect, t }: FileMutationRowProps) {
+export function FileMutationRow({ toolName, block, cwd, openFile, inspect, developerMode, setDeveloperMode, t }: FileMutationRowProps) {
   const model = toolRowModel(toolName, block, cwd)
   const diff = diffCardModel(block)
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   return (
     <ToolRow
       t={t}
@@ -42,12 +44,14 @@ export function FileMutationRow({ toolName, block, cwd, openFile, inspect, t }: 
       summary={model.summary}
       body={null}
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       diff={diff}
       state={model.state}
       filePath={model.filePath}
       onOpenFile={openFile}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GitAccessError, type FileListing, type GitStatus } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { ExplorerTab, menuAnchorRect, parentOf } from '../src/client/ExplorerTab.tsx'
+import { confirmExplorerDelete, ExplorerTab, menuAnchorRect, parentOf } from '../src/client/ExplorerTab.tsx'
 import { createWorkbenchFilesStore } from '../src/client/files-store.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -23,10 +23,14 @@ function mount(opts?: {
   gitStatus?: () => Promise<unknown>
   writeFile?: (path: string, content: string) => Promise<void>
   createDirectory?: (path: string, name: string) => Promise<string>
+  renameEntry?: (path: string, name: string) => Promise<string>
+  deleteEntry?: (path: string) => Promise<void>
 }) {
   const files = createWorkbenchFilesStore()
   const writeFile = opts?.writeFile ?? vi.fn(async () => {})
   const createDirectory = opts?.createDirectory ?? vi.fn(async () => '/ws/n')
+  const renameEntry = opts?.renameEntry ?? vi.fn(async (_path: string, name: string) => `/ws/${name}`)
+  const deleteEntry = opts?.deleteEntry ?? vi.fn(async () => {})
   const openSystem = vi.fn(async () => {})
   const openFile = vi.fn()
   const mentionFile = vi.fn()
@@ -59,13 +63,15 @@ function mount(opts?: {
       gitStatus={gitStatus as never}
       writeFile={writeFile}
       createDirectory={createDirectory}
+      renameEntry={renameEntry}
+      deleteEntry={deleteEntry}
       openSystem={openSystem}
       openFile={openFile}
       mentionFile={mentionFile}
       files={files}
     />,
   )
-  return { files, writeFile, createDirectory, openSystem, openFile, mentionFile }
+  return { files, writeFile, createDirectory, renameEntry, deleteEntry, openSystem, openFile, mentionFile }
 }
 
 describe('parentOf', () => {
@@ -150,6 +156,8 @@ describe('ExplorerTab', () => {
         })}
         writeFile={async () => {}}
         createDirectory={async () => '/ws/n'}
+        renameEntry={async () => '/ws/n'}
+        deleteEntry={async () => {}}
         openSystem={async () => {}}
         openFile={() => {}}
         mentionFile={() => {}}
@@ -249,6 +257,8 @@ describe('ExplorerTab', () => {
         })}
         writeFile={async () => {}}
         createDirectory={async () => '/ws/n'}
+        renameEntry={async () => '/ws/n'}
+        deleteEntry={async () => {}}
         openSystem={async () => {}}
         openFile={(path) => {
           opened = path
@@ -330,6 +340,8 @@ describe('ExplorerTab', () => {
         gitStatus={() => new Promise<GitStatus>((resolve) => { settle = resolve })}
         writeFile={async () => {}}
         createDirectory={async () => '/ws/n'}
+        renameEntry={async () => '/ws/n'}
+        deleteEntry={async () => {}}
         openSystem={async () => {}}
         openFile={() => {}}
         mentionFile={() => {}}
@@ -354,6 +366,8 @@ describe('ExplorerTab', () => {
         gitStatus={() => new Promise((_, reject) => { fail = reject })}
         writeFile={async () => {}}
         createDirectory={async () => '/ws/n'}
+        renameEntry={async () => '/ws/n'}
+        deleteEntry={async () => {}}
         openSystem={async () => {}}
         openFile={() => {}}
         mentionFile={() => {}}
@@ -362,5 +376,104 @@ describe('ExplorerTab', () => {
     )
     dying.unmount()
     await act(async () => { fail(new Error('late')); await Promise.resolve() })
+  })
+
+  it('renames and deletes from the row context menu', async () => {
+    const onRenamed = vi.fn()
+    const onDeleted = vi.fn()
+    const renameEntry = vi.fn(async () => '/ws/b.ts')
+    const deleteEntry = vi.fn(async () => {})
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { files } = mount({ renameEntry, deleteEntry })
+    const view = screen.getByTestId('xmart-workbench-explorer')
+    // remount with callbacks — mount() helper has no onRenamed seat
+    cleanup()
+    render(
+      <ExplorerTab
+        tab={{ id: 'ex', type: 'explorer', title: '资源管理器' }}
+        visible
+        sessionId="s1"
+        t={t}
+        getRoots={() => [{ path: '/ws', title: 'ws' }]}
+        watchSessions={() => () => {}}
+        listEntries={async path => ({
+          path,
+          truncated: false,
+          entries: path === '/ws'
+            ? [
+              { name: 'a.ts', path: '/ws/a.ts', kind: 'file' as const, hidden: false },
+              { name: 'src', path: '/ws/src', kind: 'directory' as const, hidden: false },
+            ]
+            : [],
+        })}
+        gitStatus={async () => ({
+          root: '/ws', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],
+        })}
+        writeFile={async () => {}}
+        createDirectory={async () => '/ws/n'}
+        renameEntry={renameEntry}
+        deleteEntry={deleteEntry}
+        openSystem={async () => {}}
+        openFile={() => {}}
+        mentionFile={() => {}}
+        onRenamed={onRenamed}
+        onDeleted={onDeleted}
+        files={files}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    fireEvent.contextMenu(screen.getByText('a.ts'))
+    fireEvent.click(screen.getByText('重命名'))
+    fireEvent.change(screen.getByLabelText('新名称'), { target: { value: 'bad/name' } })
+    fireEvent.submit(screen.getByLabelText('新名称').closest('form') as HTMLFormElement)
+    expect(renameEntry).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('新名称'), { target: { value: 'b.ts' } })
+    fireEvent.submit(screen.getByLabelText('新名称').closest('form') as HTMLFormElement)
+    await act(async () => { await Promise.resolve() })
+    expect(renameEntry).toHaveBeenCalledWith('/ws/a.ts', 'b.ts')
+    expect(onRenamed).toHaveBeenCalledWith('/ws/a.ts', '/ws/b.ts')
+    fireEvent.contextMenu(screen.getByText('a.ts'))
+    fireEvent.click(screen.getByText('重命名'))
+    fireEvent.change(screen.getByLabelText('新名称'), { target: { value: 'a.ts' } })
+    fireEvent.submit(screen.getByLabelText('新名称').closest('form') as HTMLFormElement)
+    expect(renameEntry).toHaveBeenCalledTimes(1)
+    await waitFor(() => { expect(screen.getByText('src')).toBeTruthy() })
+    fireEvent.contextMenu(screen.getByText('src'))
+    fireEvent.click(screen.getByText('删除'))
+    await act(async () => { await Promise.resolve() })
+    expect(deleteEntry).toHaveBeenCalledWith('/ws/src')
+    expect(onDeleted).toHaveBeenCalledWith('/ws/src')
+    confirm.mockReturnValue(false)
+    fireEvent.contextMenu(screen.getByText('a.ts'))
+    fireEvent.click(screen.getByText('删除'))
+    expect(deleteEntry).toHaveBeenCalledTimes(1)
+    cleanup()
+    mount({ renameEntry: async () => { throw new Error('no') } })
+    await act(async () => { await Promise.resolve() })
+    fireEvent.contextMenu(screen.getByText('a.ts'))
+    fireEvent.click(screen.getByText('重命名'))
+    fireEvent.change(screen.getByLabelText('新名称'), { target: { value: 'z.ts' } })
+    fireEvent.submit(screen.getByLabelText('新名称').closest('form') as HTMLFormElement)
+    await act(async () => { await Promise.resolve() })
+    cleanup()
+    mount({ deleteEntry: async () => { throw new Error('no') } })
+    await act(async () => { await Promise.resolve() })
+    confirm.mockReturnValue(true)
+    fireEvent.contextMenu(screen.getByText('a.ts'))
+    fireEvent.click(screen.getByText('删除'))
+    await act(async () => { await Promise.resolve() })
+    confirm.mockRestore()
+    expect(view).toBeTruthy()
+  })
+})
+
+describe('confirmExplorerDelete', () => {
+  it('asks about a file or a folder', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    expect(confirmExplorerDelete({ name: 'a.ts', path: '/ws/a.ts', kind: 'file', hidden: false }, t)).toBe(true)
+    expect(confirm.mock.calls[0]?.[0]).toContain('a.ts')
+    expect(confirmExplorerDelete({ name: 'src', path: '/ws/src', kind: 'directory', hidden: false }, t)).toBe(true)
+    expect(confirm.mock.calls[1]?.[0]).toContain('src')
+    confirm.mockRestore()
   })
 })

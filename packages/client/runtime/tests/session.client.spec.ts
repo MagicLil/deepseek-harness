@@ -227,6 +227,17 @@ describe('open', () => {
     expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'socket died' })
   })
 
+  it('retries a failed open on the next open() call', async () => {
+    const { api, session } = makeSession()
+    api.onHistory = () => Promise.reject(new Error('socket died'))
+    await session.open()
+    expect(session.getSnapshot().openState).toBe('error')
+    api.onHistory = () => histResponse(plainTurn(10, 3, '问', '答'), false)
+    await session.open()
+    expect(session.getSnapshot().openState).toBe('open')
+    expect(session.getSnapshot().openError).toBeNull()
+  })
+
   it('stitches live frames arriving while history is pending, dropping the page overlap', async () => {
     const { api, session } = makeSession()
     const gate = deferred<Awaited<ReturnType<FakeApiClient['onHistory']>>>()

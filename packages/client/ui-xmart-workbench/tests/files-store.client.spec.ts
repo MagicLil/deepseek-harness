@@ -70,6 +70,29 @@ describe('createWorkbenchFilesStore', () => {
     expect(files.expandedOf('s4')).toEqual({})
   })
 
+  it('rewrites and forgets paths under a renamed or deleted root', () => {
+    const files = createWorkbenchFilesStore()
+    files.setExpanded('s1', '/ws/src', true)
+    files.setExpanded('s1', '/ws/src/lib', true)
+    files.setExpanded('s1', '/ws/keep', true)
+    files.setDraft('/ws/src/a.ts', 'x')
+    files.setDraft('/ws/keep.ts', 'y')
+    files.markReload(['/ws/src/a.ts', '/ws/keep.ts'])
+    files.moveUnder('/ws/src', '/ws/lib')
+    expect(files.expandedOf('s1')).toEqual({ '/ws/lib': true, '/ws/lib/lib': true, '/ws/keep': true })
+    expect(files.draftOf('/ws/lib/a.ts')).toBe('x')
+    expect(files.draftOf('/ws/src/a.ts')).toBeUndefined()
+    expect(files.draftOf('/ws/keep.ts')).toBe('y')
+    expect(files.reloadToken('/ws/lib/a.ts')).toBe(1)
+    files.moveUnder('/ws/lib', '/ws/lib')
+    expect(files.draftOf('/ws/lib/a.ts')).toBe('x')
+    files.forgetUnder('/ws/lib')
+    expect(files.expandedOf('s1')).toEqual({ '/ws/keep': true })
+    expect(files.draftOf('/ws/lib/a.ts')).toBeUndefined()
+    expect(files.draftOf('/ws/keep.ts')).toBe('y')
+    expect(files.reloadToken('/ws/lib/a.ts')).toBe(0)
+  })
+
   it('restores sanitized persist', () => {
     localStorage.setItem(FILES_PERSIST, JSON.stringify({
       expanded: { s1: { '/a': true } }, drafts: { '/a': 'z' }, refreshNonce: 4, reloadAt: { '/a': 2 },

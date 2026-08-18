@@ -68,6 +68,12 @@ export interface ISession {
    */
   rename(title: string): Promise<RpcResult<{ title: string; seq: number }>>
   /**
+   * Open or retry the history window. Idempotent while already open or
+   * in-flight; a prior error starts a new pull.
+   * @returns completion; failures land in snapshot.openState/openError.
+   */
+  open(): Promise<void>
+  /**
    * Extend the history window backwards (older messages pagination).
    * @returns completion; failures land in snapshot.openState/loadingOlder.
    */

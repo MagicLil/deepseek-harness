@@ -117,7 +117,8 @@ describe('TodoRow', () => {
   it('falls back to the generic summary on malformed args and marks the error state', () => {
     const view = render(<TodoRow {...rowProps(resultNode('not json', { isError: true }))} />)
     expect(view.container.querySelector('[data-state="error"]')).not.toBeNull()
-    expect(screen.getByText('todo_write · not json')).toBeTruthy()
+    expect(screen.queryByText('todo_write · not json')).toBeNull()
+    expect(screen.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 
   it('falls back when parsed args carry no todos array', () => {

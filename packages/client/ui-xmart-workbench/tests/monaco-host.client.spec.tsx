@@ -36,7 +36,9 @@ const { contentFns, mouseFns, existing, editor, monaco, loadImpl } = vi.hoisted(
     focus: vi.fn(),
     layout: vi.fn(),
     setPosition: vi.fn(),
+    setSelection: vi.fn(),
     revealPositionInCenter: vi.fn(),
+    revealRangeInCenter: vi.fn(),
     getAction: vi.fn((_id?: string): { run: ReturnType<typeof vi.fn> } | undefined => ({ run: vi.fn() })),
     onMouseDown: vi.fn((fn: (event: {
       event: { leftButton: boolean; ctrlKey: boolean; metaKey: boolean }
@@ -112,7 +114,9 @@ afterEach(() => {
   editor.getAction.mockClear()
   editor.layout.mockClear()
   editor.setPosition.mockClear()
+  editor.setSelection.mockClear()
   editor.revealPositionInCenter.mockClear()
+  editor.revealRangeInCenter.mockClear()
   loadImpl.current = () => Promise.resolve(monaco)
   vi.unstubAllGlobals()
 })
@@ -513,7 +517,7 @@ describe('MonacoHost', () => {
   })
 
   it('reveals a pending location, runs find/replace, and opens another file', async () => {
-    requestReveal('/a.ts', { line: 9, character: 2 })
+    requestReveal('/a.ts', { line: 9, character: 2, end: 6 })
     const onOpenFile = vi.fn()
     const findRun = vi.fn()
     editor.getAction.mockImplementation((_id?: string) => ({
@@ -548,7 +552,15 @@ describe('MonacoHost', () => {
       />,
     )
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(editor.setPosition).toHaveBeenCalledWith({ lineNumber: 10, column: 3 })
+    expect(editor.setSelection).toHaveBeenCalledWith({
+      startLineNumber: 10, startColumn: 3, endLineNumber: 10, endColumn: 7,
+    })
+    expect(editor.revealRangeInCenter).toHaveBeenCalled()
+    requestReveal('/a.ts', { line: 1, character: 0 })
+    await act(async () => { await Promise.resolve() })
+    expect(editor.setSelection).toHaveBeenCalledWith({
+      startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1,
+    })
     const gotoRun = vi.fn()
     editor.getAction.mockImplementation((_id?: string) => ({
       run: _id === 'actions.find' ? findRun : _id === 'editor.action.gotoLine' ? gotoRun : vi.fn(),

@@ -11,3 +11,7 @@
   height: 100%;
   object-fit: contain;
 }
+
+:global([data-xmart-icon-theme='seti-muted']) .img {
+  filter: grayscale(1) saturate(0.35);
+}

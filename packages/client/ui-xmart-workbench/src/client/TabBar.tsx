@@ -66,30 +66,32 @@ export function TabBar({
           )
         })}
       </div>
-      <Menu
-        open={open}
-        onClose={() => { setOpen(false) }}
-        items={menu.map(item => ({ id: item.id, label: item.title, disabled: item.disabled }))}
-        onSelect={(id) => {
-          setOpen(false)
-          onOpen(id)
-        }}
-        align="end"
-        portal
-        compact
-        anchor={(
-          <button
-            type="button"
-            className={css.add}
-            data-testid="xmart-workbench-add"
-            aria-label={t('tab.add')}
-            aria-expanded={open}
-            onClick={() => { setOpen(value => !value) }}
-          >
-            <IconPlusOutline16 size={14} />
-          </button>
-        )}
-      />
+      {menu.length > 0 && (
+        <Menu
+          open={open}
+          onClose={() => { setOpen(false) }}
+          items={menu.map(item => ({ id: item.id, label: item.title, disabled: item.disabled }))}
+          onSelect={(id) => {
+            setOpen(false)
+            onOpen(id)
+          }}
+          align="end"
+          portal
+          compact
+          anchor={(
+            <button
+              type="button"
+              className={css.add}
+              data-testid="xmart-workbench-add"
+              aria-label={t('tab.add')}
+              aria-expanded={open}
+              onClick={() => { setOpen(value => !value) }}
+            >
+              <IconPlusOutline16 size={14} />
+            </button>
+          )}
+        />
+      )}
     </div>
   )
 }

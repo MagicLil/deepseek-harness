@@ -50,5 +50,9 @@ describe('review-counts', () => {
     expect(pickReviewTurn(shellOnly)?.turn).toBe(3)
     expect(showShellOnlyWarn(shellOnly.turns[0], 0)).toBe(true)
     expect(showShellOnlyWarn(shellOnly.turns[0], 1)).toBe(false)
+    expect(pickReviewTurn({
+      sessionId: 's',
+      turns: [{ turn: 8, shellMaybeMutated: false, files: [] }],
+    })?.turn).toBe(8)
   })
 })

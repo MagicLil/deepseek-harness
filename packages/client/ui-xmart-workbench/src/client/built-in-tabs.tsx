@@ -1,6 +1,6 @@
 /**
- * Built-in Phase 1 tab bodies: the demo tab (visible in +) and the hidden
- * file stub used by `openFile`.
+ * Built-in Phase 1 tab bodies: the hidden demo tab (kept for persisted
+ * tabs) and the hidden file stub used by `openFile`.
  */
 import type { TabBodyProps } from './types.ts'
 import type { WorkbenchKey } from './locales.ts'

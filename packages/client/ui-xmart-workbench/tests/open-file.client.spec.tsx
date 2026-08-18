@@ -71,6 +71,8 @@ describe('click-to-open in the editor column', () => {
             })}
             writeFile={async () => {}}
             createDirectory={async () => 'D:\\ws\\n'}
+            renameEntry={async () => 'D:\\ws\\n'}
+            deleteEntry={async () => {}}
             openSystem={async () => {}}
             openFile={(path) => {
               service.bindSession('s1')

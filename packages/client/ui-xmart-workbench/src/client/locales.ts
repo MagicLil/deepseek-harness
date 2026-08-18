@@ -28,6 +28,10 @@ export type WorkbenchKey =
   | 'settings.tabs'
   | 'settings.viewers'
   | 'settings.empty.viewers'
+  | 'settings.appearance'
+  | 'settings.themeColor'
+  | 'settings.iconTheme'
+  | 'settings.classicIcons'
   | 'settings.enable'
   | 'settings.disable'
   | 'viewer.code'
@@ -35,6 +39,8 @@ export type WorkbenchKey =
   | 'viewer.image'
   | 'viewer.binary'
   | 'viewer.image.body'
+  | 'viewer.image.loading'
+  | 'viewer.image.error'
   | 'viewer.binary.body'
   | 'explorer.noWorkspace'
   | 'explorer.refresh'
@@ -53,8 +59,11 @@ export type WorkbenchKey =
   | 'explorer.copyAbs'
   | 'explorer.mention'
   | 'explorer.openSystem'
-  | 'explorer.renameUnavailable'
-  | 'explorer.deleteUnavailable'
+  | 'explorer.rename'
+  | 'explorer.delete'
+  | 'explorer.renameName'
+  | 'explorer.deleteConfirm'
+  | 'explorer.deleteConfirmDir'
   | 'editor.noPath'
   | 'editor.loading'
   | 'editor.engineLoading'
@@ -81,6 +90,8 @@ export type WorkbenchKey =
   | 'search.empty'
   | 'search.error'
   | 'search.badPattern'
+  | 'search.badGlob'
+  | 'search.unavailable'
   | 'search.summary'
   | 'search.truncated'
   | 'editor.save'
@@ -236,6 +247,7 @@ export type WorkbenchKey =
   | 'activity.search'
   | 'activity.git'
   | 'activity.terminal'
+  | 'activity.settings'
   | 'sidebar.missing'
   | 'sidebar.crashed'
   | 'review.files'
@@ -258,6 +270,14 @@ export type WorkbenchKey =
   | 'review.ioError'
   | 'review.status.irreversible'
   | 'review.empty'
+  | 'fileCard.expand'
+  | 'fileCard.collapse'
+  | 'fileCard.toggle'
+  | 'fileCard.open'
+  | 'fileCard.copy'
+  | 'fileCard.copied'
+  | 'fileCard.review'
+  | 'fileCard.jump'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -277,6 +297,7 @@ export const zh: Record<WorkbenchKey, string> = {
   'activity.search': '搜索',
   'activity.git': '源代码管理',
   'activity.terminal': '终端',
+  'activity.settings': '设置',
   'review.files': '{n} 个文件',
   'review.undoAll': '全部撤销',
   'review.keepAll': '全部保留',
@@ -289,6 +310,14 @@ export const zh: Record<WorkbenchKey, string> = {
   'review.shellDismiss': '知道了',
   'review.shellTitle': '壳改动提示',
   'review.empty': '本会话还没有待审查的 Agent 改动。',
+  'fileCard.expand': '展开其余 {n} 行',
+  'fileCard.collapse': '收起',
+  'fileCard.toggle': '展开或收起文件改动',
+  'fileCard.open': '在工作台打开',
+  'fileCard.copy': '复制差异',
+  'fileCard.copied': '已复制',
+  'fileCard.review': '完整差异',
+  'fileCard.jump': '跳转到第 {n} 行',
   'review.dirty': '先保存或丢弃编辑器里未保存的修改。',
   'review.conflict': '磁盘内容已偏离 Agent 结果，无法安全撤销。',
   'review.conflictForce': '磁盘已被改过。仍要覆盖并恢复到本轮开始前吗？',
@@ -315,13 +344,19 @@ export const zh: Record<WorkbenchKey, string> = {
   'settings.tabs': '标签类型',
   'settings.viewers': '文件预览',
   'settings.empty.viewers': '还没有注册文件预览器。',
+  'settings.appearance': '外观',
+  'settings.themeColor': '主题色',
+  'settings.iconTheme': '文件图标',
+  'settings.classicIcons': '经典',
   'settings.enable': '启用',
   'settings.disable': '禁用',
   'viewer.code': '代码',
   'viewer.markdown': 'Markdown',
   'viewer.image': '图片',
   'viewer.binary': '二进制下载',
-  'viewer.image.body': '图片预览还需要主机字节通道，当前请用系统应用打开。',
+  'viewer.image.body': '没有可预览的路径。',
+  'viewer.image.loading': '正在加载图片…',
+  'viewer.image.error': '无法加载图片。可改用系统应用打开。',
   'viewer.binary.body': '这是二进制文件，编辑器不能打开。可用系统应用打开。',
   'explorer.noWorkspace': '还没有可显示的工作区目录。请在最右列添加工作区。',
   'explorer.refresh': '刷新',
@@ -340,8 +375,11 @@ export const zh: Record<WorkbenchKey, string> = {
   'explorer.copyAbs': '复制绝对路径',
   'explorer.mention': '@ 到输入框',
   'explorer.openSystem': '用系统应用打开',
-  'explorer.renameUnavailable': '重命名（待主机接口）',
-  'explorer.deleteUnavailable': '删除（待主机接口）',
+  'explorer.rename': '重命名',
+  'explorer.delete': '删除',
+  'explorer.renameName': '新名称',
+  'explorer.deleteConfirm': '删除后无法撤销。确定删除 {name}？',
+  'explorer.deleteConfirmDir': '将删除文件夹 {name} 及其全部内容，无法撤销。确定删除？',
   'editor.noPath': '这个标签没有文件路径。',
   'editor.loading': '正在打开…',
   'editor.engineLoading': '正在加载编辑器内核…',
@@ -368,6 +406,8 @@ export const zh: Record<WorkbenchKey, string> = {
   'search.empty': '没有找到结果。',
   'search.error': '搜索失败。',
   'search.badPattern': '正则表达式不合法。',
+  'search.badGlob': '文件筛选不合法。',
+  'search.unavailable': '搜索引擎不可用。',
   'search.summary': '{n} 个结果，{m} 个文件',
   'search.truncated': '结果太多，只显示前 {n} 条。可以缩小搜索范围。',
   'editor.save': '保存',
@@ -534,6 +574,7 @@ export const en: Record<WorkbenchKey, string> = {
   'activity.search': 'Search',
   'activity.git': 'Source Control',
   'activity.terminal': 'Terminal',
+  'activity.settings': 'Settings',
   'review.files': '{n} Files',
   'review.undoAll': 'Undo All',
   'review.keepAll': 'Keep All',
@@ -546,6 +587,14 @@ export const en: Record<WorkbenchKey, string> = {
   'review.shellDismiss': 'Dismiss',
   'review.shellTitle': 'Shell changes',
   'review.empty': 'No Agent file changes to review in this session.',
+  'fileCard.expand': 'Show remaining {n} lines',
+  'fileCard.collapse': 'Collapse',
+  'fileCard.toggle': 'Expand or collapse file change',
+  'fileCard.open': 'Open in workbench',
+  'fileCard.copy': 'Copy diff',
+  'fileCard.copied': 'Copied',
+  'fileCard.review': 'Full diff',
+  'fileCard.jump': 'Go to line {n}',
   'review.dirty': 'Save or discard unsaved editor changes first.',
   'review.conflict': 'Disk no longer matches the Agent result; cannot revert safely.',
   'review.conflictForce': 'Disk was modified further. Overwrite and restore to before this turn?',
@@ -572,13 +621,19 @@ export const en: Record<WorkbenchKey, string> = {
   'settings.tabs': 'Tab types',
   'settings.viewers': 'File viewers',
   'settings.empty.viewers': 'No file viewers are registered yet.',
+  'settings.appearance': 'Appearance',
+  'settings.themeColor': 'Theme color',
+  'settings.iconTheme': 'File icons',
+  'settings.classicIcons': 'Classic',
   'settings.enable': 'Enable',
   'settings.disable': 'Disable',
   'viewer.code': 'Code',
   'viewer.markdown': 'Markdown',
   'viewer.image': 'Image',
   'viewer.binary': 'Binary download',
-  'viewer.image.body': 'Image preview still needs a host bytes channel. Open the file in the system app for now.',
+  'viewer.image.body': 'This tab has no file path to preview.',
+  'viewer.image.loading': 'Loading image…',
+  'viewer.image.error': 'Could not load this image. Open it in the system app instead.',
   'viewer.binary.body': 'This is a binary file. The editor cannot open it. Use the system app instead.',
   'explorer.noWorkspace': 'No workspace folders to show. Add one from the far-right rail.',
   'explorer.refresh': 'Refresh',
@@ -597,8 +652,11 @@ export const en: Record<WorkbenchKey, string> = {
   'explorer.copyAbs': 'Copy absolute path',
   'explorer.mention': '@ into composer',
   'explorer.openSystem': 'Open in system app',
-  'explorer.renameUnavailable': 'Rename (needs host API)',
-  'explorer.deleteUnavailable': 'Delete (needs host API)',
+  'explorer.rename': 'Rename',
+  'explorer.delete': 'Delete',
+  'explorer.renameName': 'New name',
+  'explorer.deleteConfirm': 'This cannot be undone. Delete {name}?',
+  'explorer.deleteConfirmDir': 'This deletes folder {name} and everything inside it. This cannot be undone. Delete?',
   'editor.noPath': 'This tab has no file path.',
   'editor.loading': 'Opening…',
   'editor.engineLoading': 'Loading the editor engine…',
@@ -625,6 +683,8 @@ export const en: Record<WorkbenchKey, string> = {
   'search.empty': 'No results found.',
   'search.error': 'Search failed.',
   'search.badPattern': 'Invalid regular expression.',
+  'search.badGlob': 'Invalid file filter.',
+  'search.unavailable': 'Search engine is unavailable.',
   'search.summary': '{n} results in {m} files',
   'search.truncated': 'Too many results; showing the first {n}. Narrow the search to see the rest.',
   'editor.save': 'Save',

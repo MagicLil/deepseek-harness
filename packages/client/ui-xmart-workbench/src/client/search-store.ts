@@ -12,7 +12,7 @@ import type { ExplorerRoot } from './explorer-roots.ts'
 export type SearchStatus = 'idle' | 'searching' | 'done' | 'error'
 
 /** Error class the panel can turn into a locale string. */
-export type SearchErrorKind = 'invalid' | 'failed'
+export type SearchErrorKind = 'invalid' | 'badGlob' | 'unavailable' | 'failed'
 
 /** One session's search panel state. */
 export type WorkbenchSearchState = {
@@ -42,6 +42,8 @@ export type WorkbenchSearchState = {
   truncated: boolean
   /** Collapsed file groups (absolute path → true). */
   collapsed: Record<string, boolean>
+  /** Keyboard-selected hit (`path\\nline`), or null. */
+  selectedKey: string | null
 }
 
 /** Fresh panel state (also the sentinel for sessions never searched). */
@@ -59,6 +61,7 @@ export const EMPTY_SEARCH_STATE: WorkbenchSearchState = Object.freeze({
   fileCount: 0,
   truncated: false,
   collapsed: {},
+  selectedKey: null,
 })
 
 /** Search store closed over by the search pane body. */
@@ -190,8 +193,58 @@ export function splitSearchLine(
  * @param hit - one search hit.
  * @returns zero-based line/character.
  */
-export function revealTarget(hit: FileSearchHit): { line: number; character: number } {
-  return { line: Math.max(0, hit.line - 1), character: hit.spans[0]?.start ?? 0 }
+export function revealTarget(hit: FileSearchHit): { line: number; character: number; end?: number } {
+  const span = hit.spans[0]
+  return {
+    line: Math.max(0, hit.line - 1),
+    character: span?.start ?? 0,
+    ...(span === undefined ? {} : { end: span.end }),
+  }
+}
+
+/** Stable identity for one hit in the result list. */
+export function searchHitKey(hit: Pick<FileSearchHit, 'path' | 'line'>): string {
+  return `${hit.path}\n${String(hit.line)}`
+}
+
+/**
+ * Hits that are currently painted (collapsed file groups are omitted).
+ * @param groups - grouped results.
+ * @param collapsed - absolute path → true when the file row is folded.
+ */
+export function visibleSearchHits(
+  groups: readonly SearchFileGroup[],
+  collapsed: Record<string, boolean>,
+): FileSearchHit[] {
+  const out: FileSearchHit[] = []
+  for (const group of groups) {
+    if (collapsed[group.path] === true) continue
+    out.push(...group.hits)
+  }
+  return out
+}
+
+/**
+ * Move the keyboard selection by one visible hit. A missing selection
+ * lands on the first hit (down) or the last hit (up); the ends clamp.
+ * @param hits - visible hits in paint order.
+ * @param selectedKey - current {@link searchHitKey}, or null.
+ * @param delta - +1 down, -1 up.
+ */
+export function stepSearchHit(
+  hits: readonly FileSearchHit[],
+  selectedKey: string | null,
+  delta: 1 | -1,
+): string | null {
+  if (hits.length === 0) return null
+  const keys = hits.map(searchHitKey)
+  const last = keys.length - 1
+  const index = selectedKey === null ? -1 : keys.indexOf(selectedKey)
+  const picked = index === -1
+    ? (delta === 1 ? 0 : last)
+    : Math.max(0, Math.min(last, index + delta))
+  /* v8 ignore next -- `keys` is non-empty after the length guard */
+  return keys[picked] ?? null
 }
 
 /**
@@ -203,8 +256,12 @@ export function revealTarget(hit: FileSearchHit): { line: number; character: num
  * @returns 'invalid' for a user-fixable pattern, else 'failed'.
  */
 export function classifySearchFailure(error: unknown): SearchErrorKind {
-  const code = (error as { rpcError?: { code?: string } } | null)?.rpcError?.code
-  return code === 'search-invalid' ? 'invalid' : 'failed'
+  const rpc = (error as { rpcError?: { code?: string; message?: string } } | null)?.rpcError
+  if (rpc?.code === 'search-unavailable') return 'unavailable'
+  if (rpc?.code === 'search-invalid') {
+    return /glob/i.test(rpc.message ?? '') ? 'badGlob' : 'invalid'
+  }
+  return 'failed'
 }
 
 /**

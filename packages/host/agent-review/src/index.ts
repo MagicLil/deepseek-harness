@@ -292,6 +292,21 @@ export class AgentReviewGateway extends TypertRemoteService {
       }
     }
     imported += await this.importHintedPaths(exec, result, sessionId, turn, cwd, flight)
+    if (imported === 0 && beforeSnap !== null && cwd !== undefined && cwd.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, 250))
+      const lateSnap = await collectOpaqueSnap(cwd, this.disk, this.maxShadowBytes)
+      if (lateSnap !== null) {
+        for (const plan of planOpaqueMutations(beforeSnap.files, lateSnap.files)) {
+          let beforeText = plan.beforeText
+          if (beforeText === null && plan.kind !== 'create') {
+            beforeText = await readHeadText(beforeSnap.root, plan.relPath)
+          }
+          await this.review.observe(sessionId, turn, plan.absPath, plan.kind, beforeText)
+          imported += 1
+        }
+        imported += await this.importHintedPaths(exec, result, sessionId, turn, cwd, flight)
+      }
+    }
     if (imported === 0) await this.review.markShell(sessionId, turn)
   }
 

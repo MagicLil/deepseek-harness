@@ -522,6 +522,26 @@ describe('openFile, persist, and observers', () => {
     expect(service.getSnapshot('s1').tabs.some(opened => opened.title === '/')).toBe(true)
   })
 
+  it('retargets or drops file tabs after explorer rename and delete', () => {
+    const service = new XmartWorkbenchController()
+    service.registerTab(tab({ id: 'editor', title: 'Editor', hidden: true, dedupeKey: opened => opened.path }))
+    service.openFile('/ws/src/a.ts', { sessionId: 's1' })
+    service.openFile('/ws/keep.ts', { sessionId: 's1' })
+    service.retargetPaths('/ws/src', '/ws/lib', { sessionId: 's1' })
+    expect(service.getSnapshot('s1').tabs.map(row => row.path)).toEqual(['/ws/lib/a.ts', '/ws/keep.ts'])
+    expect(service.getSnapshot('s1').tabs[0]?.title).toBe('a.ts')
+    const afterRename = service.getSnapshot('s1')
+    expect(afterRename.tabs.map(row => row.path)).toEqual(['/ws/lib/a.ts', '/ws/keep.ts'])
+    service.retargetPaths('/ws/keep.ts', undefined, { sessionId: 's1' })
+    const afterDropActive = service.getSnapshot('s1')
+    expect(afterDropActive.tabs.map(row => row.path)).toEqual(['/ws/lib/a.ts'])
+    expect(afterDropActive.activeTabId).toBe(afterDropActive.tabs[0]?.id)
+    service.retargetPaths('/ws', undefined, { sessionId: 's1' })
+    expect(service.getSnapshot('s1').tabs).toEqual([])
+    expect(service.getSnapshot('s1').activeTabId).toBeNull()
+    service.retargetPaths('/ws', undefined)
+  })
+
   it('restores tabs from localStorage on a new controller', () => {
     const first = new XmartWorkbenchController()
     first.registerTab(tab({ id: 'plain', title: 'Plain', single: true }))

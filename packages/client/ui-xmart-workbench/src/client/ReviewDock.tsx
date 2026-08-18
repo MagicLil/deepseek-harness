@@ -50,7 +50,7 @@ export function ReviewDock(props: ReviewDockProps) {
   }, [review, sessionId])
   useEffect(() => {
     void reload()
-    const id = window.setInterval(() => { void reload() }, 2500)
+    const id = window.setInterval(() => { void reload() }, 400)
     return () => { window.clearInterval(id) }
   }, [reload])
   const turn = pickReviewTurn(session)

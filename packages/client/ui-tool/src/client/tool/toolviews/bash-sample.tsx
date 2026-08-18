@@ -22,6 +22,7 @@ import {
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { terminalBlockLabels, terminalCardModel, terminalFailed } from '../models/terminal-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel, type ToolRowState } from '../models/tool-call-model.ts'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
 import css from './bash-sample.module.css'
@@ -53,7 +54,7 @@ function stateStatus(state: ToolRowState, t: BashRowProps['t']): string | null {
  * whole row toggling the command's terminal or generic error card (ToolRow's unified
  * expand interaction, replicated locally per the registrant posture).
  */
-export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }: BashRowProps) {
+export function BashRow({ toolName, block, sessionId, useSessions, inspect, developerMode, setDeveloperMode, t }: BashRowProps) {
   const model = toolRowModel(toolName, block)
   // Session workspace root: the terminal view's cwd resolves against it (an
   // omitted workdir IS the workspace), which the pure presenter cannot do.
@@ -66,15 +67,17 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
     : model.state
   const status = stateStatus(state, t)
   const [expanded, setExpanded] = useState(false)
+  // The collapsed failure summary is a sanitized message, never the raw text.
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   // Execution failures (for example cancellation before the process reports a
   // terminal result) use the generic presenter. Keep their recorded args and
-  // full error reachable instead of collapsing the row to the first line.
+  // the sanitized failure reachable instead of collapsing the row to the raw text.
   const genericError = terminal === null
     && model.state === 'error'
     && (model.body !== null || model.output !== null)
   const expandable = terminal !== null || genericError
   const open = expanded && expandable
-  const failureLine = model.state === 'error' ? model.errorSummary : null
+  const failureLine = model.state === 'error' ? errorSummary : null
   const toggleExpand = () => {
     setExpanded(v => !v)
   }
@@ -131,25 +134,45 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
               />
             )
             : (
-              <div className={css.ioCard}>
-                {model.body !== null && (
-                  <div className={css.ioSection}>
-                    <span className={css.ioLabel}>IN</span>
-                    <span className={css.ioText}>{model.body}</span>
-                  </div>
-                )}
-                {model.body !== null && model.output !== null && (
-                  <span className={css.ioDivider} aria-hidden />
-                )}
+              <>
+                <div className={css.ioCard}>
+                  {model.body !== null && (
+                    <div className={css.ioSection}>
+                      <span className={css.ioLabel}>IN</span>
+                      <span className={css.ioText}>{model.body}</span>
+                    </div>
+                  )}
+                  {model.body !== null && errorSummary !== null && (
+                    <span className={css.ioDivider} aria-hidden />
+                  )}
+                  {errorSummary !== null && (
+                    <div className={css.ioSection}>
+                      <span className={css.ioLabel}>OUT</span>
+                      <span className={css.ioText} data-error>
+                        {errorSummary}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 {model.output !== null && (
-                  <div className={css.ioSection}>
-                    <span className={css.ioLabel}>OUT</span>
-                    <span className={css.ioText} data-error>
-                      {model.output}
-                    </span>
-                  </div>
+                  <>
+                    <label className={css.developerToggle}>
+                      <input
+                        type="checkbox"
+                        checked={developerMode}
+                        onChange={(event) => { setDeveloperMode(event.target.checked) }}
+                      />
+                      {t('tool.error.developerMode')}
+                    </label>
+                    {developerMode && (
+                      <details className={css.debugDetails}>
+                        <summary>{t('tool.error.debugDetails')}</summary>
+                        <pre className={css.debugText}>{model.output}</pre>
+                      </details>
+                    )}
+                  </>
                 )}
-              </div>
+              </>
             )}
           {inspect !== undefined && (
             <button type="button" className={css.inspectButton} onClick={inspect}>

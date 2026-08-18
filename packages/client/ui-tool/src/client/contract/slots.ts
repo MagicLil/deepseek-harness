@@ -1,8 +1,9 @@
 /** Tool UI slot declarations and their composed component props. */
-import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { ToolErrorViewStore } from '../tool/tool-error-view-store.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -38,6 +39,10 @@ export interface ToolCallOwnerProps {
   openFile: (path: string) => void
   /** Inspect this call in the trajectory view when available. */
   inspect?: (() => void) | undefined
+  /** Whether the developer mode reveals raw tool failure text. */
+  developerMode: boolean
+  /** Flip the shared developer-mode flag (owned by the tool-call tree's store). */
+  setDeveloperMode: (on: boolean) => void
 }
 
 /** Full props of a registered atomic Tool view. */
@@ -46,7 +51,10 @@ export type ToolCallViewProps = PropsRuntime<'tool.call.toolview'>
 /** Full props of the Tool call-tree renderer registered as a `tool-call` Chat Node. */
 export type ToolTreeProps = PropsRuntime<'conversation.chat.node', 'tool-call'>
   & PropsRenderSlots<'tool.call.toolview'>
+  & PropsStore<ToolErrorViewStore>
   & PropsLocale<'conversation'>
 
 /** Full props of the selected Tool output renderer in the details panel. */
-export type ToolDetailsProps = PropsRuntime<'conversation.details.tool'> & PropsLocale<'conversation'>
+export type ToolDetailsProps = PropsRuntime<'conversation.details.tool'>
+  & PropsStore<ToolErrorViewStore>
+  & PropsLocale<'conversation'>

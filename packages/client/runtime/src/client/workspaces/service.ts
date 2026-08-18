@@ -48,6 +48,14 @@ export class DirectoryBrowseError extends Error {
   }
 }
 
+/** Decode a host.readFileBytes base64 payload in the browser (no Buffer). */
+function decodeBase64Bytes(contentBase64: string): Uint8Array {
+  const binary = atob(contentBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 /** Structured file access failure so the editor can branch on Host business codes. */
 export class FileAccessError extends Error {
   constructor(readonly rpcError: RpcError) {
@@ -333,6 +341,45 @@ export class WorkspaceRuntime implements IWorkspaces {
   async writeFile(path: string, content: string): Promise<void> {
     const response = await this.api.host.writeFile({ path, content })
     if (!response.result.ok) throw new FileAccessError(response.result.error)
+  }
+
+  /**
+   * Rename one file or directory in its parent.
+   * @param path - absolute existing file or directory.
+   * @param name - single destination path segment.
+   * @returns the new absolute path.
+   */
+  async renameEntry(path: string, name: string): Promise<string> {
+    const response = await this.api.host.renameEntry({ path, name })
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+    return response.result.value.path
+  }
+
+  /**
+   * Delete one file or directory tree.
+   * @param path - absolute existing file or directory.
+   */
+  async deleteEntry(path: string): Promise<void> {
+    const response = await this.api.host.deleteEntry({ path })
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+  }
+
+  /**
+   * Read one file as bytes for in-column image preview.
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns raw bytes and a MIME guess from the path.
+   */
+  async readFileBytes(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    const response = await this.api.host.readFileBytes({ path }, signal)
+    if (!response.result.ok) throw new FileAccessError(response.result.error)
+    return {
+      bytes: decodeBase64Bytes(response.result.value.contentBase64),
+      mimeType: response.result.value.mimeType,
+    }
   }
 
   /**

@@ -17,6 +17,7 @@ import { WorkbenchSettingsSection } from '../src/client/WorkbenchSettingsSection
 import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-xmart-workbench'
 import * as invariant from '@deepseek-ai/dsh-client-ui-xmart-workbench/invariant'
 import { XMART_ACCENT_TOKENS } from '../src/client/brand-accent.ts'
+import { takeReveal } from '../src/client/editor-nav.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -104,7 +105,10 @@ async function bench() {
     gitSuggestCommit: vi.fn(async () => ({ message: 'chore: generated' })),
     gitCommitDiff: vi.fn(async () => ({ root: '/ws', side: 'worktree' as const, text: '' })),
     readFile: vi.fn(async () => 'hi'),
+    readFileBytes: vi.fn(async () => ({ bytes: new Uint8Array(), mimeType: 'application/octet-stream' })),
     writeFile: vi.fn(async () => {}),
+    renameEntry: vi.fn(async () => '/ws/b.ts'),
+    deleteEntry: vi.fn(async () => {}),
     search: vi.fn(async () => ({ root: '/ws', hits: [], fileCount: 0, truncated: false })),
     createDirectory: vi.fn(async () => '/ws/n'),
     openPath: vi.fn(async () => {}),
@@ -157,6 +161,8 @@ function declare(slots: SlotRegistry): () => void {
       workbench: { kind: 'single', scope: 'session-maybe' },
       bottomPanel: { kind: 'single', scope: 'session-maybe' },
       'settings.section': { kind: 'list', scope: 'root' },
+      'conversation.input.dock': { kind: 'list', scope: 'session' },
+      'tool.call.toolview': { kind: 'keyed', scope: 'session' },
     },
   } as never, () => null)
 }
@@ -182,6 +188,7 @@ describe('ui-xmart-workbench apply', () => {
     const editor = service.getTab('editor')
     expect(explorer?.single).toBe(true)
     expect(demo?.single).toBe(true)
+    expect(demo?.hidden).toBe(true)
     expect(file?.hidden).toBe(true)
     expect(editor?.hidden).toBe(true)
     expect(service.getTab('git')?.single).toBe(true)
@@ -194,6 +201,9 @@ describe('ui-xmart-workbench apply', () => {
     expect(service.getTab('git')?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(false)
     expect(service.getTab('diff')?.dedupeKey?.({ id: 'd', type: 'diff', title: 'a', path: 'worktree:a.ts' }))
       .toBe('worktree:a.ts')
+    const chatOpen = b.ctx.get('chatFileOpen')
+    expect(chatOpen?.open('/ws/a.ts')).toBe(true)
+    expect(service.getSnapshot('s1').tabs.some(tab => tab.path === '/ws/a.ts')).toBe(true)
     expect(explorer?.available?.({ sessionId: 's1' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(true)
     expect(explorer?.available?.({ sessionId: 'missing' }, { tabs: [], activeTabId: null, nextSeq: 1, activity: 'explorer' })).toBe(false)
     const explorerTitle = explorer?.title
@@ -515,6 +525,10 @@ describe('ui-xmart-workbench apply', () => {
       gitStatus: (path: string) => Promise<unknown>
       writeFile: (path: string, content: string) => Promise<void>
       createDirectory: (path: string, name: string) => Promise<string>
+      renameEntry: (path: string, name: string) => Promise<string>
+      deleteEntry: (path: string) => Promise<void>
+      onRenamed: (from: string, to: string) => void
+      onDeleted: (path: string) => void
       openSystem: (path: string) => Promise<void>
       openFile: (path: string) => void
       watchSessions: (fn: () => void) => () => void
@@ -526,6 +540,10 @@ describe('ui-xmart-workbench apply', () => {
     await explorerEl.props.gitStatus('/ws')
     await explorerEl.props.writeFile('/ws/a.ts', '')
     await explorerEl.props.createDirectory('/ws', 'n')
+    await explorerEl.props.renameEntry('/ws/a.ts', 'b.ts')
+    await explorerEl.props.deleteEntry('/ws/b.ts')
+    explorerEl.props.onRenamed('/ws/a.ts', '/ws/b.ts')
+    explorerEl.props.onDeleted('/ws/gone.ts')
     await explorerEl.props.openSystem('/ws/a.ts')
     explorerEl.props.openFile('/ws/a.ts')
     explorerEl.props.watchSessions(() => {})()
@@ -546,8 +564,12 @@ describe('ui-xmart-workbench apply', () => {
     expect(service.getSnapshot('s1').tabs.some(row => row.path === '/p/Other.java')).toBe(true)
     const imageEl = (Image as typeof renderFile)({
       tab: { id: 'im', type: 'image', title: 'a.png', path: '/p/a.png' }, visible: true, sessionId: 's1',
-    }) as { props: { openSystem: (path: string) => Promise<void> } }
+    }) as { props: {
+      openSystem: (path: string) => Promise<void>
+      readFileBytes: (path: string) => Promise<{ bytes: Uint8Array; mimeType: string }>
+    } }
     await imageEl.props.openSystem('/p/a.png')
+    await imageEl.props.readFileBytes('/p/a.png')
     const binaryEl = (Binary as typeof renderFile)({
       tab: { id: 'bi', type: 'binary', title: 'a.bin', path: '/p/a.bin' }, visible: true, sessionId: 's1',
     }) as { props: { openSystem: (path: string) => Promise<void> } }
@@ -924,6 +946,83 @@ describe('ui-xmart-workbench apply', () => {
     expect(b.slots.entries('primarySidebar')).toHaveLength(0)
     expect(b.slots.entries('bottomPanel')).toHaveLength(0)
     expect(b.slots.entries('settings.section')).toHaveLength(0)
+    expect(b.slots.entries('tool.call.toolview')).toHaveLength(0)
+  })
+
+  it('shadows edit/write tool rows with the file-change card and opens the workbench', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const entries = b.slots.entries('tool.call.toolview')
+    expect(entries).toHaveLength(2)
+    expect(entries.map(entry => entry.options.key).sort()).toEqual(['edit', 'write'])
+    expect(entries.every(entry => entry.options.priority === -1)).toBe(true)
+    const injected = entries.map(entry => (
+      entry.inject as (sessionId: string) => {
+        openInWorkbench: (path: string, reveal?: { line: number; character?: number }) => void
+        readFile: (path: string) => Promise<string | undefined>
+        openReviewDiff?: (path: string) => void
+      }
+    )('s1'))
+    expect(injected[0]!.openReviewDiff).toBeUndefined()
+    injected[0]!.openInWorkbench('/ws/a.ts')
+    injected[1]!.openInWorkbench('/ws/b.ts', { line: 3 })
+    expect(takeReveal('/ws/b.ts')).toEqual({ line: 3, character: 0 })
+    injected[1]!.openInWorkbench('/ws/c.ts', { line: 1, character: 4 })
+    expect(takeReveal('/ws/c.ts')).toEqual({ line: 1, character: 4 })
+    expect(b.layout.openWorkbench).toHaveBeenCalled()
+    const paths = workbench(b.ctx).getSnapshot('s1').tabs.map(tab => tab.path)
+    expect(paths).toContain('/ws/a.ts')
+    expect(paths).toContain('/ws/b.ts')
+    expect(await injected[0]!.readFile('notes/a.ts')).toBe('hi')
+    expect(b.workspaces.readFile).toHaveBeenCalledWith('/ws/notes/a.ts')
+    b.workspaces.readFile.mockRejectedValueOnce(new Error('missing'))
+    expect(await injected[0]!.readFile('/ws/missing.ts')).toBeUndefined()
+  })
+
+  it('registers the review dock when agentReview is present', async () => {
+    const b = await bench()
+    const reviewGet = vi.fn(async () => ({
+      sessionId: 's1',
+      turns: [{
+        turn: 4,
+        shellMaybeMutated: false,
+        files: [{ path: '/ws/rev.ts', kind: 'update' as const, status: 'pending' as const }],
+      }],
+    }))
+    b.ctx.provide('remote.agentReview', { get: reviewGet })
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    expect(workbench(b.ctx).getTab('agent-review-diff')?.hidden).toBe(true)
+    const dock = b.slots.entries('conversation.input.dock')[0]
+    const face = (dock!.inject as (id: string) => {
+      openReviewDiff: (path: string, turn: number) => void
+    })('s1')
+    face.openReviewDiff('/ws/rev.ts', 2)
+    expect(b.layout.openWorkbench).toHaveBeenCalled()
+    const Review = workbench(b.ctx).getTab('agent-review-diff')!.component
+    const el = (Review as (props: {
+      tab: { id: string; type: string; title: string; path: string }
+      visible: boolean
+      sessionId: string
+    }) => { props: { onSettled: () => void } })({
+      tab: { id: 'rd', type: 'agent-review-diff', title: 'Review', path: '2:/ws/rev.ts' },
+      visible: true,
+      sessionId: 's1',
+    })
+    el.props.onSettled()
+    expect(workbench(b.ctx).getSnapshot('s1').tabs.some(tab => tab.id === 'rd')).toBe(false)
+    const card = (b.slots.entries('tool.call.toolview')[0]!.inject as (id: string) => {
+      openReviewDiff?: (path: string) => void
+    })('s1')
+    card.openReviewDiff!('/ws/rev.ts')
+    await vi.waitFor(() => {
+      expect(workbench(b.ctx).getSnapshot('s1').tabs.some(tab => tab.path === '4|/ws/rev.ts')).toBe(true)
+    })
+    card.openReviewDiff!('/ws/other.ts')
+    await vi.waitFor(() => {
+      expect(workbench(b.ctx).getSnapshot('s1').tabs.some(tab => tab.path === '/ws/other.ts')).toBe(true)
+    })
   })
 })
 

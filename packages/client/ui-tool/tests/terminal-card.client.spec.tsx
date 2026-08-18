@@ -243,6 +243,7 @@ describe('terminalCardModel', () => {
 describe('chat row terminal body', () => {
   const ownerProps = (block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
     callId: 'c1', toolName: 'bash', block, openFile: vi.fn(), t,
+    developerMode: false, setDeveloperMode: vi.fn(),
   })
 
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
@@ -438,7 +439,7 @@ describe('BashRow terminal card', () => {
     expect(view.getByText('IN')).toBeTruthy()
     expect(view.getByText('OUT')).toBeTruthy()
     expect(view.getByText(/"command": "ls -la"/)).toBeTruthy()
-    expect(view.container.querySelector('[data-error]')?.textContent).toBe('Error: command aborted')
+    expect(view.container.querySelector('[data-error]')?.textContent).toBe('操作未完成，请稍后重试。')
   })
 })
 
@@ -562,8 +563,8 @@ describe('DetailsPanel Output section', () => {
         content: [{ type: 'text', text: 'permission denied' }],
       })],
     }), target)
-    const pre = view.container.querySelector('pre[data-error]')
-    expect(pre?.textContent).toBe('permission denied')
+    expect(view.container.querySelector('pre[data-error]')).toBeNull()
+    expect(view.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 
   // The panel resolves a sub-dispatch through the same material as a native
@@ -686,6 +687,7 @@ describe('DetailsPanel Output section', () => {
         error: { name: 'ToolError', code: 'interrupted' },
       })],
     }), target)
-    expect(empty.getByText('ToolError: interrupted')).toBeTruthy()
+    expect(empty.queryByText('ToolError: interrupted')).toBeNull()
+    expect(empty.getByText('操作未完成，请稍后重试。')).toBeTruthy()
   })
 })

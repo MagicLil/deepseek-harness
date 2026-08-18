@@ -101,7 +101,7 @@ export function apply(ctx: Context, config: Config): void {
       pageUrl: desktopLoopbackUrl(ctx.webServer.port),
     })
     disposeShell = () => shell.dispose()
-    console.log('dsh desktop: window open')
+    console.log(`dsh desktop: window open at ${desktopLoopbackUrl(ctx.webServer.port)}`)
     void shell.closed.then(() => {
       ctx.get('appExit')?.(0)
     })

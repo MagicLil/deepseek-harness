@@ -4,7 +4,7 @@
  * the top bar. Components never see ctx.
  */
 import {
-  IconBranchOutline16, IconFolderOpenOutline16,
+  IconBranchOutline16, IconFolderOpenOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ActivityBarProps, ActivityIcon } from './contract.ts'
 import { gitBadgeLabel, gitBadgeTotal } from './git-badge.ts'
@@ -75,6 +75,17 @@ export function ActivityBar({
             </button>
           )
         })}
+      </div>
+      <div className={css.footer}>
+        <button
+          type="button"
+          className={css.icon}
+          aria-label={t('activity.settings')}
+          data-testid="xmart-activity-settings"
+          onClick={() => { window.dispatchEvent(new Event('dsh:open-settings')) }}
+        >
+          <span className={css.glyph}><IconSettingsOutline16 size={18} /></span>
+        </button>
       </div>
     </div>
   )

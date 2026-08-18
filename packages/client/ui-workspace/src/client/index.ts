@@ -114,6 +114,7 @@ export function apply(ctx: ClientContext): void {
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => ctx.workspaces.create(input),
+    refreshWorkspaces: () => { void ctx.workspaces.refresh() },
     hooks: { directoryFlow: pickerFlowSource },
   })
   // Each registration declares its directory-flow child in the same call;

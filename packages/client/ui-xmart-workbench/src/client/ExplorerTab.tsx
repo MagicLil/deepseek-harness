@@ -1,6 +1,6 @@
 /**
- * Explorer tab: lazy file tree, create file/folder, copy paths, @ into
- * the composer, and open-in-system. Rename/delete wait on host remotes.
+ * Explorer tab: lazy file tree, create file/folder, rename/delete, copy
+ * paths, @ into the composer, and open-in-system.
  */
 import { useEffect, useState } from 'react'
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -11,14 +11,17 @@ import type { WorkbenchFilesStore } from './files-store.ts'
 import { FileTree } from './FileTree.tsx'
 import { homeOf, type ExplorerRoot } from './explorer-roots.ts'
 import { indexGitChanges } from './git-marks.ts'
-import { dirname, isSingleSegment, joinPath, relativeTo } from './route-file.ts'
+import { basename, dirname, isSingleSegment, joinPath, relativeTo } from './route-file.ts'
 import css from './ExplorerTab.module.css'
 
 /** Locale thunk. */
 type Translate = (key: WorkbenchKey) => string
 
-/** Inline create form: kind plus the directory the name is created in. */
-type CreateState = { kind: 'file' | 'folder'; parent: string } | null
+/** Inline create/rename form. */
+type CreateState =
+  | { kind: 'file' | 'folder'; parent: string }
+  | { kind: 'rename'; path: string }
+  | null
 
 /** Context-menu target. */
 type MenuTarget = { entry: FileEntry; x: number; y: number }
@@ -32,9 +35,13 @@ export type ExplorerTabProps = TabBodyProps & {
   gitStatus: (path: string, signal?: AbortSignal) => Promise<GitStatus>
   writeFile: (path: string, content: string) => Promise<void>
   createDirectory: (path: string, name: string) => Promise<string>
+  renameEntry: (path: string, name: string) => Promise<string>
+  deleteEntry: (path: string) => Promise<void>
   openSystem: (path: string) => Promise<void>
   openFile: (path: string) => void
   mentionFile: (path: string) => void
+  onRenamed?: (from: string, to: string) => void
+  onDeleted?: (path: string) => void
   files: WorkbenchFilesStore
   getActivePath?: (sessionId: string) => string | undefined
   watchWorkbench?: (fn: () => void) => () => void
@@ -43,7 +50,8 @@ export type ExplorerTabProps = TabBodyProps & {
 /** Explorer tab body (see module doc). */
 export function ExplorerTab({
   sessionId, t, getRoots, watchSessions, listEntries, gitStatus,
-  writeFile, createDirectory, openSystem, openFile, mentionFile, files,
+  writeFile, createDirectory, renameEntry, deleteEntry, openSystem, openFile, mentionFile,
+  onRenamed, onDeleted, files,
   getActivePath, watchWorkbench,
 }: ExplorerTabProps) {
   const [roots, setRoots] = useState(() => getRoots(sessionId))
@@ -97,6 +105,17 @@ export function ExplorerTab({
       setName('')
       files.bumpRefresh()
     }
+    if (create.kind === 'rename') {
+      if (trimmed === basename(create.path)) {
+        done()
+        return
+      }
+      void renameEntry(create.path, trimmed).then((next) => {
+        onRenamed?.(create.path, next)
+        done()
+      }, () => {})
+      return
+    }
     if (create.kind === 'folder') {
       void createDirectory(create.parent, trimmed).then(done, () => {})
       return
@@ -117,11 +136,13 @@ export function ExplorerTab({
           <input
             className={css.input}
             value={name}
-            placeholder={create.kind === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
+            placeholder={formPlaceholder(create.kind, t)}
             onChange={(event) => { setName(event.target.value) }}
-            aria-label={create.kind === 'folder' ? t('explorer.folderName') : t('explorer.fileName')}
+            aria-label={formPlaceholder(create.kind, t)}
           />
-          <button type="submit" className={css.tool}>{t('explorer.create')}</button>
+          <button type="submit" className={css.tool}>
+            {create.kind === 'rename' ? t('explorer.rename') : t('explorer.create')}
+          </button>
           <button type="button" className={css.tool} onClick={() => { setCreate(null) }}>{t('explorer.cancel')}</button>
         </form>
       )}
@@ -181,6 +202,18 @@ export function ExplorerTab({
           }
           if (id === 'mention' && target.kind !== 'directory') mentionFile(target.path)
           if (id === 'system') void openSystem(target.path)
+          if (id === 'rename') {
+            setCreate({ kind: 'rename', path: target.path })
+            setName(target.name)
+            return
+          }
+          if (id === 'delete') {
+            if (!confirmExplorerDelete(target, t)) return
+            void deleteEntry(target.path).then(() => {
+              onDeleted?.(target.path)
+              files.bumpRefresh()
+            }, () => {})
+          }
         }}
         anchor={<span data-testid="xmart-workbench-explorer-menu-anchor" />}
       />
@@ -216,7 +249,23 @@ function menuItems(entry: FileEntry | undefined, t: Translate) {
     { id: 'copy-abs', label: t('explorer.copyAbs'), disabled: entry === undefined },
     { id: 'mention', label: t('explorer.mention'), disabled: !file },
     { id: 'system', label: t('explorer.openSystem'), disabled: entry === undefined },
-    { id: 'rename', label: t('explorer.renameUnavailable'), disabled: true },
-    { id: 'delete', label: t('explorer.deleteUnavailable'), disabled: true },
+    { id: 'rename', label: t('explorer.rename'), disabled: entry === undefined },
+    { id: 'delete', label: t('explorer.delete'), disabled: entry === undefined },
   ]
+}
+
+/**
+ * Confirm copy for explorer delete (file vs folder).
+ * @param entry - row being deleted.
+ * @param t - locale thunk.
+ */
+export function confirmExplorerDelete(entry: FileEntry, t: Translate): boolean {
+  const key = entry.kind === 'directory' ? 'explorer.deleteConfirmDir' : 'explorer.deleteConfirm'
+  return window.confirm(t(key).replace('{name}', entry.name))
+}
+
+function formPlaceholder(kind: NonNullable<CreateState>['kind'], t: Translate): string {
+  if (kind === 'folder') return t('explorer.folderName')
+  if (kind === 'rename') return t('explorer.renameName')
+  return t('explorer.fileName')
 }

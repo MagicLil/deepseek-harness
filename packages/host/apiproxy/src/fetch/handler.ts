@@ -42,7 +42,8 @@ import {
   hostTerminalSignalRequestSchema, hostTerminalWriteRequestSchema,
   hostListDirectoryRequestSchema, hostListEntriesRequestSchema,
   hostOpenPathRequestSchema, hostPickDirectoryRequestSchema,
-  hostReadFileRequestSchema, hostSearchRequestSchema, hostWriteFileRequestSchema,
+  hostReadFileBytesRequestSchema, hostReadFileRequestSchema, hostRenameEntryRequestSchema, hostDeleteEntryRequestSchema,
+  hostSearchRequestSchema, hostWriteFileRequestSchema,
 } from '../api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema,
@@ -121,7 +122,10 @@ const UNARY_ROUTES: UnaryRoutes = {
   'host.openPath': { schema: hostOpenPathRequestSchema, invoke: (api, r, signal) => api.host.openPath(r, signal) },
   'host.listEntries': { schema: hostListEntriesRequestSchema, invoke: (api, r, signal) => api.host.listEntries(r, signal) },
   'host.readFile': { schema: hostReadFileRequestSchema, invoke: (api, r, signal) => api.host.readFile(r, signal) },
+  'host.readFileBytes': { schema: hostReadFileBytesRequestSchema, invoke: (api, r, signal) => api.host.readFileBytes(r, signal) },
   'host.writeFile': { schema: hostWriteFileRequestSchema, invoke: (api, r) => api.host.writeFile(r) },
+  'host.renameEntry': { schema: hostRenameEntryRequestSchema, invoke: (api, r) => api.host.renameEntry(r) },
+  'host.deleteEntry': { schema: hostDeleteEntryRequestSchema, invoke: (api, r) => api.host.deleteEntry(r) },
   'host.search': { schema: hostSearchRequestSchema, invoke: (api, r, signal) => api.host.search(r, signal) },
   'host.gitStatus': { schema: hostGitStatusRequestSchema, invoke: (api, r, signal) => api.host.gitStatus(r, signal) },
   'host.gitDiff': { schema: hostGitDiffRequestSchema, invoke: (api, r, signal) => api.host.gitDiff(r, signal) },

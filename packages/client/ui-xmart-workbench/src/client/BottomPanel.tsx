@@ -75,7 +75,7 @@ export function BottomPanel({
       <div className={css.body}>
         {active === undefined || Body === undefined
           ? <div className={css.empty} data-testid="xmart-bottom-empty">{t('terminal.empty')}</div>
-          : <Body tab={active} visible sessionId={sessionId ?? ''} />}
+          : <Body key={active.id} tab={active} visible sessionId={sessionId ?? ''} />}
       </div>
     </div>
   )

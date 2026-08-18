@@ -3,6 +3,7 @@
  * reload tokens. Created in `apply` and closed over by built-in tab bodies.
  */
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { isUnder, rewritePath } from './route-file.ts'
 
 /** localStorage key for drafts + expanded directories. */
 export const FILES_PERSIST = 'dsh.xmart.workbench.files'
@@ -86,6 +87,10 @@ export type WorkbenchFilesStore = {
   reloadToken: (path: string) => number
   draftOf: (path: string) => string | undefined
   setDraft: (path: string, content: string | undefined) => void
+  /** Move drafts / expanded / reload tokens from `from` onto `to`. */
+  moveUnder: (from: string, to: string) => void
+  /** Drop drafts / expanded / reload tokens at or under `path`. */
+  forgetUnder: (path: string) => void
 }
 
 /**
@@ -141,5 +146,44 @@ export function createWorkbenchFilesStore(): WorkbenchFilesStore {
           : { ...draft.drafts, [path]: content }
       })
     },
+    moveUnder: (from, to) => {
+      if (from === to) return
+      store.update((draft) => {
+        draft.drafts = rewriteRecord(draft.drafts, from, to)
+        draft.reloadAt = rewriteRecord(draft.reloadAt, from, to)
+        const expanded: Record<string, Record<string, boolean>> = {}
+        for (const [sessionId, map] of Object.entries(draft.expanded)) {
+          expanded[sessionId] = rewriteRecord(map, from, to)
+        }
+        draft.expanded = expanded
+      })
+    },
+    forgetUnder: (path) => {
+      store.update((draft) => {
+        draft.drafts = omitUnder(draft.drafts, path)
+        draft.reloadAt = omitUnder(draft.reloadAt, path)
+        const expanded: Record<string, Record<string, boolean>> = {}
+        for (const [sessionId, map] of Object.entries(draft.expanded)) {
+          expanded[sessionId] = omitUnder(map, path)
+        }
+        draft.expanded = expanded
+      })
+    },
   }
+}
+
+function rewriteRecord<V>(record: Record<string, V>, from: string, to: string): Record<string, V> {
+  const next: Record<string, V> = {}
+  for (const [key, value] of Object.entries(record)) {
+    next[rewritePath(key, from, to)] = value
+  }
+  return next
+}
+
+function omitUnder<V>(record: Record<string, V>, root: string): Record<string, V> {
+  const next: Record<string, V> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (!isUnder(key, root)) next[key] = value
+  }
+  return next
 }

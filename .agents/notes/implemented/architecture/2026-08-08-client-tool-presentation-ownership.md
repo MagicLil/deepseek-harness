@@ -20,7 +20,7 @@ Conversation data assembly follows the later [Conversation business-node decisio
 
 A business Tool plugin receives one standard `ToolCallBlock`, identity, workspace cwd, and host actions; it does not read Session, Context, or the Conversation assembler. Skill remains an ordinary Tool and uses the same keyed-slot registration path as other business Tools.
 
-The details panel is a second Tool presentation point, not the call-tree owner. `ui-conversation` locates the selected call and delegates its output body through `'conversation.details.tool'`; `ui-tool` reuses the card model, while the conversation fallback retains raw result text when the plugin is absent.
+The details panel is a second Tool presentation point, not the call-tree owner. `ui-conversation` locates the selected call and delegates its output body through `'conversation.details.tool'`; `ui-tool` reuses the card model, while the conversation fallback retains raw result text when the plugin is absent. Tool failures use the structured `tool/result.error.code` to render a localized, sanitized summary in ordinary Chat and Details views; the complete failure content remains in the durable session event, and a shared per-session developer-mode store exposes it only inside a collapsed debug panel.
 
 ## Runtime and render path
 

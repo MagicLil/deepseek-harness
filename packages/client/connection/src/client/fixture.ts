@@ -2597,6 +2597,20 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         return ok(request, { path: request.payload.path, content })
       },
+      readFileBytes: (request) => {
+        const content = fileTree.get(request.payload.path)
+        if (content === undefined) {
+          return err(request, { code: 'file-unreadable', message: `${request.payload.path}: not in the fixture tree`, details: { path: request.payload.path } })
+        }
+        const bytes = new TextEncoder().encode(content)
+        let binary = ''
+        for (const byte of bytes) binary += String.fromCharCode(byte)
+        return ok(request, {
+          path: request.payload.path,
+          contentBase64: btoa(binary),
+          mimeType: 'application/octet-stream',
+        })
+      },
       writeFile: (request) => {
         const parent = request.payload.path.slice(0, request.payload.path.lastIndexOf('/')) || '/'
         if (childrenOf(parent) === undefined) {
@@ -2604,6 +2618,61 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         fileTree.set(request.payload.path, request.payload.content)
         return ok(request, { path: request.payload.path })
+      },
+      renameEntry: (request) => {
+        const { path, name } = request.payload
+        const parent = path.slice(0, path.lastIndexOf('/')) || '/'
+        const dest = `${parent === '/' ? '' : parent}/${name}`
+        const file = fileTree.get(path)
+        if (file !== undefined) {
+          if (fileTree.has(dest) && dest !== path) {
+            return err(request, { code: 'file-exists', message: `${dest} already exists`, details: { path: dest } })
+          }
+          fileTree.delete(path)
+          fileTree.set(dest, file)
+          return ok(request, { path: dest })
+        }
+        const children = childrenOf(path)
+        if (children === undefined) {
+          return err(request, { code: 'file-unreadable', message: `${path}: not in the fixture tree`, details: { path } })
+        }
+        if (childrenOf(dest) !== undefined && dest !== path) {
+          return err(request, { code: 'file-exists', message: `${dest} already exists`, details: { path: dest } })
+        }
+        directoryTree.set(dest, [...children])
+        directoryTree.delete(path)
+        const parentKids = directoryTree.get(parent)
+        if (parentKids !== undefined) {
+          directoryTree.set(parent, parentKids.map(child => child === path.slice(path.lastIndexOf('/') + 1) ? name : child))
+        }
+        for (const [filePath, content] of [...fileTree]) {
+          if (filePath === path || filePath.startsWith(`${path}/`)) {
+            fileTree.delete(filePath)
+            fileTree.set(dest + filePath.slice(path.length), content)
+          }
+        }
+        return ok(request, { path: dest })
+      },
+      deleteEntry: (request) => {
+        const { path } = request.payload
+        if (fileTree.has(path)) {
+          fileTree.delete(path)
+          return ok(request, { path })
+        }
+        if (childrenOf(path) === undefined) {
+          return err(request, { code: 'file-unreadable', message: `${path}: not in the fixture tree`, details: { path } })
+        }
+        directoryTree.delete(path)
+        const parent = path.slice(0, path.lastIndexOf('/')) || '/'
+        const name = path.slice(path.lastIndexOf('/') + 1)
+        const parentKids = directoryTree.get(parent)
+        if (parentKids !== undefined) {
+          directoryTree.set(parent, parentKids.filter(child => child !== name))
+        }
+        for (const filePath of [...fileTree.keys()]) {
+          if (filePath === path || filePath.startsWith(`${path}/`)) fileTree.delete(filePath)
+        }
+        return ok(request, { path })
       },
       search: (request) => {
         const { path, query, regex, caseSensitive, wholeWord, limit } = request.payload
@@ -3221,7 +3290,10 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
       case 'host.listEntries': return this.api.host.listEntries(request, new AbortController().signal)
       case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
+      case 'host.readFileBytes': return this.api.host.readFileBytes(request, new AbortController().signal)
       case 'host.writeFile': return this.api.host.writeFile(request)
+      case 'host.renameEntry': return this.api.host.renameEntry(request)
+      case 'host.deleteEntry': return this.api.host.deleteEntry(request)
       case 'host.search': return this.api.host.search(request, new AbortController().signal)
       case 'host.gitStatus': return this.api.host.gitStatus(request, new AbortController().signal)
       case 'host.gitDiff': return this.api.host.gitDiff(request, new AbortController().signal)

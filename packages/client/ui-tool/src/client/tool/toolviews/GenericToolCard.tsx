@@ -14,6 +14,7 @@ import { diffCardModel } from '../models/diff-card-model.ts'
 import { searchCardModel } from '../models/search-card-model.ts'
 import { terminalCardModel, terminalFailed } from '../models/terminal-card-model.ts'
 import { webCardModel } from '../models/web-card-model.ts'
+import { friendlyToolErrorSummary } from '../models/tool-error.ts'
 import { toolRowModel, type ToolRowVariant } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 
@@ -33,7 +34,7 @@ export interface GenericToolCardProps extends ToolCallOwnerProps {
   t: ToolTreeProps['t']
 }
 
-export function GenericToolCard({ toolName, block, cwd, openFile, inspect, t }: GenericToolCardProps) {
+export function GenericToolCard({ toolName, block, cwd, openFile, inspect, developerMode, setDeveloperMode, t }: GenericToolCardProps) {
   const model = toolRowModel(toolName, block, cwd)
   const terminal = terminalCardModel(block, cwd)
   const read = readCardModel(block, cwd)
@@ -45,6 +46,8 @@ export function GenericToolCard({ toolName, block, cwd, openFile, inspect, t }: 
   const state = model.state === 'ok' && terminal !== null && terminalFailed(terminal)
     ? 'error'
     : model.state
+  // The collapsed failure summary is a sanitized message, never the raw text.
+  const errorSummary = model.errorKind !== null ? friendlyToolErrorSummary(model.errorKind, t) : null
   const singleFile = model.filePath !== undefined
   return (
     <ToolRow
@@ -62,7 +65,7 @@ export function GenericToolCard({ toolName, block, cwd, openFile, inspect, t }: 
       // single-file AND carries a card, so the card expands under the path link.
       body={singleFile ? null : model.body}
       output={model.output}
-      errorSummary={model.errorSummary}
+      errorSummary={errorSummary}
       terminal={terminal}
       diff={diff}
       read={read}
@@ -72,6 +75,8 @@ export function GenericToolCard({ toolName, block, cwd, openFile, inspect, t }: 
       filePath={model.filePath}
       onOpenFile={singleFile ? openFile : undefined}
       inspect={inspect}
+      developerMode={developerMode}
+      onToggleDeveloperMode={setDeveloperMode}
     />
   )
 }

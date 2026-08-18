@@ -140,7 +140,20 @@ export class FakeApiClient implements IApiClient {
   onReadFile: (payload: unknown) => Promise<RpcResponse<{ path: string; content: string }>> =
     () => Promise.resolve(ok({ path: '/home/fake/file.txt', content: '' }))
 
+  onReadFileBytes: (payload: unknown) => Promise<RpcResponse<{
+    path: string
+    contentBase64: string
+    mimeType: string
+  }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/a.png', contentBase64: '', mimeType: 'image/png' }))
+
   onWriteFile: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/file.txt' }))
+
+  onRenameEntry: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/renamed.txt' }))
+
+  onDeleteEntry: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
     () => Promise.resolve(ok({ path: '/home/fake/file.txt' }))
 
   onHostSearch: (payload: unknown) => Promise<RpcResponse<{
@@ -215,7 +228,10 @@ export class FakeApiClient implements IApiClient {
     openPath: (payload: unknown) => this.record('host.openPath', payload, this.onOpenPath(payload)),
     listEntries: (payload: unknown) => this.record('host.listEntries', payload, this.onListEntries(payload)),
     readFile: (payload: unknown) => this.record('host.readFile', payload, this.onReadFile(payload)),
+    readFileBytes: (payload: unknown) => this.record('host.readFileBytes', payload, this.onReadFileBytes(payload)),
     writeFile: (payload: unknown) => this.record('host.writeFile', payload, this.onWriteFile(payload)),
+    renameEntry: (payload: unknown) => this.record('host.renameEntry', payload, this.onRenameEntry(payload)),
+    deleteEntry: (payload: unknown) => this.record('host.deleteEntry', payload, this.onDeleteEntry(payload)),
     search: (payload: unknown) => this.record('host.search', payload, this.onHostSearch(payload)),
     gitStatus: (payload: unknown) => this.record('host.gitStatus', payload, this.onGitStatus(payload)),
     gitDiff: (payload: unknown) => this.record('host.gitDiff', payload, Promise.resolve(ok({

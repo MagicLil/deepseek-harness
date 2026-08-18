@@ -18,3 +18,22 @@
 .menuStatus {
   color: var(--dsw-alias-label-secondary);
 }
+
+.menuStatus[role='alert'] {
+  color: var(--dsw-alias-state-error-primary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.menuRetry {
+  border: none;
+  border-radius: 14px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  cursor: pointer;
+}

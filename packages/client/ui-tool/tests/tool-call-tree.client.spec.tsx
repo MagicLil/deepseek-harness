@@ -26,8 +26,11 @@ function props(
   const useSession = ((selector: (value: ConversationSnapshot) => unknown) => selector(snapshot)) as ToolTreeProps['useSession']
   const renderSlot = ((_key: string, _owner: object, options?: { fallback?: React.ReactNode }) =>
     options?.fallback ?? null) as unknown as ToolTreeProps['renderSlot']
+  const useStore = ((selector: (value: { developerMode: boolean }) => unknown) => selector({ developerMode: false })) as ToolTreeProps['useStore']
   return {
     useSession,
+    useStore,
+    actions: { setDeveloperMode: vi.fn() },
     renderSlot,
     node: {
       key: `tool:${block.callId}`,

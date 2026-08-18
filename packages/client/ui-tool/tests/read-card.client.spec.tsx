@@ -130,6 +130,7 @@ describe('readCardModel', () => {
 describe('GenericToolCard read body', () => {
   const ownerProps = (block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
     callId: 'c1', toolName: 'web_fetch', block, openFile: vi.fn(), t,
+    developerMode: false, setDeveloperMode: vi.fn(),
   })
 
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
@@ -155,7 +156,7 @@ describe('GenericToolCard read body', () => {
     const view = render(<GenericToolCard {...({
       callId: 'c1', toolName: 'echo', block: settled({
         call: { name: 'echo', argsRaw: '{"text":"x"}' }, callView: null, resultView: null,
-      }), openFile: vi.fn(), t,
+      }), openFile: vi.fn(), t, developerMode: false, setDeveloperMode: vi.fn(),
     })} />)
     toggleRow(view)
     expect(view.container.querySelector('[data-read]')).toBeNull()

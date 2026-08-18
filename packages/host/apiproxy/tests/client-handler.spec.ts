@@ -80,7 +80,10 @@ function scriptedApi(overrides: {
       openPath: r => ok(r, { opened: true as const }),
       listEntries: r => ok(r, { path: '/t', entries: [], truncated: false }),
       readFile: r => ok(r, { path: '/t/a.txt', content: '' }),
+      readFileBytes: r => ok(r, { path: '/t/a.png', contentBase64: '', mimeType: 'image/png' }),
       writeFile: r => ok(r, { path: '/t/a.txt' }),
+      renameEntry: r => ok(r, { path: '/t/b.txt' }),
+      deleteEntry: r => ok(r, { path: '/t/a.txt' }),
       search: r => ok(r, { root: '/t', hits: [], fileCount: 0, truncated: false }),
       gitStatus: r => ok(r, {
         root: '/t', branch: 'main', ahead: 0, behind: 0, detached: false, changes: [],

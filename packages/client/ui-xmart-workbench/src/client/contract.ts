@@ -11,6 +11,7 @@ import type { ComponentType } from 'react'
 import type { FileListing } from '@deepseek-ai/dsh-client-runtime/client'
 import type { WorkbenchPersistBoundActions, WorkbenchPersistState } from './stores.ts'
 import type { WorkbenchKey } from './locales.ts'
+import type { AccentColor, IconTheme } from './appearance-preferences.ts'
 import type { AppMenuCommand } from './app-menu-dispatch.ts'
 import type {
   ActivityId, TabBodyProps, WorkbenchRegistrySnapshot, WorkbenchView,
@@ -239,6 +240,10 @@ export interface WorkbenchSettingsInjected {
    * @param enabled - false skips the viewer in matchFileViewer.
    */
   setViewerEnabled: (id: string, enabled: boolean) => void
+  accentColor: AccentColor
+  setAccentColor: (color: AccentColor) => void
+  iconTheme: IconTheme
+  setIconTheme: (theme: IconTheme) => void
 }
 
 /** Full composed props for the Workbench settings section. */

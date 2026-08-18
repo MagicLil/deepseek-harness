@@ -306,10 +306,26 @@ export interface ChatFileMentions {
   forClosing(owner: TurnTailOwnerProps): MarkdownFileMentions | undefined
 }
 
+/**
+ * Optional chat-path opener, consumed via `ctx.get('chatFileOpen')`.
+ * Workbench occupies this so conversation chips open an editor tab instead
+ * of the OS app. Absent service — `workspaces.openPath` (system open).
+ */
+export interface ChatFileOpen {
+  /**
+   * Open a resolved workspace path in-column.
+   * @param path - Absolute or host-facing path the chat row already resolved.
+   * @returns true when this opener handled the path.
+   */
+  open(path: string): boolean
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Prose file-mention provider (ui-deliverables); reach via ctx.get — optional. */
     chatFileMentions: ChatFileMentions
+    /** In-column file opener (workbench); reach via ctx.get — optional. */
+    chatFileOpen: ChatFileOpen
   }
 }
 
@@ -681,6 +697,8 @@ export interface ChatViewInjected {
    */
   openFile: (path: string) => void
   loadOlder: () => void
+  /** Retry a failed history window open. */
+  reloadHistory: () => void
   /** Resolve a session-authorized historical image for inline display. */
   loadImage: (attachment: ImageAttachmentRef) => Promise<string>
   /** Hand a call off to the trajectory view: write the one-shot inspect target and switch tabs. */

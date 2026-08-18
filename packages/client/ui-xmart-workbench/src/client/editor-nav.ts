@@ -9,6 +9,8 @@ export interface EditorReveal {
   readonly line: number
   /** Zero-based UTF-16 column. */
   readonly character: number
+  /** Exclusive end column; when set, the editor selects `[character, end)`. */
+  readonly end?: number
 }
 
 const pending = new Map<string, EditorReveal>()

@@ -14,8 +14,9 @@
 // scannable; the details panel is the single-call full-height reading surface.
 // Expand state is component-local view state. File-tool summaries are path
 // links that open through the host (stopPropagation keeps the two gestures
-// independent); an error row's collapsed summary is the failure's first line in
-// the error color.
+// independent); an error row's collapsed summary is the sanitized failure
+// message in the error color, and its raw failure text renders only when
+// developer mode is on (inside a collapsible debug panel).
 
 import { useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
@@ -51,9 +52,9 @@ export interface ToolRowProps {
   summarySuffix?: string | null | undefined
   /** Expanded-body input text; null = no input section. */
   body: string | null
-  /** Flattened result text for the expanded Output section; null/absent = no output section. */
+  /** Flattened result text; on an error row it is debug-only material rendered solely in developer mode. */
   output?: string | null | undefined
-  /** Error first line shown as the collapsed summary on an error row; null/absent = keep `summary`. */
+  /** Sanitized failure message shown as the collapsed summary and Output on errors. */
   errorSummary?: string | null | undefined
   /**
    * Terminal-card material for a call whose render intent is a terminal card
@@ -99,6 +100,10 @@ export interface ToolRowProps {
    * over the expanded body. Absent = no affordance.
    */
   inspect?: (() => void) | undefined
+  /** Whether developer mode reveals the raw failure text on an error row. */
+  developerMode?: boolean | undefined
+  /** Flip developer mode (the toggle rendered on an error row with raw output). */
+  onToggleDeveloperMode?: ((on: boolean) => void) | undefined
 }
 
 /** Leading-slot state substitution: the tool icon yields to the terminal state
@@ -145,6 +150,8 @@ export function ToolRow({
   filePath,
   onOpenFile,
   inspect,
+  developerMode = false,
+  onToggleDeveloperMode,
 }: ToolRowProps) {
   const [expanded, setExpanded] = useState(false)
   const terminalBody = terminal ?? null
@@ -157,7 +164,13 @@ export function ToolRow({
   // card props are mutually exclusive. Any of them, or a text body/output,
   // makes the row expandable.
   const card = terminalBody ?? diffBody ?? readBody ?? searchBody ?? webBody
-  const expandable = body !== null || outputText !== null || card !== null
+  // On an error row the raw result text is debug-only material; the Output
+  // section instead shows the sanitized failure message. The raw text reaches
+  // the DOM solely when developer mode is on (collapsed inside a debug panel).
+  const isErrorRow = state === 'error'
+  const outText = isErrorRow ? (errorSummary ?? null) : outputText
+  const debugOutput = isErrorRow ? outputText : null
+  const expandable = body !== null || outText !== null || card !== null || debugOutput !== null
   const open = expanded && expandable
   // The run-state label AT needs: the StateDot and the running sweep are both
   // aria-hidden / colour-only, so a stopped or running row is otherwise silent.
@@ -267,7 +280,7 @@ export function ToolRow({
                             <CodeBlock code={body} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} className={css.codeBody} />
                           </div>
                         )}
-                        {(cardBody !== null || outputText !== null) && (
+                        {(cardBody !== null || outText !== null) && (
                           <div className={css.ioCard}>
                             {cardBody !== null && (
                               <div className={css.ioSection}>
@@ -275,18 +288,38 @@ export function ToolRow({
                                 <span className={css.ioText}>{cardBody}</span>
                               </div>
                             )}
-                            {cardBody !== null && outputText !== null && (
+                            {cardBody !== null && outText !== null && (
                               <span className={css.ioDivider} aria-hidden />
                             )}
-                            {outputText !== null && (
+                            {outText !== null && (
                               <div className={css.ioSection}>
                                 <span className={css.ioLabel}>OUT</span>
                                 <span className={css.ioText} data-error={state === 'error' || undefined}>
-                                  {outputText}
+                                  {outText}
                                 </span>
                               </div>
                             )}
                           </div>
+                        )}
+                        {isErrorRow && debugOutput !== null && (
+                          <>
+                            {onToggleDeveloperMode !== undefined && (
+                              <label className={css.developerToggle}>
+                                <input
+                                  type="checkbox"
+                                  checked={developerMode}
+                                  onChange={(event) => { onToggleDeveloperMode(event.target.checked) }}
+                                />
+                                {t('tool.error.developerMode')}
+                              </label>
+                            )}
+                            {developerMode && (
+                              <details className={css.debugDetails}>
+                                <summary>{t('tool.error.debugDetails')}</summary>
+                                <pre className={css.debugText}>{debugOutput}</pre>
+                              </details>
+                            )}
+                          </>
                         )}
                       </>
                     )}

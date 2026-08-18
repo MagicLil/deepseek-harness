@@ -140,6 +140,8 @@ describe('conversation slot inject API', () => {
     const chatView = b.chatViewApi(ROOT)
     chatView.injected.loadOlder()
     expect(b.sessionFake.loadOlder).toHaveBeenCalledTimes(1)
+    chatView.injected.reloadHistory()
+    expect(b.sessionFake.open).toHaveBeenCalledTimes(1)
     chatView.injected.forkAt(17)
     await vi.waitFor(() => {
       expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [ROOT] })
@@ -237,6 +239,22 @@ describe('conversation slot inject API', () => {
     await vi.waitFor(() => {
       expect(b.runtime.workspaces.calls).toContainEqual({ method: 'openPath', args: ['/proj/src/a.ts'] })
     })
+    await b.runtime.dispose()
+  })
+
+  it('openFile prefers chatFileOpen and skips the OS opener', async () => {
+    const b = await bench()
+    const opened: string[] = []
+    b.runtime.provide('chatFileOpen', {
+      open: (path: string) => {
+        opened.push(path)
+        return true
+      },
+    })
+    const { injected } = b.chatViewApi(ROOT)
+    injected.openFile('src/a.ts')
+    expect(opened).toEqual(['/proj/src/a.ts'])
+    expect(b.runtime.workspaces.calls.some(c => c.method === 'openPath')).toBe(false)
     await b.runtime.dispose()
   })
 

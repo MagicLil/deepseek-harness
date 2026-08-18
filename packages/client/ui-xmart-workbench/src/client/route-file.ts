@@ -97,3 +97,15 @@ export function isSingleSegment(name: string): boolean {
   const trimmed = name.trim()
   return trimmed.length > 0 && !trimmed.includes('/') && !trimmed.includes('\\')
 }
+
+/**
+ * Rewrite `path` when it is `from` or sits under it.
+ * @param path - candidate absolute path.
+ * @param from - old file or directory.
+ * @param to - new file or directory.
+ */
+export function rewritePath(path: string, from: string, to: string): string {
+  if (path === from) return to
+  if (isUnder(path, from)) return `${to}${path.slice(from.length)}`
+  return path
+}

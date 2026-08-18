@@ -20,6 +20,7 @@ async function bench() {
     path: 'name' in input ? `/projects/${input.name}` : input.path,
     title: 'new', sessionIds: [], createdAt: '0', updatedAt: '0',
   }))
+  const refresh = vi.fn(async () => {})
   const startSession = vi.fn()
   const rename = vi.fn(async () => ({}))
   const insertSessionBefore = vi.fn(async () => ({}))
@@ -34,14 +35,14 @@ async function bench() {
   const fork = vi.fn(async () => 'forked' as never)
   const openConversation = vi.fn()
   ctx.provide('workspaces', {
-    create, startSession, rename, insertSessionBefore,
+    create, startSession, rename, insertSessionBefore, refresh,
   } as never)
   ctx.provide('sessions', { open, clear, search, searchResultLimit: 20, binding, fork } as never)
   ctx.provide('layout', { openConversation } as never)
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   return {
-    ctx, slots: ctx.get('slots') as SlotRegistry, locale, create, startSession, rename,
+    ctx, slots: ctx.get('slots') as SlotRegistry, locale, create, startSession, rename, refresh,
     insertSessionBefore, open, clear, search, renameSession, binding, fork, openConversation,
   }
 }
@@ -123,6 +124,8 @@ describe('ui-workspace apply', () => {
     const picker = (b.slots.entries('conversation.hero.workspace')[0]!.inject as () => WorkspacePickerInjected)()
     await picker.createWorkspace({ path: '/tmp/project' })
     expect(b.create).toHaveBeenCalledWith({ path: '/tmp/project' })
+    picker.refreshWorkspaces()
+    expect(b.refresh).toHaveBeenCalledTimes(1)
   })
 
   it('declares the two directory-flow holes and reports their occupancy per surface', async () => {

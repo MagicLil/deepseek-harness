@@ -38,6 +38,21 @@ describe('TabBar', () => {
     expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
+  it('hides the + button when the menu is empty', () => {
+    render(
+      <TabBar
+        tabs={[{ id: 'a', type: 'editor', title: 'A' }]}
+        activeTabId="a"
+        menu={[]}
+        t={t}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTestId('xmart-workbench-add')).toBeNull()
+  })
+
   it('does not close a tab on a primary-button mousedown', () => {
     const onClose = vi.fn()
     render(

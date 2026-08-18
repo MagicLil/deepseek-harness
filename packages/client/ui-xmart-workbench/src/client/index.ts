@@ -14,12 +14,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
+import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {
   ActivityBarInjected, BottomPanelInjected, MenuBarInjected, PrimarySidebarInjected,
   WorkbenchColumnInjected, WorkbenchSettingsInjected,
 } from './contract.ts'
 import { XMART_ACCENT_TOKENS } from './brand-accent.ts'
 import { syncTitleBarOverlay } from './title-bar-sync.ts'
+import { accentTokens } from './appearance-theme.ts'
 import { projectKeyOf, shouldInheritSameProject } from './same-project.ts'
 import {
   createWorkbenchStore, EMPTY_PERSIST_SOURCE, inheritWorkbenchPersist, NOOP_PERSIST_ACTIONS,
@@ -36,8 +38,11 @@ import { DemoTab, FileStubTab } from './built-in-tabs.tsx'
 import { ExplorerTab } from './ExplorerTab.tsx'
 import { SearchTab } from './SearchTab.tsx'
 import { ReviewDock } from './ReviewDock.tsx'
+import { FileChangeCard } from './FileChangeCard.tsx'
 import { ReviewDiffTab } from './ReviewDiffTab.tsx'
-import type { AgentReviewRemote } from './review-client.ts'
+import { resolveCardReviewTurn } from './file-change-actions.ts'
+import { resolveWorkspacePath } from './file-change-model.ts'
+import { unwrapReview, type AgentReviewRemote, type ReviewSessionRow } from './review-client.ts'
 import { encodeAgentReviewPath } from './agent-review-path.ts'
 import { createWorkbenchSearchStore } from './search-store.ts'
 import { requestReveal } from './editor-nav.ts'
@@ -60,6 +65,10 @@ import { basename, hasNulByte, IMAGE_EXTS, MARKDOWN_EXTS } from './route-file.ts
 import { activeEditorPath } from './active-file.ts'
 import { activeFileTab, dispatchAppMenu, type AppMenuCommand } from './app-menu-dispatch.ts'
 import { en, NS, zh } from './locales.ts'
+import {
+  readAccentColor, readIconTheme, writeAccentColor, writeIconTheme,
+  type AccentColor, type IconTheme,
+} from './appearance-preferences.ts'
 import { canCreateTerminal, countTerminalTabs, shouldCreateOnToggle } from './terminal-actions.ts'
 import { hostTerminalsOf, killTerminal } from './terminal-client.ts'
 import { clearTerminalSeat, getTerminalSeatOwner } from './terminal-seats.ts'
@@ -115,6 +124,21 @@ export function apply(ctx: ClientContext): void {
     () => ctx.theme.overrideTokens('ui-xmart-workbench', XMART_ACCENT_TOKENS),
     'ui-xmart-workbench: brand accent',
   )
+  let userAccent = ctx.theme.overrideTokens('ui-xmart-user-accent', accentTokens(readAccentColor()))
+  const accentColor = readAccentColor()
+  const iconTheme = readIconTheme()
+  if (typeof document !== 'undefined') document.documentElement.dataset.xmartIconTheme = iconTheme
+  const setAccentColor = (color: AccentColor): void => {
+    userAccent()
+    userAccent = ctx.theme.overrideTokens('ui-xmart-user-accent', accentTokens(color))
+    writeAccentColor(color)
+  }
+  const setIconTheme = (theme: IconTheme): void => {
+    if (typeof document !== 'undefined') document.documentElement.dataset.xmartIconTheme = theme
+    writeIconTheme(theme)
+  }
+  ctx.effect(() => () => { userAccent() }, 'ui-xmart-workbench: user accent cleanup')
+
   ctx.effect(() => {
     const push = (snapshot: { active: { colorScheme: 'light' | 'dark' } }): void => {
       syncTitleBarOverlay(snapshot.active.colorScheme)
@@ -197,6 +221,13 @@ export function apply(ctx: ClientContext): void {
     const disposeService = ctx.reflect.provide('xmartWorkbench', workbench)
     return () => { void disposeService() }
   }, 'ui-xmart-workbench: service')
+  ctx.effect(() => ctx.provide('chatFileOpen', {
+    open(path: string) {
+      const sessionId = ctx.sessions.list.getSnapshot().current
+      if (sessionId === undefined) return false
+      return workbench.openFile(path, { sessionId }) !== undefined
+    },
+  }), 'ui-xmart-workbench: chat-file-open')
 
   const t = ctx.locale.bind(NS)
   const host = hostTerminalsOf(ctx.get('connection'))
@@ -282,12 +313,22 @@ export function apply(ctx: ClientContext): void {
       gitStatus: (path, signal) => ctx.workspaces.gitStatus(path, signal),
       writeFile: (path, content) => ctx.workspaces.writeFile(path, content),
       createDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),
+      renameEntry: (path, name) => ctx.workspaces.renameEntry(path, name),
+      deleteEntry: path => ctx.workspaces.deleteEntry(path),
       openSystem: path => ctx.workspaces.openPath(path),
       openFile: (path) => {
         workbench.bindSession(props.sessionId)
         workbench.openFile(path, { sessionId: props.sessionId })
       },
       mentionFile: (path) => { mentionFile(props.sessionId, path) },
+      onRenamed: (from, to) => {
+        scopedFiles.moveUnder(from, to)
+        workbench.retargetPaths(from, to, { sessionId: props.sessionId })
+      },
+      onDeleted: (path) => {
+        scopedFiles.forgetUnder(path)
+        workbench.retargetPaths(path, undefined, { sessionId: props.sessionId })
+      },
       files: scopedFiles,
       getActivePath,
       watchWorkbench,
@@ -325,6 +366,7 @@ export function apply(ctx: ClientContext): void {
         workbench.openFile(path, { sessionId })
       },
       store: scopedSearch,
+      files: scopedFiles,
     })
     return workbench.registerActivity({
       id: 'search',
@@ -491,6 +533,7 @@ export function apply(ctx: ClientContext): void {
     id: 'demo',
     title: () => t('tab.demo'),
     order: 90,
+    hidden: true,
     single: true,
     component: props => createElement(DemoTab, { ...props, t }),
   }), 'ui-xmart-workbench: demo tab')
@@ -542,7 +585,11 @@ export function apply(ctx: ClientContext): void {
     hidden: true,
     dedupeKey: tab => tab.path,
     component: props => createElement(ImageTab, {
-      ...props, t, openSystem: path => ctx.workspaces.openPath(path),
+      ...props,
+      t,
+      openSystem: path => ctx.workspaces.openPath(path),
+      readFileBytes: (path, signal) => ctx.workspaces.readFileBytes(path, signal),
+      files: scopedFiles,
     }),
   }), 'ui-xmart-workbench: image tab')
   ctx.effect(() => workbench.registerTab({
@@ -794,6 +841,10 @@ export function apply(ctx: ClientContext): void {
   const settingsInjected = (): WorkbenchSettingsInjected => ({
     setTabEnabled: (id, enabled) => { workbench.setTabEnabled(id, enabled) },
     setViewerEnabled: (id, enabled) => { workbench.setViewerEnabled(id, enabled) },
+    accentColor,
+    setAccentColor,
+    iconTheme,
+    setIconTheme,
     hooks: { workbenchRegistry: workbench.observeRegistry() },
   })
 
@@ -856,4 +907,70 @@ export function apply(ctx: ClientContext): void {
       }),
     }, ReviewDock)
   }, 'ui-xmart-workbench: review-dock')
+
+  ctx.slots.inject('tool.call.toolview', function* () {
+    const openInWorkbench = (
+      sessionId: SessionId,
+      path: string,
+      reveal?: { line: number; character?: number },
+    ) => {
+      ctx.layout.openWorkbench()
+      workbench.bindSession(sessionId)
+      if (reveal !== undefined) {
+        requestReveal(path, { line: reveal.line, character: reveal.character ?? 0 })
+      }
+      workbench.openFile(path, { sessionId })
+    }
+    const readCardFile = async (sessionId: SessionId, path: string) => {
+      try {
+        return await ctx.workspaces.readFile(resolveWorkspacePath(getCwd(sessionId), path))
+      }
+      catch {
+        return undefined
+      }
+    }
+    const openCardReview = (sessionId: SessionId, path: string, review: AgentReviewRemote) => {
+      void resolveCardReviewTurn(
+        () => unwrapReview<ReviewSessionRow>(review.get({ sessionId })),
+        path,
+      ).then((turn) => {
+        if (turn === undefined) {
+          openInWorkbench(sessionId, path)
+          return
+        }
+        ctx.layout.openWorkbench()
+        workbench.openTab({
+          type: 'agent-review-diff',
+          path: encodeAgentReviewPath(turn, path),
+          title: basename(path),
+        }, { sessionId })
+      })
+    }
+    const injectCard = (sessionId: SessionId) => {
+      const review = ctx.get('remote.agentReview') as AgentReviewRemote | undefined
+      return {
+        openInWorkbench: (path: string, reveal?: { line: number; character?: number }) => {
+          openInWorkbench(sessionId, path, reveal)
+        },
+        readFile: (path: string) => readCardFile(sessionId, path),
+        ...(review === undefined ? {} : {
+          openReviewDiff: (path: string) => { openCardReview(sessionId, path, review) },
+        }),
+      }
+    }
+    yield ctx.slots.register({
+      name: 'tool.call.toolview',
+      key: 'edit',
+      locale: NS,
+      priority: -1,
+      inject: injectCard,
+    }, FileChangeCard)
+    yield ctx.slots.register({
+      name: 'tool.call.toolview',
+      key: 'write',
+      locale: NS,
+      priority: -1,
+      inject: injectCard,
+    }, FileChangeCard)
+  })
 }

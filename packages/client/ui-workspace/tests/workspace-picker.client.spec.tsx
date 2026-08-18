@@ -84,6 +84,7 @@ function mount(
 ) {
   const onPick = vi.fn()
   const onClose = vi.fn()
+  const refreshWorkspaces = vi.fn()
   const anchorRef = anchor()
   const { probe, renderSlot } = flowProbe()
   const renderPicker = (nextItems: readonly WorkspaceView[]) => (
@@ -95,6 +96,7 @@ function mount(
       onPick={onPick}
       onClose={onClose}
       createWorkspace={createWorkspace}
+      refreshWorkspaces={refreshWorkspaces}
       useDirectoryFlow={occupancy.useDirectoryFlow}
       renderSlot={renderSlot}
       t={t}
@@ -104,7 +106,7 @@ function mount(
     renderPicker(items),
   )
   return {
-    view, onPick, onClose, createWorkspace, probe, occupancy,
+    view, onPick, onClose, createWorkspace, refreshWorkspaces, probe, occupancy,
     rerenderItems: (nextItems: readonly WorkspaceView[]) => { view.rerender(renderPicker(nextItems)) },
   }
 }
@@ -211,7 +213,7 @@ describe('WorkspacePicker', () => {
     render(
       <WorkspacePicker
         open useSessions={hook(sessions)} useWorkspaces={hook(workspaceState([workspace('alpha', 'Alpha')]))}
-        onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
+        onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()} refreshWorkspaces={vi.fn()}
         useDirectoryFlow={occupancySource().useDirectoryFlow} renderSlot={renderSlot} t={t}
       />,
     )
@@ -226,7 +228,7 @@ describe('WorkspacePicker', () => {
     render(
       <WorkspacePicker
         open anchorRef={anchor()} useSessions={hook(sessions)} useWorkspaces={hook(state)}
-        onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
+        onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()} refreshWorkspaces={vi.fn()}
         useDirectoryFlow={occupancySource().useDirectoryFlow} renderSlot={renderSlot} t={t}
       />,
     )
@@ -291,6 +293,30 @@ describe('WorkspacePicker', () => {
     // Cancel stays the way out, and the menu actions are usable again.
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: 'Alpha' }).disabled).toBe(false)
+  })
+
+  it('shows a list-load error instead of a spinner and retries the baseline', () => {
+    const refreshWorkspaces = vi.fn()
+    const state: WorkspaceListState = {
+      ...workspaceState([]),
+      phase: 'pending',
+      state: 'error',
+      error: { code: 'internal', message: 'host gone' } as WorkspaceListState['error'],
+      baselinesReady: false,
+    }
+    const { renderSlot } = flowProbe()
+    render(
+      <WorkspacePicker
+        open anchorRef={anchor()} useSessions={hook(sessions)} useWorkspaces={hook(state)}
+        onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()} refreshWorkspaces={refreshWorkspaces}
+        useDirectoryFlow={occupancySource().useDirectoryFlow} renderSlot={renderSlot} t={t}
+      />,
+    )
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByTestId('directory-flow')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain('host gone')
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(refreshWorkspaces).toHaveBeenCalledTimes(1)
   })
 
   it('withdraws an open flow when its occupant unloads, re-enabling the menu actions', () => {

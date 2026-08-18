@@ -104,6 +104,18 @@ export const hostReadFileValueSchema = z.object({
   content: z.string(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.readFile'>>>
 
+/** host.readFileBytes request payload. */
+export const hostReadFileBytesRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.readFileBytes'>>>
+
+/** host.readFileBytes response value: raw bytes as base64 plus a MIME guess. */
+export const hostReadFileBytesValueSchema = z.object({
+  path: z.string(),
+  contentBase64: z.string(),
+  mimeType: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.readFileBytes'>>>
+
 /** host.writeFile request payload: whole-content replacement. */
 export const hostWriteFileRequestSchema = z.object({
   path: z.string().min(1),
@@ -114,6 +126,31 @@ export const hostWriteFileRequestSchema = z.object({
 export const hostWriteFileValueSchema = z.object({
   path: z.string(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.writeFile'>>>
+
+/** host.renameEntry request payload: name must be one plain path segment. */
+export const hostRenameEntryRequestSchema = z.object({
+  path: z.string().min(1),
+  name: z.string(),
+}).refine(
+  payload => payload.name.trim() !== '' && payload.name !== '.' && payload.name !== '..'
+    && !/[/\\]/.test(payload.name),
+  { message: 'host.renameEntry requires a single non-blank path segment name' },
+) satisfies z.ZodType<Wire<RequestPayload<'host.renameEntry'>>>
+
+/** host.renameEntry response value: the new absolute path. */
+export const hostRenameEntryValueSchema = z.object({
+  path: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.renameEntry'>>>
+
+/** host.deleteEntry request payload. */
+export const hostDeleteEntryRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.deleteEntry'>>>
+
+/** host.deleteEntry response value: the removed absolute path. */
+export const hostDeleteEntryValueSchema = z.object({
+  path: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.deleteEntry'>>>
 
 const positiveGlob = z.string().min(1).max(500).refine(
   value => !value.startsWith('!'),
