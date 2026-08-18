@@ -1,7 +1,11 @@
 /** Register the Tool call tree, details renderer, and built-in atomic views. */
+import { createElement } from 'react'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
+import type { ToolTreeProps } from './contract/slots.ts'
 import { ToolCallTree } from './tool/ToolCallTree.tsx'
+import { ToolTimelinePresentations, type IToolTimelinePresentations } from './tool/timeline-presentations.ts'
 import { ToolDetails } from './tool/ToolDetails.tsx'
 import { createToolErrorViewStore } from './tool/tool-error-view-store.ts'
 import { CONVERSATION_NS as NS } from './locale.ts'
@@ -14,7 +18,13 @@ import { todoToolview } from './tool/toolviews/todo-row.tsx'
 import { webToolview } from './tool/toolviews/web-row.tsx'
 
 /** Required service: the slot registry that owns both Tool render seats. */
-export const inject = ['slots']
+export const inject = ['slots', 'agentPresetExperience']
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    toolTimelinePresentations: IToolTimelinePresentations
+  }
+}
 
 /**
  * Mount the whole-Tool renderers and built-in atomic Tool registrations.
@@ -22,6 +32,18 @@ export const inject = ['slots']
  */
 export function apply(ctx: ClientContext): void {
   const errorViewStore = createToolErrorViewStore()
+  const presentations = new ToolTimelinePresentations()
+  ctx.effect(() => ctx.reflect.provide('toolTimelinePresentations', presentations), 'ui-tool: profile timeline presentations')
+  const ProfiledToolCallTree = (props: ToolTreeProps) => {
+    const experienceProfile = ctx.agentPresetExperience.profile(props.sessionId)
+    const Frame = presentations.resolve(experienceProfile)?.Frame
+    const tree = createElement(ToolCallTree, props)
+    return createElement(
+      'div',
+      { 'data-agent-experience': experienceProfile },
+      Frame === undefined ? tree : createElement(Frame, undefined, tree),
+    )
+  }
 
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
@@ -31,7 +53,7 @@ export function apply(ctx: ClientContext): void {
     children: {
       'tool.call.toolview': { kind: 'keyed', scope: 'session' },
     },
-  }, ToolCallTree))
+  }, ProfiledToolCallTree))
 
   ctx.slots.inject('conversation.details.tool', () => ctx.slots.register({
     name: 'conversation.details.tool',

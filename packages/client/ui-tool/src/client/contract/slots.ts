@@ -1,4 +1,5 @@
 /** Tool UI slot declarations and their composed component props. */
+import type { ComponentType, ReactNode } from 'react'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -53,6 +54,17 @@ export type ToolTreeProps = PropsRuntime<'conversation.chat.node', 'tool-call'>
   & PropsRenderSlots<'tool.call.toolview'>
   & PropsStore<ToolErrorViewStore>
   & PropsLocale<'conversation'>
+
+/** A profile-owned wrapper around the standard logged Tool call tree. */
+export type ToolTimelineFrame = ComponentType<{ children: ReactNode }>
+
+/** One independently packaged presentation for a declared experience id. */
+export interface ToolTimelinePresentation {
+  /** Profile id published by Agent Preset metadata. */
+  readonly experienceProfile: string
+  /** Frame around the standard tree; it must preserve its children verbatim. */
+  readonly Frame: ToolTimelineFrame
+}
 
 /** Full props of the selected Tool output renderer in the details panel. */
 export type ToolDetailsProps = PropsRuntime<'conversation.details.tool'>

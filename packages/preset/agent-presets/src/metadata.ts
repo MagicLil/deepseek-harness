@@ -1,5 +1,5 @@
 /**
- * A preset's display metadata: the name and description a picker shows.
+ * A preset's optional display and experience metadata.
  *
  * It lives in its own file because the composition is a top-level list of
  * plugin rows — YAML cannot carry sibling keys beside it, and faking a
@@ -36,6 +36,8 @@ export interface PresetMetadata {
    * can read in capability order while authored ones stay alphabetical.
    */
   readonly order?: number
+  /** Optional runtime experience id selected for sessions on this preset. */
+  readonly experienceProfile?: string
 }
 
 /** A non-empty trimmed string, or undefined for anything else. */
@@ -77,10 +79,12 @@ export async function readPresetMetadata(directory: string): Promise<PresetMetad
   const order = typeof record.order === 'number' && Number.isFinite(record.order)
     ? record.order
     : undefined
+  const experienceProfile = text(record.experienceProfile)
   return {
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...experienceProfile === undefined ? {} : { experienceProfile },
   }
 }
 
@@ -96,10 +100,12 @@ export function renderPresetMetadata(metadata: PresetMetadata): string | undefin
   const name = text(metadata.name)
   const description = text(metadata.description)
   const { order } = metadata
-  if (name === undefined && description === undefined && order === undefined) return undefined
+  const experienceProfile = text(metadata.experienceProfile)
+  if (name === undefined && description === undefined && order === undefined && experienceProfile === undefined) return undefined
   return yaml.dump({
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...experienceProfile === undefined ? {} : { experienceProfile },
   }, { lineWidth: -1 })
 }

@@ -286,6 +286,10 @@
     - id: ui-agent-preset
       name: '@deepseek-ai/dsh-client-ui-agent-preset'
 
+    # Profile implementation: it is inert until a preset declares `codex`.
+    - id: ui-codex-experience
+      name: '@deepseek-ai/dsh-client-ui-codex-experience'
+
     # Plugin configuration: the host-plane sections a user owns, as expandable
     # cards. A namespace this deployment does not expose renders nothing.
     - id: ui-settings-plugins

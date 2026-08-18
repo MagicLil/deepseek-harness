@@ -633,8 +633,8 @@ describe('respond payload schemas', () => {
 
 describe('agent-preset schemas', () => {
   it('accepts a roster row and rejects an unknown trust', () => {
-    expect(agentPresetEntrySchema.parse({ id: 'standard', trust: 'system', isDefault: true }))
-      .toEqual({ id: 'standard', trust: 'system', isDefault: true })
+    expect(agentPresetEntrySchema.parse({ id: 'standard', trust: 'system', isDefault: true, experienceProfile: 'codex' }))
+      .toEqual({ id: 'standard', trust: 'system', isDefault: true, experienceProfile: 'codex' })
     expect(() => agentPresetEntrySchema.parse({ id: 'x', trust: 'root', isDefault: false })).toThrow()
     expect(() => agentPresetEntrySchema.parse({ id: '', trust: 'user', isDefault: false })).toThrow()
   })

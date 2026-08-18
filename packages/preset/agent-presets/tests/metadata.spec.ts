@@ -73,6 +73,10 @@ describe('reading display metadata', () => {
     expect(await readPresetMetadata(dir)).toEqual({ name: '标准模式', order: 1 })
   })
 
+  it('reads an optional experience profile', async () => {
+    expect(await readPresetMetadata(await presetDir('experienceProfile: codex\n'))).toEqual({ experienceProfile: 'codex' })
+  })
+
   it('ignores an order that is not a finite number', async () => {
     expect(await readPresetMetadata(await presetDir('order: first\n'))).toEqual({})
     expect(await readPresetMetadata(await presetDir('order: .inf\n'))).toEqual({})
@@ -97,6 +101,10 @@ describe('rendering display metadata', () => {
 
   it('stores a declared order', () => {
     expect(renderPresetMetadata({ name: '标准模式', order: 1 })).toBe('name: 标准模式\norder: 1\n')
+  })
+
+  it('stores an experience profile', () => {
+    expect(renderPresetMetadata({ experienceProfile: 'codex' })).toBe('experienceProfile: codex\n')
   })
 
   it('omits an absent field rather than writing it blank', () => {

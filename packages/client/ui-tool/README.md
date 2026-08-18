@@ -36,7 +36,7 @@ Card-specific limits and fallback rules remain in the owning [terminal](../../..
 
 ## Model Experience
 
-None, as this package renders already logged Tool calls and results without altering model requests, Tool execution, or session events.
+This package renders already logged Tool calls and results without altering model requests, Tool execution, or session events. A preset may select an optional `experienceProfile`; the package resolves a separately registered timeline frame for that id and otherwise keeps its native renderer. Profile packages cannot replace atomic call dispatch or session topology.
 
 #### KV Cache effect
 

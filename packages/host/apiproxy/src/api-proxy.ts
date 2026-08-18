@@ -3453,6 +3453,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             isDefault: preset.id === defaultId,
             ...preset.name === undefined ? {} : { name: preset.name },
             ...preset.description === undefined ? {} : { description: preset.description },
+            ...preset.experienceProfile === undefined ? {} : { experienceProfile: preset.experienceProfile },
             ...preset.broken === undefined ? {} : { broken: preset.broken },
           })),
           authorable: presets.authorable,

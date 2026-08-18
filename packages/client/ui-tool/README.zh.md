@@ -36,7 +36,7 @@ owner 载荷为 `ToolCallOwnerProps`：`callId`、`toolName`、冻结的 `block`
 
 ## 模型体验
 
-无，因为本包只渲染已经记录的工具调用和结果，不改变模型请求、工具执行或会话事件。
+本包只渲染已经记录的工具调用和结果，不改变模型请求、工具执行或会话事件。preset 可选择可选的 `experienceProfile`；本包为该 id 解析独立注册的时间线外框，否则保留原生渲染器。profile 包不能替换原子调用分发或会话拓扑。
 
 #### KV Cache 影响
 

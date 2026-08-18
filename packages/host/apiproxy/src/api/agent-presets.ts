@@ -33,6 +33,8 @@ export interface AgentPresetEntry {
   readonly name?: string
   /** One sentence on what the preset is for, when it published one. */
   readonly description?: string
+  /** Optional experience id that the client resolves for this preset's sessions. */
+  readonly experienceProfile?: string
   /**
    * Why this preset cannot compose a session, absent when it can. A broken
    * preset stays listed — its directory still occupies the id, so a surface

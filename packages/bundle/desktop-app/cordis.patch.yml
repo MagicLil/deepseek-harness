@@ -234,6 +234,10 @@
     - id: ui-agent-preset
       name: '@deepseek-ai/dsh-client-ui-agent-preset'
 
+    # Profile implementation: it is inert until a preset declares `codex`.
+    - id: ui-codex-experience
+      name: '@deepseek-ai/dsh-client-ui-codex-experience'
+
     - id: ui-settings-plugins
       name: '@deepseek-ai/dsh-client-ui-settings-plugins'
 

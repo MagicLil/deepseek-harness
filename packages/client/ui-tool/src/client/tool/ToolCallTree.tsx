@@ -36,6 +36,7 @@ const ToolCall = memo(function ToolCall({
   return (
     <div
       className={css.callRow}
+      data-tool-call-row
       data-chat-anchor-key={`call:${callId}`}
       data-chat-call-id={callId}
       data-selected={selected || undefined}

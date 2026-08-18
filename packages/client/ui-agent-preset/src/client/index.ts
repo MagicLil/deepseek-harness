@@ -32,6 +32,7 @@ import type { SeatSessionSummary } from './seat-store.ts'
 import { AgentPresetSectionController } from './section-store.ts'
 import { en, zh } from './locales.ts'
 import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController, messageOf } from './settings-store.ts'
+import { AgentPresetExperience, type IAgentPresetExperience } from './experience-service.ts'
 
 export type { AgentPresetLabelInjected, AgentPresetLabelProps } from './AgentPresetLabel.tsx'
 export type { AgentPresetRowInjected, AgentPresetRowProps } from './AgentPresetRow.tsx'
@@ -43,6 +44,14 @@ export {
 } from './section-store.ts'
 export type { AgentPresetOption, AgentPresetSettingsState } from './settings-store.ts'
 export { AGENT_PRESET_SETTINGS_NS, applyPresetToListedSessions, writeDefaultPreset } from './settings-store.ts'
+export { resolveExperienceProfile, type ExperiencePreset } from './experience-profile.ts'
+export type { IAgentPresetExperience } from './experience-service.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    agentPresetExperience: IAgentPresetExperience
+  }
+}
 
 /** Required services (cordis fiber inject). */
 export const inject = ['slots', 'locale', 'connection', 'remote']
@@ -54,6 +63,10 @@ export const inject = ['slots', 'locale', 'connection', 'remote']
 export function apply(ctx: ClientContext): void {
   const { api } = ctx.get('connection') as ConnectionHandle
   const controller = new AgentPresetSettingsController(api)
+  ctx.inject(['sessions'], (scope: ClientContext) => {
+    const experience = new AgentPresetExperience(scope.sessions, controller)
+    scope.effect(() => scope.reflect.provide('agentPresetExperience', experience), 'ui-agent-preset: experience resolver')
+  })
   // One roster, four surfaces. The chip is registered in a later scope, so it
   // subscribes here rather than being reached from this one.
   const rosterReaders = new Set<() => void>()
