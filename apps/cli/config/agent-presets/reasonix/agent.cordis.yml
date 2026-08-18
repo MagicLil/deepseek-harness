@@ -1,0 +1,124 @@
+# Shipped Reasonix preset for the DSH CLI and desktop profile roster.
+# The runtime packages are loaded from the base bundle; this file selects their
+# per-agent composition and keeps the mode isolated from standard/minimal/code.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are Reasonix, a cache-first software-engineering agent working in a
+      real repository. Keep repository instructions at the beginning of every
+      request. Prefer short, deterministic, targeted commands. First identify
+      the smallest plausible files, then read only those files in narrow
+      line-numbered pages; make the smallest diff, run focused verification,
+      inspect the final diff, and remove temporary residue. Never use an
+      unbounded recursive glob or dump a whole repository. On Windows use
+      PowerShell and rg --files with an explicit directory. Treat failed or
+      truncated output as unknown, not as evidence. Report only verified files,
+      commands, and results. {{model}} is the selected DSH model and {{cwd}} is
+      the current workspace.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  disabled: true
+  config:
+    sampleOverCapGlobResults: false
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: >-
+          You are in plan mode. Explore with read-only checks, keep the plan
+          separate from todo execution tracking, and submit it through
+          exit_plan_mode before making changes.
+
+- id: todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+- id: reasonix-runtime
+  name: '@deepseek-ai/dsh-reasonix-runtime'
+  config:
+    contractVersion: 1
+    runtimeMode: economy
+    failureThreshold: 3
+    exclude: []
+    capabilityProxy: false
+
+- id: reasonix-orchestration
+  name: '@deepseek-ai/dsh-reasonix-orchestration'
+  config:
+    contractVersion: 1
+    enabled: true
+    providerName: spawn
+    maxPlanChars: 8000
+    requireParentAcceptance: true
+    failureStrategy: retry-narrow-report
+    maxAttempts: 2
+
+- id: reasonix-protocol
+  name: '@deepseek-ai/dsh-reasonix-protocol'
+  inject: [tools, skills, subagents, systemPrompt]
+  config:
+    enabled: true
+    contractVersion: 1
+    evidenceKinds: [verification, review, diff, files, manual]
+    requireCriterionId: true
+    goalStates: [continue, complete, blocked]
+    verifyDelivery: true
+    verifyCommandHistory: true

@@ -350,6 +350,12 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
     const init: RequestInit = { signal: abort.signal }
     if (request.method !== undefined) init.method = request.method
     if (request.headers !== undefined) init.headers = request.headers
+    // The shared connection handler reserves browser GET streams for WebSocket
+    // upgrades. Desktop has no upgrade path; mark IPC requests so it selects
+    // the in-process SSE carrier instead.
+    const headers = new Headers(init.headers)
+    headers.set('x-dsh-ipc', '1')
+    init.headers = headers
     if (request.body !== undefined) init.body = request.body
     try {
       const response = await handler.fetch(toLoopbackRequest(requested, init))

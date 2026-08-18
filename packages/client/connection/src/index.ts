@@ -150,7 +150,8 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       // Desktop IPC has no upgrade path — fall through to SSE from toFetchHandler.
       if (request.method === 'GET'
         && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)
-        && ctx.get('webServer') !== undefined) {
+        && ctx.get('webServer') !== undefined
+        && request.headers.get('x-dsh-ipc') !== '1') {
         return new Response('upgrade required', {
           status: 426,
           headers: { connection: 'Upgrade', upgrade: 'websocket' },
