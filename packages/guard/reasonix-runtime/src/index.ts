@@ -81,7 +81,7 @@ const capabilityProxy = defineTool({
     if (args.capability === CAPABILITY_PROXY_NAME) {
       throw new Error('use_capability cannot call itself')
     }
-    const visible = exec.agent?.ctx.tools.schemas().some(schema => schema.name === args.capability) ?? false
+    const visible = exec.agent?.ctx.tools.schemas(exec.agent).some(schema => schema.name === args.capability) ?? false
     if (!visible) throw new Error(`unknown or unavailable capability "${args.capability}"`)
     const result = await exec.agent?.ctx.tools.execute({
       callId: CallId(`${exec.callId}:capability:${args.capability}`),
@@ -173,29 +173,20 @@ export function apply(ctx: Context, config: Config): void {
   const runtimeMode = config.runtimeMode ?? 'balanced'
   if (config.capabilityProxy === true) ctx.tools.register(capabilityProxy)
   let restricted = false
-  const installRestriction = (): void => {
+  const installRestriction = (agent: Agent): void => {
     if (restricted) return
-    const visibleTools = ctx.tools.schemas().map(schema => schema.name)
+    const visibleTools = ctx.tools.schemas(agent).map(schema => schema.name)
     const allow = allowedTools(visibleTools, runtimeMode)
     if (config.capabilityProxy === true && !allow.includes(CAPABILITY_PROXY_NAME)) allow.push(CAPABILITY_PROXY_NAME)
-    if (allow.length === 0) {
-      throw new Error(`reasonix-runtime: ${runtimeMode} mode resolved no visible tools; load tool providers before reasonix-runtime`)
-    }
-    ctx.tools.restrict({ allow })
+    // Scoped preset tools are inherited into the agent view but cannot be
+    // named by the global registry's allow-list. Restrict only global tools;
+    // scoped tools remain governed by the preset that registered them.
+    const globalTools = new Set(ctx.tools.schemas().map(schema => schema.name))
+    const globalAllow = allow.filter(name => globalTools.has(name))
+    if (globalAllow.length > 0) ctx.tools.restrict({ allow: globalAllow })
+    else if (globalTools.size > 0) ctx.tools.restrict({ deny: [...globalTools].filter(name => !allow.includes(name)) })
     restricted = true
   }
-  // Preset loader entries can be applied in parallel. Defer the restriction
-  // until the first agent step when sibling tool providers have registered.
-  // The guard still runs before the model request, while avoiding a false
-  // empty-tool failure during composition.
-  const initialVisible = ctx.tools.schemas().map(schema => schema.name)
-  const initialAllow = allowedTools(initialVisible, runtimeMode)
-  if (config.capabilityProxy === true && !initialAllow.includes(CAPABILITY_PROXY_NAME)) initialAllow.push(CAPABILITY_PROXY_NAME)
-  if (initialAllow.length > 0) installRestriction()
-  else ctx.on('agent/pre-step', async (_payload, next) => {
-    installRestriction()
-    return next()
-  })
   const threshold = validateThreshold(config.failureThreshold ?? 3)
   const excluded = (config.exclude ?? []).map(wildcard)
   const chains = new WeakMap<Agent, FailureChain>()
@@ -210,7 +201,7 @@ export function apply(ctx: Context, config: Config): void {
     if (typeof capability !== 'string' || capability === CAPABILITY_PROXY_NAME) {
       return { kind: 'deny', reason: 'use_capability requires a non-recursive capability name' }
     }
-    const visible = exec.agent?.ctx.tools.schemas().some(schema => schema.name === capability) ?? false
+    const visible = exec.agent?.ctx.tools.schemas(exec.agent).some(schema => schema.name === capability) ?? false
     if (!visible) return { kind: 'deny', reason: `capability "${capability}" is not registered in the current Agent scope` }
     return next()
   })
@@ -243,6 +234,7 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   ctx.on('agent/pre-step', ({ agent, messages }, next): Promise<PreStepDecision> => {
+    installRestriction(agent)
     if (messages.some(message => message.source.kind === 'user')) {
       chains.delete(agent)
       novelty.delete(agent)
