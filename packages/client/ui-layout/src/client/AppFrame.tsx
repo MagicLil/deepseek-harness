@@ -12,7 +12,8 @@ import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   chromeMenuBarVisible, chromeTitleBarVisible, computeBottom, computeColumns,
-  conversationToggleLabel, MENU_BAR_HEIGHT, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, TITLE_BAR_HEIGHT,
+  conversationToggleLabel, MENU_BAR_HEIGHT, MOBILE_CONVERSATION_BREAKPOINT,
+  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, TITLE_BAR_HEIGHT,
 } from './columns.ts'
 import { applyFrameGeometry, frameGridRows, solveFramePaint, type FramePaintPrefs } from './frame-geometry.ts'
 import type { createLayoutStore } from './stores.ts'
@@ -252,22 +253,32 @@ export function AppFrame({
   // re-expand override, stores.ts). Collapsed is decided here, so the
   // solver stays breakpoint-free.
   const narrow = viewport.width < SIDEBAR_AUTO_COLLAPSE
+  const mobile = viewport.width < MOBILE_CONVERSATION_BREAKPOINT
   useEffect(() => {
     actions.setNarrow(narrow)
     actions.setFrameWidth(viewport.width)
   }, [actions, narrow, viewport.width])
-  const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
+  const sidebarCollapsed = mobile || (narrow ? !panels.narrowExpanded : panels.sidebar === 0)
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const workbenchPanels = currentSession !== undefined
-  const cols = computeColumns(
-    viewport.width,
-    sidebarPreference,
-    detailsSession !== undefined ? panels.details : 0,
-    workbenchPanels ? panels.workbench : 0,
-    panels.conversation,
-  )
+  const workbenchPanels = !mobile && currentSession !== undefined
+  const cols = mobile
+    ? {
+      activity: 0,
+      primary: 0,
+      editor: 0,
+      conversation: viewport.width,
+      details: 0,
+      sidebar: 0,
+    }
+    : computeColumns(
+      viewport.width,
+      sidebarPreference,
+      detailsSession !== undefined ? panels.details : 0,
+      workbenchPanels ? panels.workbench : 0,
+      panels.conversation,
+    )
   const chromeMenu = chromeMenuBarVisible()
   const titleOverlay = chromeTitleBarVisible()
   const menuBarPx = chromeMenu ? MENU_BAR_HEIGHT : 0
@@ -421,6 +432,7 @@ export function AppFrame({
       }}
       data-chrome-menu={chromeMenu || undefined}
       data-title-overlay={titleOverlay || undefined}
+      data-mobile={mobile || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-primary-collapsed={cols.primary === 0 || undefined}
