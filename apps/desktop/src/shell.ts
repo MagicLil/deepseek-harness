@@ -374,8 +374,8 @@ export async function openDesktopShell(options: DesktopShellOptions): Promise<De
   const win = new BrowserWindow({
     width: restored?.width ?? DEFAULT_WINDOW_WIDTH,
     height: restored?.height ?? DEFAULT_WINDOW_HEIGHT,
-    x: restored?.x,
-    y: restored?.y,
+    ...(restored?.x !== undefined ? { x: restored.x } : {}),
+    ...(restored?.y !== undefined ? { y: restored.y } : {}),
     show: false,
     webPreferences: {
       preload: options.preloadPath,

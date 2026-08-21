@@ -273,6 +273,24 @@ window.__ModuleLoader__={
 }
 
 /**
+ * Render the composed entry graph into an HTML document as a synchronous
+ * `window.__DSH_BOOT__` script. Desktop Electron shells (which serve a built
+ * index.html over `dsh://` rather than a webserver index tap) inject through
+ * this pure function directly.
+ * @param html - the built index.html to augment.
+ * @param graph - the composed entry graph.
+ * @returns the html with the graph script injected.
+ */
+export function injectBootManifest(html: string, graph: WebBootGraph): string {
+  const json = JSON.stringify(graph).replaceAll('<', '\\u003c')
+  const script = `<script>window.__DSH_BOOT__ = ${json}</script>`
+  const head = html.indexOf('<head>')
+  if (head !== -1) return `${html.slice(0, head + 6)}${script}${html.slice(head + 6)}`
+  // Headless fixture pages may lack <head>; prepending keeps the read-before-shell ordering.
+  return `${script}${html}`
+}
+
+/**
  * The web plugin table service: incremental `dsh.client` scan + wire composition
  * + bundle route + index injection rows. Construction runs the activation scan
  * synchronously — a malformed declaration or missing bundle among the
