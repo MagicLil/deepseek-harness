@@ -9,6 +9,12 @@ const NATIVE_HEIGHT = 24
 const MARK_NATIVE_WIDTH = 40
 const NAME_NATIVE_SIZE = 14
 
+/** Display options for the official brand wordmark. */
+export interface BrandWordmarkProps extends IconProps {
+  /** Whether to include the leading whale mark; defaults to true. */
+  includeMark?: boolean | undefined
+}
+
 /**
  * Render the brand wordmark.
  * @param props.size - height in px (default 24; the X keeps the 40:24 ratio).

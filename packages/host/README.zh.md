@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-dsh Web GUI 的宿主侧：所有客户端形态共享的 API 网关，以及承载它的普通 HTTP 服务器。浏览器侧位于 [`client/`](../client/README.md)；组合应用是 [`apps/cli`](../../apps/cli/README.md)，它启动 [`dsh-base` 组合包](../bundle/base/cordis.patch.yml) 来提供 [`apps/web`](../../apps/web/)。这些全是**产品**包。
+dsh Web GUI 的宿主侧：所有客户端形态共享的 API 网关，以及承载它的普通 HTTP 服务器。浏览器侧位于 [`client/`](../client/README.zh.md)；组合应用是 [`apps/cli`](../../apps/cli/README.zh.md)，它启动 [`dsh-base` 组合包](../bundle/base/cordis.patch.yml) 来提供 [`apps/web`](../../apps/web/)。这些全是**产品**包。
 
 | 包 | 职责 | ctx key |
 |---|---|---|
@@ -17,6 +17,6 @@ dsh Web GUI 的宿主侧：所有客户端形态共享的 API 网关，以及承
 | [`marketplace/`](marketplace/README.md) | DSH 插件安装与 Open VSX vsix 下载 | Remote `marketplace/*` |
 | [`skill-manager/`](skill-manager/README.md) | 个人／项目 skill 文件与外来导入 | Remote `skillManager/*` |
 
-`apiproxy` 保持传输无关；[`client/connection`](../client/connection/README.md) 提供浏览器／HTTP 载体。选择器实现可在共享 seam 后互相替换。
+`apiproxy` 保持传输无关；[`client/connection`](../client/connection/README.zh.md) 提供浏览器／HTTP 载体。选择器实现可在共享 seam 后互相替换。
 
-子系统参考：[web-server.md](../../docs/subsystems/web-server.md) 与 [workspace.md](../../docs/subsystems/workspace.md)（选择器 seam）。
+子系统参考：[web-server.md](../../docs/subsystems/web-server.zh.md) 与 [workspace.md](../../docs/subsystems/workspace.zh.md)（选择器 seam）。

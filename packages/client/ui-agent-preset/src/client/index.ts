@@ -54,7 +54,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Required services (cordis fiber inject). */
-export const inject = ['slots', 'locale', 'connection', 'remote']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /**
  * Mount the General-settings row.

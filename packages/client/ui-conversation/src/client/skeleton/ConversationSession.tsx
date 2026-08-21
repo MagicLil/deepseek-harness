@@ -18,6 +18,7 @@ export type ConversationSessionHeaderProps = ConversationSessionHeaderSlotProps
 interface Breadcrumb {
   readonly id: SessionId
   readonly displayTitle: string
+  readonly subagent: boolean
 }
 
 const DEFAULT_VIEW_ID = 'chat'
@@ -38,7 +39,11 @@ function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcr
     seen.add(cursor)
     const summary: SessionSummary | undefined = list.byId[cursor]
     if (summary === undefined) break
-    chain.unshift({ id: summary.id, displayTitle: summary.displayTitle })
+    chain.unshift({
+      id: summary.id,
+      displayTitle: summary.displayTitle,
+      subagent: summary.origin === 'subagent',
+    })
     if (summary.origin !== 'subagent') break
     cursor = summary.parentId
   }

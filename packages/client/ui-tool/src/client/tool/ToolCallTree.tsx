@@ -29,6 +29,7 @@ const ToolCall = memo(function ToolCall({
     block,
     openFile,
     cwd,
+    home,
     inspect: () => { inspectCall(callId) },
     developerMode,
     setDeveloperMode,
@@ -66,6 +67,7 @@ const ToolCallBranch = memo(function ToolCallBranch({
       openFile={openFile}
       selected={block.callId === selectedCallId}
       cwd={cwd}
+      home={home}
       inspectCall={inspectCall}
       t={t}
       developerMode={developerMode}
@@ -80,6 +82,7 @@ const ToolCallBranch = memo(function ToolCallBranch({
               block={child}
               selectedCallId={selectedCallId}
               cwd={cwd}
+              home={home}
               openFile={openFile}
               inspectCall={inspectCall}
               t={t}
@@ -102,6 +105,7 @@ const ToolCallBranch = memo(function ToolCallBranch({
 export function ToolCallTree({
   renderSlot, node, selectedCallId, cwd, openFile, inspectCall, t, useStore, actions,
 }: ToolTreeProps) {
+  const home = useHostDescription(description => description?.home)
   const block = node.data.root
   const developerMode = useStore(s => s.developerMode)
   return (
@@ -110,6 +114,7 @@ export function ToolCallTree({
       block={block}
       selectedCallId={selectedCallId}
       cwd={cwd}
+      home={home}
       openFile={openFile}
       inspectCall={inspectCall}
       t={t}

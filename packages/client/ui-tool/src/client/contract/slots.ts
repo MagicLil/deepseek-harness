@@ -36,6 +36,8 @@ export interface ToolCallOwnerProps {
   block: ToolCallBlock
   /** Session workspace root for relative summaries. */
   cwd?: string | undefined
+  /** Host account home; POSIX home-rooted summaries display as `~`. */
+  home?: string | undefined
   /** Open a Tool argument path through the Host. */
   openFile: (path: string) => void
   /** Inspect this call in the trajectory view when available. */
@@ -49,11 +51,20 @@ export interface ToolCallOwnerProps {
 /** Full props of a registered atomic Tool view. */
 export type ToolCallViewProps = PropsRuntime<'tool.call.toolview'>
 
+/** Injected Host description for POSIX home-path display. */
+export type ToolHostDescriptionInjected = {
+  hooks: {
+    /** Current generation's Host description, bound by the slot renderer. */
+    hostDescription: HostDescriptionSource
+  }
+}
+
 /** Full props of the Tool call-tree renderer registered as a `tool-call` Chat Node. */
 export type ToolTreeProps = PropsRuntime<'conversation.chat.node', 'tool-call'>
   & PropsRenderSlots<'tool.call.toolview'>
   & PropsStore<ToolErrorViewStore>
   & PropsLocale<'conversation'>
+  & InjectFace<ToolHostDescriptionInjected>
 
 /** A profile-owned wrapper around the standard logged Tool call tree. */
 export type ToolTimelineFrame = ComponentType<{ children: ReactNode }>

@@ -31,7 +31,7 @@ export function ToolDetails({ block, cwd, useStore, actions, t }: ToolDetailsPro
       </>
     )
   }
-  const read = readCardModel(block, cwd)
+  const read = readCardModel(block, cwd, home)
   if (read !== null) return <ReadBlock {...read} className={css.read} />
   const diff = diffCardModel(block)
   if (diff !== null) return <DiffBlock {...diff.card} className={css.cardBody} />

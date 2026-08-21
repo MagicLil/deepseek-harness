@@ -7,23 +7,23 @@ The browser side of the dsh web GUI: shell boot, browser-host communication, sha
 | Package | Purpose |
 |---|---|
 | [`web/`](web/README.md) | Boots the browser shell from the client entry graph. |
+| [`ui-renderer/`](ui-renderer/README.md) | Binds slot data to React and mounts the assembled application after client boot settles. |
 | [`modules/`](modules/README.md) | Loads browser-side client modules. |
-| [`web-react/`](web-react/README.md) | Connects the shell runtime to React rendering. |
 | [`connection/`](connection/README.md) | Maintains browser-host RPC communication and event delivery. |
 | [`runtime/`](runtime/README.md) | Provides shared client services for sessions, workspaces, and UI composition. |
 | [`hmr/`](hmr/README.md) | Refreshes client plugins during development. |
 | [`locale/`](locale/README.md) | Provides localization preferences and message dictionaries. |
-| [`schema-form/`](schema-form/README.md) | Provides schema-backed draft handling for settings editors. |
 | [`test-runtime/`](../test-support/client-runtime/README.md) | Provides shared repository test support for client feature packages. |
 | [`ui-slots/`](ui-slots/README.md) | Defines how UI features register and compose extension slots. |
 | [`ui-theme/`](ui-theme/README.md) | Applies the selected color theme. |
 | [`ui-primitives/`](ui-primitives/README.md) | Provides shared React controls, icons, and content renderers. |
-| [`ui-attachment/`](ui-attachment/README.md) | Provides attachment display atoms: draft-image rail, message gallery, and lightbox. |
+| [`ui-attachment/`](ui-attachment/README.md) | Registers composer and message-image attachment presentation. |
 | [`ui-layout/`](ui-layout/README.md) | Arranges the main application regions. |
 | [`ui-xmart-workbench/`](ui-xmart-workbench/README.md) | Provides the Cursor-style activity bar, left sidebar (Explorer/Git/Tasks), center editor, bottom terminal seat, and Workbench settings page. |
 | [`ui-xmart-marketplace/`](ui-xmart-marketplace/README.md) | Provides the activity-bar Plugins and Extensions sidebars. |
 | [`ui-xmart-skills/`](ui-xmart-skills/README.md) | Provides the Settings page for personal, project, and imported skills. |
 | [`ui-sidebar/`](ui-sidebar/README.md) | Presents workspace and session navigation. |
+| [`ui-brand-official/`](ui-brand-official/README.md) | Fills the generic browser-brand slots with the official name and marks. |
 | [`ui-workspace/`](ui-workspace/README.md) | Provides workspace selection and creation surfaces. |
 | [`ui-conversation/`](ui-conversation/README.md) | Presents the active conversation and its input surface. |
 | [`ui-tool/`](ui-tool/README.md) | Composes Tool call trees and keyed per-Tool views. |
@@ -33,6 +33,7 @@ The browser side of the dsh web GUI: shell boot, browser-host communication, sha
 | [`ui-commands/`](ui-commands/README.md) | Provides session-aware command discovery and dispatch. |
 | [`ui-input-trigger/`](ui-input-trigger/README.md) | Coordinates inline command and reference suggestions. |
 | [`ui-skill/`](ui-skill/README.md) | Adds skill references to inline suggestions. |
+| [`ui-reference/`](ui-reference/README.md) | Unified Web `@file` / `@session` reference source. |
 | [`ui-subagent/`](ui-subagent/README.md) | Provides subagent navigation, child transcript states, and inline references. |
 | [`ui-jobs/`](ui-jobs/README.md) | Lists this session's background jobs in the conversation header. |
 | [`ui-model-selection/`](ui-model-selection/README.md) | Provides model selection in conversation surfaces. |

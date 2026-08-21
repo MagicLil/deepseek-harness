@@ -17,7 +17,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         class="iconButton toggle"
         type="button"
       >
-        <svg
+        <span
           aria-hidden="true"
           class="railFish"
           data-content="f9b324d5"

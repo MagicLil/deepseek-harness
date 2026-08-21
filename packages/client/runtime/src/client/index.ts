@@ -68,7 +68,7 @@ export type {
   GitBranch, GitChange, GitCommitResult,
   GitDiff, GitDiffSide, GitFileStatus, GitLogEntry, GitRef, GitRefKind, GitStatus, GitSyncMode, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-connection/client'
-// Runtime owns the snapshot store; web-react only binds it to React.
+// Runtime owns the snapshot store; ui-renderer only binds it to React.
 export { createSnapshotStore, defineStore, shallowEqual } from './contract/store.ts'
 export type {
   EngineStoreHandle, EngineStoreInstance, ObservableSnapshot, SnapshotStore,
@@ -87,7 +87,7 @@ export {
 } from './sessions/conversation.ts'
 export { emptyAssistantBlock } from './sessions/partial.ts'
 export { isTokenDelta } from './sessions/assistant-timing.ts'
-export { contextForm, contextProvenance } from './sessions/context-provenance.ts'
+export { contextForm, contextProvenance, sessionRecallLabels } from './sessions/context-provenance.ts'
 export { displayFailureMessage } from './sessions/failure-display.ts'
 export type {
   ConversationContext, ConversationContextOriginKind,

@@ -250,7 +250,7 @@ describe('macOS process inspector', () => {
     ])
   })
 
-  it('returns undefined for missing or invalid foreground groups and rejects unsupported platforms', () => {
+  it('returns undefined for missing or invalid foreground groups and dispatches platform inspectors', () => {
     const fake = fakeInternals()
     fake.setTpgid('-1')
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
