@@ -12,14 +12,16 @@ const INTERNAL_BASE = 'http://dsh.internal'
 const CHANNEL_PATTERN = /^\/[A-Za-z0-9._~-]+$/
 const ENDPOINT_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/
 
+/** Transport this caller posts through; same signature as the global `fetch`. */
+export type RpcFetch = (input: URL, init: RequestInit) => Promise<Response>
+
 /**
  * Create the browser-backed generic RPC caller.
- * @param fetchImpl - fetch implementation (defaults to `globalThis.fetch`; desktop passes IPC).
+ * @param doFetch - transport override; defaults to the page's global fetch.
  * @returns caller that owns request correlation and response-envelope validation.
  */
-export function createWebConnectionRpc(
-  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
-): ClientConnectionRpc {
+export function createWebConnectionRpc(doFetch?: RpcFetch): ClientConnectionRpc {
+  const send: RpcFetch = doFetch ?? ((input, init) => globalThis.fetch(input, init))
   return {
     async call(channel, endpoint, payload, signal) {
       assertTarget(channel, endpoint)
@@ -30,7 +32,7 @@ export function createWebConnectionRpc(
         method: endpoint,
         payload,
       }
-      const response = await fetchImpl(
+      const response = await send(
         new URL(`${channel}/${endpoint}`, resolveBase()),
         {
           method: 'POST',
